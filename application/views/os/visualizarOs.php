@@ -203,6 +203,18 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         </td>
                                     </tr>
                                 <?php } ?>
+
+                                <?php if (!empty($equipamento)) { ?>
+                                    <tr>
+                                        <td colspan="5">
+                                            <strong>EQUIPAMENTO</strong><br>
+                                            Tipo: <?php echo !empty($equipamento->equipamento) ? html_escape($equipamento->equipamento) : 'Não informado'; ?><br />
+                                            Marca: <?php echo !empty($equipamento->marca_nome) ? html_escape($equipamento->marca_nome) : 'Não informado'; ?><br />
+                                            Modelo: <?php echo !empty($equipamento->modelo) ? html_escape($equipamento->modelo) : 'Não informado'; ?><br />
+                                            Número de série: <?php echo !empty($equipamento->num_serie) ? html_escape($equipamento->num_serie) : 'Não informado'; ?>
+                                        </td>
+                                    </tr>
+                                <?php } ?>
                             </tbody>
                         </table>
 

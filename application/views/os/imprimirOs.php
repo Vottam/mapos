@@ -139,6 +139,18 @@ $totalProdutos = 0;
                     </div>
                 <?php endif; ?>
 
+                <?php if (!empty($equipamento)) : ?>
+                    <div class="subtitle">EQUIPAMENTO</div>
+                    <div class="dados">
+                        <div>
+                            <span>Tipo: <b><?= !empty($equipamento->equipamento) ? html_escape($equipamento->equipamento) : 'Não informado' ?></b></span><br />
+                            <span>Marca: <b><?= !empty($equipamento->marca_nome) ? html_escape($equipamento->marca_nome) : 'Não informado' ?></b></span><br />
+                            <span>Modelo: <b><?= !empty($equipamento->modelo) ? html_escape($equipamento->modelo) : 'Não informado' ?></b></span><br />
+                            <span>Número de série: <b><?= !empty($equipamento->num_serie) ? html_escape($equipamento->num_serie) : 'Não informado' ?></b></span><br />
+                        </div>
+                    </div>
+                <?php endif; ?>
+
                 <?php if ($produtos) : ?>
                     <div class="tabela">
                         <table class="table table-bordered">

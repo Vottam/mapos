@@ -72,6 +72,25 @@
                                             <input id="garantias_id" class="span12" type="hidden" name="garantias_id" value="" />
                                         </div>
                                     </div>
+                                    <div class="span12" style="padding: 1%; margin-left: 0">
+                                        <h4>Equipamento</h4>
+                                        <div class="span3" style="margin-left: 0">
+                                            <label for="equipamento_tipo">Tipo de equipamento</label>
+                                            <input id="equipamento_tipo" class="span12" type="text" name="equipamento_tipo" value="<?= html_escape(set_value('equipamento_tipo')) ?>" placeholder="Notebook, Desktop, Monitor, Impressora" />
+                                        </div>
+                                        <div class="span3">
+                                            <label for="equipamento_marca">Marca</label>
+                                            <input id="equipamento_marca" class="span12" type="text" name="equipamento_marca" value="<?= html_escape(set_value('equipamento_marca')) ?>" placeholder="Acer, Dell, Lenovo, HP" />
+                                        </div>
+                                        <div class="span3">
+                                            <label for="equipamento_modelo">Modelo</label>
+                                            <input id="equipamento_modelo" class="span12" type="text" name="equipamento_modelo" value="<?= html_escape(set_value('equipamento_modelo')) ?>" placeholder="Aspire 5 A315-33" />
+                                        </div>
+                                        <div class="span3">
+                                            <label for="equipamento_num_serie">Número de série</label>
+                                            <input id="equipamento_num_serie" class="span12" type="text" name="equipamento_num_serie" value="<?= html_escape(set_value('equipamento_num_serie')) ?>" placeholder="TEST-SERIAL-001" />
+                                        </div>
+                                    </div>
                                     <div class="span6" style="padding: 1%; margin-left: 0">
                                         <label for="descricaoProduto">
                                             <h4>Descrição Produto/Serviço</h4>

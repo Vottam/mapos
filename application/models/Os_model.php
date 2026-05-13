@@ -99,6 +99,119 @@ class Os_model extends CI_Model
         return $this->db->get()->row();
     }
 
+    public function getEquipamentoOs($osId)
+    {
+        $this->db->select('equipamentos.*, marcas.marca as marca_nome, equipamentos_os.idEquipamentos_os');
+        $this->db->from('equipamentos_os');
+        $this->db->join('equipamentos', 'equipamentos.idEquipamentos = equipamentos_os.equipamentos_id');
+        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
+        $this->db->where('equipamentos_os.os_id', $osId);
+        $this->db->order_by('equipamentos_os.idEquipamentos_os', 'asc');
+        $this->db->limit(1);
+
+        return $this->db->get()->row();
+    }
+
+    public function salvarEquipamentoOs($osId, $clienteId, array $dados)
+    {
+        $tipo = trim((string) ($dados['equipamento'] ?? ''));
+        $marca = trim((string) ($dados['marca'] ?? ''));
+        $modelo = trim((string) ($dados['modelo'] ?? ''));
+        $serie = trim((string) ($dados['num_serie'] ?? ''));
+
+        if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '') {
+            return null;
+        }
+
+        $tipo = $tipo !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $tipo), 'UTF-8')) : 'Não informado';
+        $marca = $marca !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $marca), 'UTF-8')) : null;
+        $modelo = $modelo !== '' ? preg_replace('/\s+/', ' ', $modelo) : null;
+        $serie = $serie !== '' ? strtoupper(preg_replace('/\s+/', ' ', $serie)) : null;
+
+        $clienteId = (int) $clienteId;
+
+        $this->db->trans_start();
+
+        $marcaId = null;
+        if ($marca !== null) {
+            $marcaExistente = $this->db->get_where('marcas', ['marca' => $marca], 1)->row();
+            if ($marcaExistente) {
+                $marcaId = $marcaExistente->idMarcas;
+            } else {
+                $this->db->insert('marcas', [
+                    'marca' => $marca,
+                    'cadastro' => date('Y-m-d'),
+                    'situacao' => 1,
+                ]);
+                $marcaId = $this->db->insert_id();
+            }
+        }
+
+        $this->db->from('equipamentos');
+        $this->db->where('clientes_id', $clienteId);
+        if ($serie !== null) {
+            $this->db->where('num_serie', $serie);
+        }
+        if ($tipo !== null) {
+            $this->db->where('equipamento', $tipo);
+        }
+        if ($modelo !== null) {
+            $this->db->where('modelo', $modelo);
+        }
+        if ($marcaId !== null) {
+            $this->db->where('marcas_id', $marcaId);
+        }
+
+        $equipamentoExistente = $this->db->get()->row();
+
+        $equipamentoData = [
+            'equipamento' => $tipo,
+            'num_serie' => $serie,
+            'modelo' => $modelo,
+            'marcas_id' => $marcaId,
+            'clientes_id' => $clienteId,
+        ];
+
+        if ($equipamentoExistente) {
+            $equipamentoData = [
+                'equipamento' => $tipo !== 'Não informado' ? $tipo : $equipamentoExistente->equipamento,
+                'num_serie' => $serie !== null ? $serie : $equipamentoExistente->num_serie,
+                'modelo' => $modelo !== null ? $modelo : $equipamentoExistente->modelo,
+                'marcas_id' => $marcaId !== null ? $marcaId : $equipamentoExistente->marcas_id,
+                'clientes_id' => $clienteId,
+            ];
+
+            $this->db->where('idEquipamentos', $equipamentoExistente->idEquipamentos);
+            $this->db->update('equipamentos', $equipamentoData);
+            $equipamentoId = $equipamentoExistente->idEquipamentos;
+        } else {
+            $this->db->insert('equipamentos', $equipamentoData);
+            $equipamentoId = $this->db->insert_id();
+        }
+
+        $this->db->where('os_id', $osId);
+        $this->db->delete('equipamentos_os');
+
+        $this->db->insert('equipamentos_os', [
+            'equipamentos_id' => $equipamentoId,
+            'os_id' => $osId,
+        ]);
+
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === false) {
+            return false;
+        }
+
+        return $equipamentoId;
+    }
+
+    public function removerEquipamentoOs($osId)
+    {
+        $this->db->where('os_id', (int) $osId);
+        return $this->db->delete('equipamentos_os');
+    }
+
     public function getByIdCobrancas($id)
     {
         $this->db->select('os.*, clientes.*, clientes.celular as celular_cliente, garantias.refGarantia, garantias.textoGarantia, usuarios.telefone as telefone_usuario, usuarios.email as email_usuario, usuarios.nome,cobrancas.os_id,cobrancas.idCobranca,cobrancas.status');

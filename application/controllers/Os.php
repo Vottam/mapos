@@ -14,6 +14,27 @@ class Os extends MY_Controller
         $this->data['menuOs'] = 'OS';
     }
 
+    private function equipamentoFromPost()
+    {
+        return [
+            'equipamento' => trim((string) $this->input->post('equipamento_tipo')),
+            'marca' => trim((string) $this->input->post('equipamento_marca')),
+            'modelo' => trim((string) $this->input->post('equipamento_modelo')),
+            'num_serie' => trim((string) $this->input->post('equipamento_num_serie')),
+        ];
+    }
+
+    private function hasEquipamentoData(array $dados)
+    {
+        foreach ($dados as $valor) {
+            if (trim((string) $valor) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function index()
     {
         $this->gerenciar();
@@ -85,6 +106,7 @@ class Os extends MY_Controller
 
         $this->load->library('form_validation');
         $this->data['custom_error'] = '';
+        $this->data['equipamento'] = null;
 
         if ($this->form_validation->run('os') == false) {
             $this->data['custom_error'] = (validation_errors() ? true : false);
@@ -92,6 +114,7 @@ class Os extends MY_Controller
             $dataInicial = $this->input->post('dataInicial');
             $dataFinal = $this->input->post('dataFinal');
             $termoGarantiaId = $this->input->post('termoGarantia');
+            $equipamentoData = $this->equipamentoFromPost();
 
             try {
                 $dataInicial = explode('/', $dataInicial);
@@ -128,6 +151,10 @@ class Os extends MY_Controller
             ];
 
             if (is_numeric($id = $this->os_model->add('os', $data, true))) {
+                if ($this->hasEquipamentoData($equipamentoData)) {
+                    $this->os_model->salvarEquipamentoOs($id, $this->input->post('clientes_id'), $equipamentoData);
+                }
+
                 $this->load->model('mapos_model');
                 $this->load->model('usuarios_model');
 
@@ -190,6 +217,7 @@ class Os extends MY_Controller
         $this->load->library('form_validation');
         $this->data['custom_error'] = '';
         $this->data['texto_de_notificacao'] = $this->data['configuration']['notifica_whats'];
+        $this->data['equipamento'] = $this->os_model->getEquipamentoOs($this->uri->segment(3));
 
         $this->data['editavel'] = $this->os_model->isEditable($this->input->post('idOs'));
         if (! $this->data['editavel']) {
@@ -204,6 +232,7 @@ class Os extends MY_Controller
             $dataInicial = $this->input->post('dataInicial');
             $dataFinal = $this->input->post('dataFinal');
             $termoGarantiaId = $this->input->post('garantias_id') ?: null;
+            $equipamentoData = $this->equipamentoFromPost();
 
             try {
                 $dataInicial = explode('/', $dataInicial);
@@ -241,6 +270,12 @@ class Os extends MY_Controller
             }
 
             if ($this->os_model->edit('os', $data, 'idOs', $this->input->post('idOs')) == true) {
+                if ($this->hasEquipamentoData($equipamentoData)) {
+                    $this->os_model->salvarEquipamentoOs($this->input->post('idOs'), $this->input->post('clientes_id'), $equipamentoData);
+                } elseif ($this->data['equipamento']) {
+                    $this->os_model->removerEquipamentoOs($this->input->post('idOs'));
+                }
+
                 $this->load->model('mapos_model');
                 $this->load->model('usuarios_model');
 
@@ -317,6 +352,7 @@ class Os extends MY_Controller
 
         $this->data['custom_error'] = '';
         $this->data['texto_de_notificacao'] = $this->data['configuration']['notifica_whats'];
+        $this->data['equipamento'] = $this->os_model->getEquipamentoOs($this->uri->segment(3));
 
         $this->load->model('mapos_model');
         $this->data['result'] = $this->os_model->getById($this->uri->segment(3));
@@ -427,6 +463,7 @@ class Os extends MY_Controller
 
         $this->data['custom_error'] = '';
         $this->load->model('mapos_model');
+        $this->data['equipamento'] = $this->os_model->getEquipamentoOs($this->uri->segment(3));
         $this->data['result'] = $this->os_model->getById($this->uri->segment(3));
         $this->data['produtos'] = $this->os_model->getProdutos($this->uri->segment(3));
         $this->data['servicos'] = $this->os_model->getServicos($this->uri->segment(3));
