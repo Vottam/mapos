@@ -526,6 +526,28 @@ class Os extends MY_Controller
         $this->load->view('os/imprimirOs', $this->data);
     }
 
+    public function imprimirEtiqueta($id = null)
+    {
+        if (!$id) {
+            show_404();
+        }
+
+        // Permissao: usa o mesmo padrao de visualizacao de OS
+        if (!$this->permission->checkPermission($this->session->userdata('permissao'), 'vOs')) {
+            $this->session->set_flashdata('error', 'Sem permissao para visualizar OS.');
+            redirect(base_url());
+        }
+
+        $this->load->model('os_model');
+        $os = $this->os_model->getById($id);
+
+        if (!$os) {
+            show_404();
+        }
+
+        $this->load->view('os/etiqueta', ['os' => $os]);
+    }
+
     public function imprimirTermica()
     {
         if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3))) {
