@@ -24,6 +24,49 @@ class Os extends MY_Controller
         ];
     }
 
+    private function equipamentoSelecionadoFromPost()
+    {
+        $equipamentoId = $this->input->post('equipamento_id');
+
+        return is_numeric($equipamentoId) ? (int) $equipamentoId : null;
+    }
+
+    private function equipamentoDadosBatemSelecionado(array $equipamentoData, $equipamentoSelecionado)
+    {
+        if (! $equipamentoSelecionado) {
+            return false;
+        }
+
+        $postNormalizado = $this->os_model->normalizarEquipamentoDados($equipamentoData);
+        $selecionadoNormalizado = $this->os_model->normalizarEquipamentoDados([
+            'equipamento' => $equipamentoSelecionado->equipamento ?? '',
+            'marca' => $equipamentoSelecionado->marca_nome ?? '',
+            'modelo' => $equipamentoSelecionado->modelo ?? '',
+            'num_serie' => $equipamentoSelecionado->num_serie ?? '',
+        ]);
+
+        return $postNormalizado == $selecionadoNormalizado;
+    }
+
+    private function salvarOuVincularEquipamentoOs($osId, $clienteId, array $equipamentoData, $equipamentoSelecionado = null, $equipamentoAtual = null)
+    {
+        if ($equipamentoSelecionado) {
+            if (! $this->hasEquipamentoData($equipamentoData) || $this->equipamentoDadosBatemSelecionado($equipamentoData, $equipamentoSelecionado)) {
+                return $this->os_model->vincularEquipamentoOsExistente($osId, $equipamentoSelecionado->idEquipamentos);
+            }
+        }
+
+        if ($this->hasEquipamentoData($equipamentoData)) {
+            return $this->os_model->salvarEquipamentoOs($osId, $clienteId, $equipamentoData);
+        }
+
+        if ($equipamentoAtual) {
+            return $this->os_model->removerEquipamentoOs($osId);
+        }
+
+        return true;
+    }
+
     private function hasEquipamentoData(array $dados)
     {
         foreach ($dados as $valor) {
@@ -72,7 +115,7 @@ class Os extends MY_Controller
         }
 
         $this->data['configuration']['base_url'] = site_url('os/gerenciar/');
-        $this->data['configuration']['total_rows'] = $this->os_model->count('os');
+        $this->data['configuration']['total_rows'] = $this->os_model->countOs($where_array);
         if (count($where_array) > 0) {
             $this->data['configuration']['suffix'] = "?pesquisa={$pesquisa}&status={$status}&data={$inputDe}&data2={$inputAte}";
             $this->data['configuration']['first_url'] = base_url("index.php/os/gerenciar")."\?pesquisa={$pesquisa}&status={$status}&data={$inputDe}&data2={$inputAte}";
@@ -115,6 +158,9 @@ class Os extends MY_Controller
             $dataFinal = $this->input->post('dataFinal');
             $termoGarantiaId = $this->input->post('termoGarantia');
             $equipamentoData = $this->equipamentoFromPost();
+            $clienteId = $this->input->post('clientes_id');
+            $equipamentoSelecionadoId = $this->equipamentoSelecionadoFromPost();
+            $equipamentoSelecionado = $equipamentoSelecionadoId ? $this->os_model->getEquipamentoByIdAndCliente($equipamentoSelecionadoId, $clienteId) : null;
 
             try {
                 $dataInicial = explode('/', $dataInicial);
@@ -137,7 +183,7 @@ class Os extends MY_Controller
 
             $data = [
                 'dataInicial' => $dataInicial,
-                'clientes_id' => $this->input->post('clientes_id'), //set_value('idCliente'),
+                'clientes_id' => $clienteId, //set_value('idCliente'),
                 'usuarios_id' => $this->input->post('usuarios_id'), //set_value('idUsuario'),
                 'dataFinal' => $dataFinal,
                 'garantia' => set_value('garantia'),
@@ -151,9 +197,7 @@ class Os extends MY_Controller
             ];
 
             if (is_numeric($id = $this->os_model->add('os', $data, true))) {
-                if ($this->hasEquipamentoData($equipamentoData)) {
-                    $this->os_model->salvarEquipamentoOs($id, $this->input->post('clientes_id'), $equipamentoData);
-                }
+                $this->salvarOuVincularEquipamentoOs($id, $clienteId, $equipamentoData, $equipamentoSelecionado, null);
 
                 $this->load->model('mapos_model');
                 $this->load->model('usuarios_model');
@@ -233,6 +277,9 @@ class Os extends MY_Controller
             $dataFinal = $this->input->post('dataFinal');
             $termoGarantiaId = $this->input->post('garantias_id') ?: null;
             $equipamentoData = $this->equipamentoFromPost();
+            $clienteId = $this->input->post('clientes_id');
+            $equipamentoSelecionadoId = $this->equipamentoSelecionadoFromPost();
+            $equipamentoSelecionado = $equipamentoSelecionadoId ? $this->os_model->getEquipamentoByIdAndCliente($equipamentoSelecionadoId, $clienteId) : null;
 
             try {
                 $dataInicial = explode('/', $dataInicial);
@@ -255,7 +302,7 @@ class Os extends MY_Controller
                 'observacoes' => $this->input->post('observacoes'),
                 'laudoTecnico' => $this->input->post('laudoTecnico'),
                 'usuarios_id' => $this->input->post('usuarios_id'),
-                'clientes_id' => $this->input->post('clientes_id'),
+                'clientes_id' => $clienteId,
             ];
             $os = $this->os_model->getById($this->input->post('idOs'));
 
@@ -270,11 +317,7 @@ class Os extends MY_Controller
             }
 
             if ($this->os_model->edit('os', $data, 'idOs', $this->input->post('idOs')) == true) {
-                if ($this->hasEquipamentoData($equipamentoData)) {
-                    $this->os_model->salvarEquipamentoOs($this->input->post('idOs'), $this->input->post('clientes_id'), $equipamentoData);
-                } elseif ($this->data['equipamento']) {
-                    $this->os_model->removerEquipamentoOs($this->input->post('idOs'));
-                }
+                $this->salvarOuVincularEquipamentoOs($this->input->post('idOs'), $clienteId, $equipamentoData, $equipamentoSelecionado, $this->data['equipamento']);
 
                 $this->load->model('mapos_model');
                 $this->load->model('usuarios_model');
@@ -658,7 +701,7 @@ class Os extends MY_Controller
         $this->os_model->delete('anexos', 'os_id', $id);
         $this->os_model->delete('os', 'idOs', $id);
         if ((int) $os->faturado === 1) {
-            $this->os_model->delete('lancamentos', 'descricao', "Fatura de OS - #${id}");
+            $this->os_model->delete('lancamentos', 'descricao', "Fatura de OS - #{$id}");
         }
 
         log_info('Removeu uma OS. ID: ' . $id);
@@ -704,6 +747,35 @@ class Os extends MY_Controller
             $q = strtolower($_GET['term']);
             $this->os_model->autoCompleteTermoGarantia($q);
         }
+    }
+
+    public function equipamentosCliente($idCliente = null)
+    {
+        $this->output->set_content_type('application/json');
+
+        if ($idCliente === null || ! is_numeric($idCliente)) {
+            return $this->output
+                ->set_status_header(400)
+                ->set_output(json_encode(['result' => false, 'equipamentos' => []]));
+        }
+
+        $equipamentos = $this->os_model->getEquipamentosCliente((int) $idCliente);
+        $payload = [];
+
+        foreach ($equipamentos as $equipamento) {
+            $payload[] = [
+                'idEquipamentos' => (int) $equipamento->idEquipamentos,
+                'equipamento' => $equipamento->equipamento,
+                'marca' => $equipamento->marca,
+                'modelo' => $equipamento->modelo,
+                'num_serie' => $equipamento->num_serie,
+            ];
+        }
+
+        return $this->output->set_output(json_encode([
+            'result' => true,
+            'equipamentos' => $payload,
+        ]));
     }
 
     public function autoCompleteServico()

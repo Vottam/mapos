@@ -138,6 +138,12 @@
                                     </div>
                                     <div class="span12" style="padding: 1%; margin-left: 0">
                                         <h4>Equipamento</h4>
+                                        <div class="span12" style="margin-left: 0">
+                                            <label for="equipamento_id">Equipamento existente</label>
+                                            <select id="equipamento_id" name="equipamento_id" class="span12">
+                                                <option value="">Novo equipamento</option>
+                                            </select>
+                                        </div>
                                         <div class="span3" style="margin-left: 0">
                                             <label for="equipamento_tipo">Tipo de equipamento</label>
                                             <input id="equipamento_tipo" class="span12" type="text" name="equipamento_tipo" value="<?= html_escape(set_value('equipamento_tipo', isset($equipamento->equipamento) ? $equipamento->equipamento : '')) ?>" placeholder="Notebook, Desktop, Monitor, Impressora" />
@@ -864,6 +870,78 @@ if (!$anotacoes) {
             }
         });
 
+        var equipamentoEndpoint = "<?php echo base_url(); ?>index.php/os/equipamentosCliente/";
+        var equipamentoAtualId = <?= isset($equipamento->idEquipamentos) ? (int) $equipamento->idEquipamentos : 0 ?>;
+
+        function limparCamposEquipamento() {
+            $('#equipamento_tipo').val('');
+            $('#equipamento_marca').val('');
+            $('#equipamento_modelo').val('');
+            $('#equipamento_num_serie').val('');
+            $('#equipamento_id').val('');
+        }
+
+        function preencherCamposEquipamento(equipamento) {
+            $('#equipamento_tipo').val(equipamento.equipamento || '');
+            $('#equipamento_marca').val(equipamento.marca || '');
+            $('#equipamento_modelo').val(equipamento.modelo || '');
+            $('#equipamento_num_serie').val(equipamento.num_serie || '');
+        }
+
+        function carregarEquipamentosCliente(clienteId, equipamentoSelecionadoId) {
+            var $select = $('#equipamento_id');
+            limparCamposEquipamento();
+            $select.prop('disabled', true).html('<option value="">Carregando...</option>');
+
+            if (!clienteId) {
+                $select.prop('disabled', false).html('<option value="">Novo equipamento</option>');
+                return;
+            }
+
+            $.getJSON(equipamentoEndpoint + clienteId)
+                .done(function(response) {
+                    var options = '<option value="">Novo equipamento</option>';
+                    if (response && response.equipamentos) {
+                        $.each(response.equipamentos, function(_, equipamento) {
+                            var label = [equipamento.equipamento, equipamento.marca, equipamento.modelo, equipamento.num_serie]
+                                .filter(function(item) { return item && item.length; })
+                                .join(' | ');
+                            options += '<option value="' + equipamento.idEquipamentos + '" data-equipamento="' + (equipamento.equipamento || '') + '" data-marca="' + (equipamento.marca || '') + '" data-modelo="' + (equipamento.modelo || '') + '" data-num_serie="' + (equipamento.num_serie || '') + '">' + label + '</option>';
+                        });
+                    }
+                    $select.html(options).prop('disabled', false);
+                    if (equipamentoSelecionadoId) {
+                        $select.val(String(equipamentoSelecionadoId)).trigger('change');
+                    }
+                })
+                .fail(function() {
+                    $select.html('<option value="">Novo equipamento</option>').prop('disabled', false);
+                });
+        }
+
+        $('#equipamento_id').on('change', function() {
+            var $option = $(this).find('option:selected');
+            var equipamentoId = $(this).val();
+            if (!equipamentoId) {
+                limparCamposEquipamento();
+                return;
+            }
+            preencherCamposEquipamento({
+                equipamento: $option.data('equipamento'),
+                marca: $option.data('marca'),
+                modelo: $option.data('modelo'),
+                num_serie: $option.data('num_serie')
+            });
+        });
+
+        $('#cliente').one('focus', function () {
+            if ($('#clientes_id').val()) {
+                carregarEquipamentosCliente($('#clientes_id').val(), equipamentoAtualId);
+            }
+        });
+
+        carregarEquipamentosCliente($('#clientes_id').val(), equipamentoAtualId);
+
         $("#produto").autocomplete({
             source: "<?php echo base_url(); ?>index.php/os/autoCompleteProduto",
             minLength: 2,
@@ -892,6 +970,7 @@ if (!$anotacoes) {
             minLength: 2,
             select: function (event, ui) {
                 $("#clientes_id").val(ui.item.id);
+                carregarEquipamentosCliente(ui.item.id, equipamentoAtualId);
             }
         });
 

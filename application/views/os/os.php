@@ -25,7 +25,7 @@
             } ?>
 
             <div class="span3">
-                <input type="text" name="pesquisa" id="pesquisa" placeholder="Nome do cliente a pesquisar" class="span12" value="<?=set_value('pesquisa')?>">
+                <input type="text" name="pesquisa" id="pesquisa" placeholder="Cliente, serial, modelo, marca, tipo ou OS" class="span12" value="<?=set_value('pesquisa')?>">
             </div>
             <div class="span2">
                 <select name="status" id="" class="span12">

@@ -9,6 +9,21 @@ class Os_model extends CI_Model
         parent::__construct();
     }
 
+    public function normalizarEquipamentoDados(array $dados)
+    {
+        $tipo = trim((string) ($dados['equipamento'] ?? ''));
+        $marca = trim((string) ($dados['marca'] ?? ''));
+        $modelo = trim((string) ($dados['modelo'] ?? ''));
+        $serie = trim((string) ($dados['num_serie'] ?? ''));
+
+        return [
+            'equipamento' => $tipo !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $tipo), 'UTF-8')) : 'Não informado',
+            'marca' => $marca !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $marca), 'UTF-8')) : null,
+            'modelo' => $modelo !== '' ? preg_replace('/\s+/', ' ', $modelo) : null,
+            'num_serie' => $serie !== '' ? strtoupper(preg_replace('/\s+/', ' ', $serie)) : null,
+        ];
+    }
+
     public function get($table, $fields, $where = '', $perpage = 0, $start = 0, $one = false, $array = 'array')
     {
         $this->db->select($fields . ',clientes.nomeCliente, clientes.celular as celular_cliente');
@@ -29,20 +44,7 @@ class Os_model extends CI_Model
 
     public function getOs($table, $fields, $where = [], $perpage = 0, $start = 0, $one = false, $array = 'array')
     {
-        $lista_clientes = [];
-        if ($where) {
-            if (array_key_exists('pesquisa', $where)) {
-                $this->db->select('idClientes');
-                $this->db->like('nomeCliente', $where['pesquisa']);
-                $this->db->or_like('documento', $where['pesquisa']);
-                $this->db->limit(25);
-                $clientes = $this->db->get('clientes')->result();
-
-                foreach ($clientes as $c) {
-                    array_push($lista_clientes, $c->idClientes);
-                }
-            }
-        }
+        $pesquisa = trim((string) ($where['pesquisa'] ?? ''));
 
         $this->db->select($fields . ',clientes.idClientes, clientes.nomeCliente, clientes.celular as celular_cliente, usuarios.nome, garantias.*');
         $this->db->from($table);
@@ -51,26 +53,30 @@ class Os_model extends CI_Model
         $this->db->join('garantias', 'garantias.idGarantias = os.garantias_id', 'left');
         $this->db->join('produtos_os', 'produtos_os.os_id = os.idOs', 'left');
         $this->db->join('servicos_os', 'servicos_os.os_id = os.idOs', 'left');
+        $this->db->join('equipamentos_os', 'equipamentos_os.os_id = os.idOs', 'left');
+        $this->db->join('equipamentos', 'equipamentos.idEquipamentos = equipamentos_os.equipamentos_id', 'left');
+        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
 
-        // condicionais da pesquisa
-
-        // condicional de status
         if (array_key_exists('status', $where)) {
             $this->db->where_in('status', $where['status']);
         }
 
-        // condicional de clientes
-        if (array_key_exists('pesquisa', $where)) {
-            if ($lista_clientes != null) {
-                $this->db->where_in('os.clientes_id', $lista_clientes);
-            }
+        if ($pesquisa !== '') {
+            $this->db->group_start();
+            $this->db->like('clientes.nomeCliente', $pesquisa);
+            $this->db->or_like('clientes.documento', $pesquisa);
+            $this->db->or_like('os.idOs', $pesquisa);
+            $this->db->or_like('os.status', $pesquisa);
+            $this->db->or_like('equipamentos.num_serie', $pesquisa);
+            $this->db->or_like('equipamentos.modelo', $pesquisa);
+            $this->db->or_like('equipamentos.equipamento', $pesquisa);
+            $this->db->or_like('marcas.marca', $pesquisa);
+            $this->db->group_end();
         }
 
-        // condicional data inicial
         if (array_key_exists('de', $where)) {
             $this->db->where('dataInicial >=', $where['de']);
         }
-        // condicional data final
         if (array_key_exists('ate', $where)) {
             $this->db->where('dataFinal <=', $where['ate']);
         }
@@ -84,6 +90,50 @@ class Os_model extends CI_Model
         $result = ! $one ? $query->result() : $query->row();
 
         return $result;
+    }
+
+    public function countOs(array $where = [])
+    {
+        $pesquisa = trim((string) ($where['pesquisa'] ?? ''));
+
+        $this->db->select('COUNT(DISTINCT os.idOs) as total', false);
+        $this->db->from('os');
+        $this->db->join('clientes', 'clientes.idClientes = os.clientes_id');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = os.usuarios_id');
+        $this->db->join('garantias', 'garantias.idGarantias = os.garantias_id', 'left');
+        $this->db->join('produtos_os', 'produtos_os.os_id = os.idOs', 'left');
+        $this->db->join('servicos_os', 'servicos_os.os_id = os.idOs', 'left');
+        $this->db->join('equipamentos_os', 'equipamentos_os.os_id = os.idOs', 'left');
+        $this->db->join('equipamentos', 'equipamentos.idEquipamentos = equipamentos_os.equipamentos_id', 'left');
+        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
+
+        if (array_key_exists('status', $where)) {
+            $this->db->where_in('status', $where['status']);
+        }
+
+        if ($pesquisa !== '') {
+            $this->db->group_start();
+            $this->db->like('clientes.nomeCliente', $pesquisa);
+            $this->db->or_like('clientes.documento', $pesquisa);
+            $this->db->or_like('os.idOs', $pesquisa);
+            $this->db->or_like('os.status', $pesquisa);
+            $this->db->or_like('equipamentos.num_serie', $pesquisa);
+            $this->db->or_like('equipamentos.modelo', $pesquisa);
+            $this->db->or_like('equipamentos.equipamento', $pesquisa);
+            $this->db->or_like('marcas.marca', $pesquisa);
+            $this->db->group_end();
+        }
+
+        if (array_key_exists('de', $where)) {
+            $this->db->where('dataInicial >=', $where['de']);
+        }
+        if (array_key_exists('ate', $where)) {
+            $this->db->where('dataFinal <=', $where['ate']);
+        }
+
+        $row = $this->db->get()->row();
+
+        return (int) ($row->total ?? 0);
     }
 
     public function getById($id)
@@ -112,21 +162,41 @@ class Os_model extends CI_Model
         return $this->db->get()->row();
     }
 
+    public function getEquipamentoByIdAndCliente($equipamentoId, $clienteId)
+    {
+        $this->db->select('equipamentos.*, marcas.marca as marca_nome');
+        $this->db->from('equipamentos');
+        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
+        $this->db->where('equipamentos.idEquipamentos', (int) $equipamentoId);
+        $this->db->where('equipamentos.clientes_id', (int) $clienteId);
+
+        return $this->db->get()->row();
+    }
+
+    public function getEquipamentosCliente($clienteId)
+    {
+        $this->db->select('equipamentos.idEquipamentos, equipamentos.equipamento, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie');
+        $this->db->from('equipamentos');
+        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
+        $this->db->where('equipamentos.clientes_id', (int) $clienteId);
+        $this->db->order_by('equipamentos.equipamento', 'asc');
+        $this->db->order_by('equipamentos.modelo', 'asc');
+        $this->db->order_by('equipamentos.num_serie', 'asc');
+
+        return $this->db->get()->result();
+    }
+
     public function salvarEquipamentoOs($osId, $clienteId, array $dados)
     {
-        $tipo = trim((string) ($dados['equipamento'] ?? ''));
-        $marca = trim((string) ($dados['marca'] ?? ''));
-        $modelo = trim((string) ($dados['modelo'] ?? ''));
-        $serie = trim((string) ($dados['num_serie'] ?? ''));
+        $dados = $this->normalizarEquipamentoDados($dados);
+        $tipo = $dados['equipamento'];
+        $marca = $dados['marca'];
+        $modelo = $dados['modelo'];
+        $serie = $dados['num_serie'];
 
         if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '') {
             return null;
         }
-
-        $tipo = $tipo !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $tipo), 'UTF-8')) : 'Não informado';
-        $marca = $marca !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $marca), 'UTF-8')) : null;
-        $modelo = $modelo !== '' ? preg_replace('/\s+/', ' ', $modelo) : null;
-        $serie = $serie !== '' ? strtoupper(preg_replace('/\s+/', ' ', $serie)) : null;
 
         $clienteId = (int) $clienteId;
 
@@ -204,6 +274,22 @@ class Os_model extends CI_Model
         }
 
         return $equipamentoId;
+    }
+
+    public function vincularEquipamentoOsExistente($osId, $equipamentoId)
+    {
+        $this->db->trans_start();
+        $this->db->where('os_id', (int) $osId);
+        $this->db->delete('equipamentos_os');
+
+        $this->db->insert('equipamentos_os', [
+            'equipamentos_id' => (int) $equipamentoId,
+            'os_id' => (int) $osId,
+        ]);
+
+        $this->db->trans_complete();
+
+        return $this->db->trans_status() !== false;
     }
 
     public function removerEquipamentoOs($osId)
