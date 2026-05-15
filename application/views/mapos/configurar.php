@@ -131,14 +131,14 @@
                         <div class="control-group">
                             <label for="EFI_CREDENTIAIS_CLIENT_ID" class="control-label">CLIENT_ID</label>
                             <div class="controls">
-                                <input type="text" name="PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_ID" value="<?= $_ENV['PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_ID'] ?>" id="EFI_CREDENTIAIS_CLIENT_ID">
+                                <input type="text" name="PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_ID" value="<?= $_ENV['PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_ID'] ?? '' ?>" id="EFI_CREDENTIAIS_CLIENT_ID">
                                 <span class="help-inline">Pode ser encontrado no menu <a href="https://app.sejaefi.com.br/api/aplicacoes" target="_blank" rel="noopener noreferrer">"API" -> "Aplicações"</a></span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="EFI_CREDENTIAIS_CLIENT_SECRET" class="control-label">CLIENT_SECRET</label>
                             <div class="controls">
-                                <input type="text" name="PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_SECRET" value="<?= $_ENV['PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_SECRET'] ?>" id="EFI_CREDENTIAIS_CLIENT_SECRET">
+                                <input type="text" name="PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_SECRET" value="<?= $_ENV['PAYMENT_GATEWAYS_EFI_CREDENTIAIS_CLIENT_SECRET'] ?? '' ?>" id="EFI_CREDENTIAIS_CLIENT_SECRET">
                                 <span class="help-inline">Pode ser encontrado no menu <a href="https://app.sejaefi.com.br/api/aplicacoes" target="_blank" rel="noopener noreferrer">"API" -> "Aplicações"</a></span>
                             </div>
                         </div>
@@ -149,7 +149,7 @@
                                     <?php for ($i = 1; $i <= 30; $i++) :
                                         $diasEFI = "P{$i}D";
                                         ?>
-                                        <option value="<?= $diasEFI ?>" <?= $diasEFI == $_ENV['PAYMENT_GATEWAYS_EFI_BOLETO_EXPIRATION'] ? 'selected' : '' ?>><?= $i ?> dia<?= $i > 1 ? 's' : '' ?></option>
+                                        <option value="<?= $diasEFI ?>" <?= $diasEFI == ($_ENV['PAYMENT_GATEWAYS_EFI_BOLETO_EXPIRATION'] ?? 'P3D') ? 'selected' : '' ?>><?= $i ?> dia<?= $i > 1 ? 's' : '' ?></option>
                                     <?php endfor; ?>
                                 </select>
                                 <span class="help-inline">A quantidade de dias selecionado será somado a data que a cobrança for gerada.</span>
@@ -162,28 +162,28 @@
                         <div class="control-group">
                             <label for="MERCADO_PAGO_CREDENTIALS_PUBLIC_KEY" class="control-label">PUBLIC_KEY</label>
                             <div class="controls">
-                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_PUBLIC_KEY" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_PUBLIC_KEY'] ?>" id="MERCADO_PAGO_CREDENTIALS_PUBLIC_KEY">
+                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_PUBLIC_KEY" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_PUBLIC_KEY'] ?? '' ?>" id="MERCADO_PAGO_CREDENTIALS_PUBLIC_KEY">
                                 <span class="help-inline">Pode ser encontrado no menu <a href="https://www.mercadopago.com.br/settings/account/credentials" target="_blank" rel="noopener noreferrer">"Seu Negócio" -> "Configurações" -> "Credenciais"</a></span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="MERCADO_PAGO_CREDENTIALS_ACCESS_TOKEN" class="control-label">ACCESS_TOKEN</label>
                             <div class="controls">
-                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_ACCESS_TOKEN" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_ACCESS_TOKEN'] ?>" id="MERCADO_PAGO_CREDENTIALS_ACCESS_TOKEN">
+                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_ACCESS_TOKEN" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_ACCESS_TOKEN'] ?? '' ?>" id="MERCADO_PAGO_CREDENTIALS_ACCESS_TOKEN">
                                 <span class="help-inline">Pode ser encontrado no menu <a href="https://www.mercadopago.com.br/settings/account/credentials" target="_blank" rel="noopener noreferrer">"Seu Negócio" -> "Configurações" -> "Credenciais"</a></span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="MERCADO_PAGO_CREDENTIALS_CLIENT_ID" class="control-label">CLIENT_ID</label>
                             <div class="controls">
-                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_ID" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_ID'] ?>" id="MERCADO_PAGO_CREDENTIALS_CLIENT_ID">
+                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_ID" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_ID'] ?? '' ?>" id="MERCADO_PAGO_CREDENTIALS_CLIENT_ID">
                                 <span class="help-inline">Pode ser encontrado no menu <a href="https://www.mercadopago.com.br/settings/account/credentials" target="_blank" rel="noopener noreferrer">"Seu Negócio" -> "Configurações" -> "Credenciais"</a></span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="MERCADO_PAGO_CREDENTIALS_CLIENT_SECRET" class="control-label">CLIENT_SECRET</label>
                             <div class="controls">
-                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_SECRET" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_SECRET'] ?>" id="MERCADO_PAGO_CREDENTIALS_CLIENT_SECRET">
+                                <input type="text" name="PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_SECRET" value="<?= $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_CREDENTIALS_CLIENT_SECRET'] ?? '' ?>" id="MERCADO_PAGO_CREDENTIALS_CLIENT_SECRET">
                                 <span class="help-inline">Pode ser encontrado no menu <a href="https://www.mercadopago.com.br/settings/account/credentials" target="_blank" rel="noopener noreferrer">"Seu Negócio" -> "Configurações" -> "Credenciais"</a></span>
                             </div>
                         </div>
@@ -194,7 +194,7 @@
                                     <?php for ($i = 1; $i <= 30; $i++) :
                                         $diasMP = "P{$i}D";
                                         ?>
-                                        <option value="<?= $diasMP ?>" <?= $diasMP == $_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_BOLETO_EXPIRATION'] ? 'selected' : '' ?>><?= $i ?> dia<?= $i > 1 ? 's' : '' ?></option>
+                                        <option value="<?= $diasMP ?>" <?= $diasMP == ($_ENV['PAYMENT_GATEWAYS_MERCADO_PAGO_BOLETO_EXPIRATION'] ?? 'P3D') ? 'selected' : '' ?>><?= $i ?> dia<?= $i > 1 ? 's' : '' ?></option>
                                     <?php endfor; ?>
                                 </select>
                                 <span class="help-inline">A quantidade de dias selecionado será somado a data que a cobrança for gerada.</span>
@@ -227,7 +227,7 @@
                         <div class="control-group">
                             <label for="ASAAS_CREDENTIAIS_API_KEY" class="control-label">API_KEY</label>
                             <div class="controls">
-                                <input type="text" name="PAYMENT_GATEWAYS_ASAAS_CREDENTIAIS_API_KEY" value="<?= $_ENV['PAYMENT_GATEWAYS_ASAAS_CREDENTIAIS_API_KEY'] ?>" id="ASAAS_CREDENTIAIS_API_KEY">
+                                <input type="text" name="PAYMENT_GATEWAYS_ASAAS_CREDENTIAIS_API_KEY" value="<?= $_ENV['PAYMENT_GATEWAYS_ASAAS_CREDENTIAIS_API_KEY'] ?? '' ?>" id="ASAAS_CREDENTIAIS_API_KEY">
                                 <span class="help-inline">Pode ser encontrado no menu "Minha Conta", clique em "Integração" e depois em "Gerar API Key"</span>
                             </div>
                         </div>
@@ -238,7 +238,7 @@
                                     <?php for ($i = 1; $i <= 30; $i++) :
                                         $diasASAAS = "P{$i}D";
                                         ?>
-                                        <option value="<?= $diasASAAS ?>" <?= $diasASAAS == $_ENV['PAYMENT_GATEWAYS_ASAAS_BOLETO_EXPIRATION'] ? 'selected' : '' ?>><?= $i ?> dia<?= $i > 1 ? 's' : '' ?></option>
+                                        <option value="<?= $diasASAAS ?>" <?= $diasASAAS == ($_ENV['PAYMENT_GATEWAYS_ASAAS_BOLETO_EXPIRATION'] ?? 'P3D') ? 'selected' : '' ?>><?= $i ?> dia<?= $i > 1 ? 's' : '' ?></option>
                                     <?php endfor; ?>
                                 </select>
                                 <span class="help-inline">A quantidade de dias selecionado será somado a data que a cobrança for gerada.</span>
@@ -415,18 +415,18 @@
                         <div class="control-group">
                             <label for="apiEnabled" class="control-label">URL API</label>
                             <div class="controls">
-                                <span class="span10" id="urlApi" style="margin-top:7px;"><?= trim($_ENV['APP_BASEURL'], '/') . '/' ?>index.php/api/v1</span>
+                                <span class="span10" id="urlApi" style="margin-top:7px;"><?= trim($_ENV['APP_BASEURL'] ?? '', '/') . '/' ?>index.php/api/v1</span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="apiExpireTime" class="control-label">Tempo de expiração</label>
                             <div class="controls">
                                 <select name="apiExpireTime" id="apiExpireTime">
-                                    <option value="60" <?= $_ENV['API_TOKEN_EXPIRE_TIME'] == 60 ? 'selected' : '' ?>>1 minuto</option>
-                                    <option value="3600" <?= $_ENV['API_TOKEN_EXPIRE_TIME'] == 3600 ? 'selected' : '' ?>>1 hora</option>
-                                    <option value="86400" <?= $_ENV['API_TOKEN_EXPIRE_TIME'] == 86400 ? 'selected' : '' ?>>1 dia</option>
-                                    <option value="604800" <?= $_ENV['API_TOKEN_EXPIRE_TIME'] == 604800 ? 'selected' : '' ?>>1 semana</option>
-                                    <option value="2592000" <?= $_ENV['API_TOKEN_EXPIRE_TIME'] == 2592000 ? 'selected' : '' ?>>1 mês</option>
+                                    <option value="60" <?= ($_ENV['API_TOKEN_EXPIRE_TIME'] ?? 60) == 60 ? 'selected' : '' ?>>1 minuto</option>
+                                    <option value="3600" <?= ($_ENV['API_TOKEN_EXPIRE_TIME'] ?? 60) == 3600 ? 'selected' : '' ?>>1 hora</option>
+                                    <option value="86400" <?= ($_ENV['API_TOKEN_EXPIRE_TIME'] ?? 60) == 86400 ? 'selected' : '' ?>>1 dia</option>
+                                    <option value="604800" <?= ($_ENV['API_TOKEN_EXPIRE_TIME'] ?? 60) == 604800 ? 'selected' : '' ?>>1 semana</option>
+                                    <option value="2592000" <?= ($_ENV['API_TOKEN_EXPIRE_TIME'] ?? 60) == 2592000 ? 'selected' : '' ?>>1 mês</option>
                                 </select>
                                 <span class="help-inline">Tempo de duração da sessão na API.</span>
                             </div>
@@ -455,14 +455,14 @@
                         <div class="control-group">
                             <label for="EMAIL_PROTOCOL" class="control-label">Protocolo de E-mail</label>
                             <div class="controls">
-                                <input type="text" name="EMAIL_PROTOCOL" value="<?= $_ENV['EMAIL_PROTOCOL'] ?>" id="EMAIL_PROTOCOL">
+                                <input type="text" name="EMAIL_PROTOCOL" value="<?= $_ENV['EMAIL_PROTOCOL'] ?? '' ?>" id="EMAIL_PROTOCOL">
                                 <span class="help-inline">Informe o protocolo que será utilizado</span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="EMAIL_SMTP_HOST" class="control-label">Endereço do Host</label>
                             <div class="controls">
-                                <input type="text" name="EMAIL_SMTP_HOST" value="<?= $_ENV['EMAIL_SMTP_HOST'] ?>" id="EMAIL_SMTP_HOST">
+                                <input type="text" name="EMAIL_SMTP_HOST" value="<?= $_ENV['EMAIL_SMTP_HOST'] ?? '' ?>" id="EMAIL_SMTP_HOST">
                                 <span class="help-inline">Informe o endereço do host</span>
                             </div>
                         </div>
@@ -470,8 +470,8 @@
                             <label for="EMAIL_SMTP_CRYPTO" class="control-label">Tipo de criptografia</label>
                             <div class="controls">
                                 <select name="EMAIL_SMTP_CRYPTO" id="EMAIL_SMTP_CRYPTO">
-                                    <option value="tls" <?= $_ENV['EMAIL_SMTP_CRYPTO'] == 'tls' ? 'selected' : ''; ?>>tls</option>
-                                    <option value="ssl" <?= $_ENV['EMAIL_SMTP_CRYPTO'] == 'ssl' ? 'selected' : ''; ?>>ssl</option>
+                                    <option value="tls" <?= ($_ENV['EMAIL_SMTP_CRYPTO'] ?? '') == 'tls' ? 'selected' : ''; ?>>tls</option>
+                                    <option value="ssl" <?= ($_ENV['EMAIL_SMTP_CRYPTO'] ?? '') == 'ssl' ? 'selected' : ''; ?>>ssl</option>
                                 </select>
                                 <span class="help-inline">Tipo de criptografia que será utilizada.</span>
                             </div>
@@ -479,21 +479,21 @@
                         <div class="control-group">
                             <label for="EMAIL_SMTP_PORT" class="control-label">Porta</label>
                             <div class="controls">
-                                <input type="text" name="EMAIL_SMTP_PORT" value="<?= $_ENV['EMAIL_SMTP_PORT'] ?>" id="EMAIL_SMTP_PORT">
+                                <input type="text" name="EMAIL_SMTP_PORT" value="<?= $_ENV['EMAIL_SMTP_PORT'] ?? '' ?>" id="EMAIL_SMTP_PORT">
                                 <span class="help-inline">Informe a porta que será utilizada.</span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="EMAIL_SMTP_USER" class="control-label">Usuário</label>
                             <div class="controls">
-                                <input type="text" name="EMAIL_SMTP_USER" value="<?= $_ENV['EMAIL_SMTP_USER'] ?>" id="EMAIL_SMTP_USER">
+                                <input type="text" name="EMAIL_SMTP_USER" value="<?= $_ENV['EMAIL_SMTP_USER'] ?? '' ?>" id="EMAIL_SMTP_USER">
                                 <span class="help-inline">Informe nome de usuáriodo e-mail.</span>
                             </div>
                         </div>
                         <div class="control-group">
                             <label for="EMAIL_SMTP_PASS" class="control-label">Senha</label>
                             <div class="controls">
-                                <input type="password" name="EMAIL_SMTP_PASS" value="<?= $_ENV['EMAIL_SMTP_PASS'] ?>" id="EMAIL_SMTP_PASS">
+                                <input type="password" name="EMAIL_SMTP_PASS" value="<?= $_ENV['EMAIL_SMTP_PASS'] ?? '' ?>" id="EMAIL_SMTP_PASS">
                                 <span class="help-inline">Informe a senha do e-mail.</span>
                             </div>
                         </div>
