@@ -44,6 +44,65 @@ class Financeiro_model extends CI_Model
         return (array) $this->db->get()->row();
     }
 
+    public function getCustoProdutosPeriodo($vencimento_de, $vencimento_ate, $cliente = '', $tipo = '', $status = '')
+    {
+        $custoOs = 0.0;
+        $custoVendas = 0.0;
+
+        $vencimentoDeObj = DateTime::createFromFormat('d/m/Y', (string) $vencimento_de);
+        $vencimentoAteObj = DateTime::createFromFormat('d/m/Y', (string) $vencimento_ate);
+        $vencimento_de = $vencimentoDeObj ? $vencimentoDeObj->format('Y-m-d') : date('Y-m-d');
+        $vencimento_ate = $vencimentoAteObj ? $vencimentoAteObj->format('Y-m-d') : date('Y-m-d');
+
+        $this->db->select('COALESCE(SUM(po.custo_total), 0) AS total', false);
+        $this->db->from('lancamentos l');
+        $this->db->join('os o', 'o.idOs = CAST(TRIM(SUBSTRING_INDEX(l.descricao, ":", -1)) AS UNSIGNED)', 'inner');
+        $this->db->join('produtos_os po', 'po.os_id = o.idOs', 'inner');
+        $this->db->where('l.data_vencimento >=', $vencimento_de);
+        $this->db->where('l.data_vencimento <=', $vencimento_ate);
+        if ($status !== '' && $status !== null) {
+            $this->db->where('l.baixado', $status);
+        }
+        if ($cliente !== '' && $cliente !== null) {
+            $this->db->like('l.cliente_fornecedor', $cliente);
+        }
+        if ($tipo !== '' && $tipo !== null) {
+            $this->db->where('l.tipo', $tipo);
+        }
+        $this->db->like('l.descricao', 'Fatura de OS', 'after');
+        $queryOs = $this->db->get()->row();
+        if ($queryOs) {
+            $custoOs = (float) $queryOs->total;
+        }
+
+        $this->db->select('COALESCE(SUM(iv.custo_total), 0) AS total', false);
+        $this->db->from('lancamentos l');
+        $this->db->join('vendas v', 'v.lancamentos_id = l.idLancamentos', 'inner');
+        $this->db->join('itens_de_vendas iv', 'iv.vendas_id = v.idVendas', 'inner');
+        $this->db->where('l.data_vencimento >=', $vencimento_de);
+        $this->db->where('l.data_vencimento <=', $vencimento_ate);
+        if ($status !== '' && $status !== null) {
+            $this->db->where('l.baixado', $status);
+        }
+        if ($cliente !== '' && $cliente !== null) {
+            $this->db->like('l.cliente_fornecedor', $cliente);
+        }
+        if ($tipo !== '' && $tipo !== null) {
+            $this->db->where('l.tipo', $tipo);
+        }
+        $this->db->like('l.descricao', 'Fatura de Venda', 'after');
+        $queryVendas = $this->db->get()->row();
+        if ($queryVendas) {
+            $custoVendas = (float) $queryVendas->total;
+        }
+
+        return (object) [
+            'custo_os' => $custoOs,
+            'custo_vendas' => $custoVendas,
+            'custo_total' => $custoOs + $custoVendas,
+        ];
+    }
+
     public function getEstatisticasFinanceiro2()
     {
         $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' THEN IF(valor_desconto = 0, valor, valor_desconto) END) as total_receita,

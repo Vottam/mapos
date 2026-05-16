@@ -92,6 +92,9 @@ class Financeiro extends MY_Controller
 
         $this->data['results'] = $this->financeiro_model->get('lancamentos', '*', $where, $this->data['configuration']['per_page'], $this->input->get('per_page'));
         $this->data['totals'] = $this->financeiro_model->getTotals($where);
+        $custoProdutosPeriodo = $this->financeiro_model->getCustoProdutosPeriodo($vencimento_de, $vencimento_ate, $cliente, $tipo, $status);
+        $this->data['custoProdutosPeriodo'] = $custoProdutosPeriodo->custo_total;
+        $this->data['resultadoLiquidoReal'] = $this->data['totals']['receitas'] - $this->data['totals']['despesas'] - $this->data['custoProdutosPeriodo'];
 
         $this->data['estatisticas_financeiro'] = $this->financeiro_model->getEstatisticasFinanceiro2();
 

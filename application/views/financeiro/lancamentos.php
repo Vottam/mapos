@@ -190,6 +190,18 @@ foreach ($results as $r) {
                                 <strong>R$ <?php echo number_format($totals['receitas'] - $totals['despesas'], 2, ',', '.') ?></strong>
                             </td>
                         </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: #d97706"><strong>Custo dos produtos/componentes:</strong></td>
+                            <td colspan="6" style="text-align: left; color: #d97706">
+                                <strong>R$ <?php echo number_format($custoProdutosPeriodo, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: <?php echo $resultadoLiquidoReal >= 0 ? 'green' : 'red'; ?>"><strong>Resultado líquido real:</strong></td>
+                            <td colspan="6" style="text-align: left; color: <?php echo $resultadoLiquidoReal >= 0 ? 'green' : 'red'; ?>">
+                                <strong>R$ <?php echo number_format($resultadoLiquidoReal, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
                     
                         <tr>
                             <td colspan="7" style="text-align: left;"><strong>Estatísticas Gerais do Financeiro:</strong></td>
@@ -199,6 +211,12 @@ foreach ($results as $r) {
                       </tr>
                       <tr>
                       <td colspan="7" style="text-align: left; color: red">Total Despesas (Pagas): R$ <?php echo number_format($estatisticas_financeiro->total_despesa, 2, ',', '.'); ?></td>
+                      </tr>
+                      <tr>
+                      <td colspan="7" style="text-align: left; color: #d97706">Custo dos produtos/componentes: R$ <?php echo number_format($custoProdutosPeriodo, 2, ',', '.'); ?></td>
+                      </tr>
+                      <tr>
+                      <td colspan="7" style="text-align: left; color: <?php echo $resultadoLiquidoReal >= 0 ? 'green' : 'red'; ?>">Resultado líquido real: R$ <?php echo number_format($resultadoLiquidoReal, 2, ',', '.'); ?></td>
                       </tr>
                       <tr>
                       <td colspan="7" style="text-align: left;"><strong>Total Receitas (-) Despesas = Saldo Líquido: R$ <?php $sub_receita_despesa = $estatisticas_financeiro->total_receita - $estatisticas_financeiro->total_despesa;
