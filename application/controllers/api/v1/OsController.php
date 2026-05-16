@@ -441,6 +441,7 @@ class OsController extends REST_Controller
         $_POST['idOsProduto'] = $id;
 
         $this->load->library('form_validation');
+        $this->load->model('produtos_model');
 
         if ($this->form_validation->run('adicionar_produto_os') === false) {
             $this->response([
@@ -449,11 +450,16 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
+        $produtoData = $this->produtos_model->getById($this->post('idProduto', true));
+        $custoUnitario = $produtoData && isset($produtoData->precoCompra) ? (float) $produtoData->precoCompra : 0.0;
+        $quantidade = (float) $this->post('quantidade', true);
         $data = [
             'produtos_id' => $this->post('idProduto', true),
             'preco' => $this->post('preco', true),
-            'quantidade' => $this->post('quantidade', true),
-            'subTotal' => $this->post('preco', true) * $this->post('quantidade', true),
+            'quantidade' => $quantidade,
+            'subTotal' => $this->post('preco', true) * $quantidade,
+            'custo_unitario' => $custoUnitario,
+            'custo_total' => $custoUnitario * $quantidade,
             'os_id' => $id,
         ];
 
@@ -467,8 +473,6 @@ class OsController extends REST_Controller
 
         if ($this->os_model->add('produtos_os', $data)) {
             $lastProdutoOs = $this->Api_model->lastRow('produtos_os', 'idProdutos_os');
-
-            $this->load->model('produtos_model');
 
             $this->produtoEstoque($this->post('idProduto', true), $this->post('quantidade', true), '-');
 
@@ -510,11 +514,15 @@ class OsController extends REST_Controller
         $ddAntigo = $this->Api_model->getRowById('produtos_os', 'idProdutos_os', $idProdutos_os);
 
         $subTotal = $this->put('preco', true) * $this->put('quantidade', true);
+        $custoUnitario = isset($ddAntigo->custo_unitario) ? (float) $ddAntigo->custo_unitario : 0.0;
+        $quantidade = (float) $this->put('quantidade', true);
 
         $data = [
-            'quantidade' => $this->put('quantidade', true),
+            'quantidade' => $quantidade,
             'preco' => $this->put('preco', true),
             'subTotal' => $subTotal,
+            'custo_unitario' => $custoUnitario,
+            'custo_total' => $custoUnitario * $quantidade,
         ];
 
         if ($this->os_model->edit('produtos_os', $data, 'idProdutos_os', $idProdutos_os)) {

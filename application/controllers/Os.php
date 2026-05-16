@@ -825,11 +825,17 @@ class Os extends MY_Controller
         $quantidade = $this->input->post('quantidade');
         $subtotal = $preco * $quantidade;
         $produto = $this->input->post('idProduto');
+        $this->load->model('produtos_model');
+        $produtoData = $this->produtos_model->getById($produto);
+        $custoUnitario = $produtoData && isset($produtoData->precoCompra) ? (float) $produtoData->precoCompra : 0.0;
+        $custoTotal = $custoUnitario * (float) $quantidade;
         $data = [
             'quantidade' => $quantidade,
             'subTotal' => $subtotal,
             'produtos_id' => $produto,
             'preco' => $preco,
+            'custo_unitario' => $custoUnitario,
+            'custo_total' => $custoTotal,
             'os_id' => $this->input->post('idOsProduto'),
         ];
 
@@ -841,8 +847,6 @@ class Os extends MY_Controller
         }
 
         if ($this->os_model->add('produtos_os', $data) == true) {
-            $this->load->model('produtos_model');
-
             if ($this->data['configuration']['control_estoque']) {
                 $this->produtos_model->updateEstoque($produto, $quantidade, '-');
             }
