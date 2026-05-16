@@ -6,6 +6,49 @@
   select {
     width: 70px;
   }
+  .os-columns-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  .os-columns-panel {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    z-index: 1000;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px 12px;
+    min-width: 180px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    text-align: left;
+  }
+  .os-columns-panel.open {
+    display: block;
+  }
+  .os-columns-panel label {
+    display: block;
+    padding: 2px 0;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .os-columns-panel label input {
+    margin-right: 4px;
+  }
+  .os-columns-panel hr {
+    border: 0;
+    border-top: 1px solid #eee;
+  }
+  .os-col-hidden {
+    display: none !important;
+  }
+  @media (max-width: 767px) {
+    .os-columns-panel {
+      right: auto;
+      left: 0;
+    }
+  }
 </style>
 <div class="new122">
     <div class="widget-title" style="margin: -20px 0 0">
@@ -52,6 +95,31 @@
                     <span class="button__icon"><i class='bx bx-search-alt'></i></span></button>
             </div>
         </form>
+
+        <div class="os-columns-dropdown" style="margin: 8px 0 0 0; text-align: right;">
+            <button type="button" class="btn btn-small" id="os-columns-toggle" onclick="document.getElementById('os-columns-panel').classList.toggle('open')" title="Escolher colunas">
+                <i class="bx bx-columns-2"></i> Colunas <i class="bx bx-chevron-down"></i>
+            </button>
+            <div class="os-columns-panel" id="os-columns-panel">
+                <label><input type="checkbox" data-col="numero" checked> N°</label>
+                <label><input type="checkbox" data-col="cliente" checked> Cliente</label>
+                <label><input type="checkbox" data-col="tipo" checked> Tipo</label>
+                <label><input type="checkbox" data-col="marca" checked> Marca</label>
+                <label><input type="checkbox" data-col="modelo" checked> Modelo</label>
+                <label><input type="checkbox" data-col="responsavel" checked> Responsável</label>
+                <label><input type="checkbox" data-col="data_inicial" checked> Data Inicial</label>
+                <label><input type="checkbox" data-col="data_final" checked> Data Final</label>
+                <label><input type="checkbox" data-col="venc_garantia"> Venc. Garantia</label>
+                <label><input type="checkbox" data-col="valor_total" checked> Valor Total</label>
+                <label><input type="checkbox" data-col="desconto"> Desconto</label>
+                <label><input type="checkbox" data-col="valor_desconto"> Valor com Desconto</label>
+                <label><input type="checkbox" data-col="vt_faturado" checked> V.T Faturado</label>
+                <label><input type="checkbox" data-col="status" checked> Status</label>
+                <label><input type="checkbox" data-col="acoes" checked> Ações</label>
+                <hr style="margin: 6px 0">
+                <button type="button" class="btn btn-mini" id="os-columns-reset">Restaurar padrão</button>
+            </div>
+        </div>
     </div>
 
     <div class="widget-box" style="margin-top: 8px">
@@ -60,24 +128,27 @@
                 <table class="table table-bordered ">
                     <thead>
                         <tr>
-                            <th>N°</th>
-                            <th>Cliente</th>
-                            <th class="ph1">Responsável</th>
-                            <th>Data Inicial</th>
-                            <th class="ph2">Data Final</th>
-                            <th class="ph3">Venc. Garantia</th>
-                            <th>Valor Total</th>
-                            <th>Desconto</th>
-                            <th>Valor com Desconto</th>
-                            <th class="ph4">V.T (Faturado)</th>
-                            <th>Status</th>
-                            <th>Ações</th>
+                            <th data-col="numero">N°</th>
+                            <th data-col="cliente">Cliente</th>
+                            <th data-col="tipo">Tipo</th>
+                            <th data-col="marca">Marca</th>
+                            <th data-col="modelo">Modelo</th>
+                            <th data-col="responsavel" class="ph1">Responsável</th>
+                            <th data-col="data_inicial">Data Inicial</th>
+                            <th data-col="data_final" class="ph2">Data Final</th>
+                            <th data-col="venc_garantia" class="ph3">Venc. Garantia</th>
+                            <th data-col="valor_total">Valor Total</th>
+                            <th data-col="desconto">Desconto</th>
+                            <th data-col="valor_desconto">Valor com Desconto</th>
+                            <th data-col="vt_faturado" class="ph4">V.T (Faturado)</th>
+                            <th data-col="status">Status</th>
+                            <th data-col="acoes">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (!$results) {
                             echo '<tr>
-                            <td colspan="10">Nenhuma OS Cadastrada</td>
+                            <td colspan="15">Nenhuma OS Cadastrada</td>
                             </tr>';
                         }
 
@@ -150,18 +221,21 @@ foreach ($results as $r) {
     }
 
     echo '<tr>';
-    echo '<td>' . $r->idOs . '</td>';
-    echo '<td class="cli1"><a href="' . base_url() . 'index.php/clientes/visualizar/' . $r->idClientes . '" style="margin-right: 1%">' . $r->nomeCliente . '</a></td>';
-    echo '<td class="ph1">' . $r->nome . '</td>';
-    echo '<td>' . $dataInicial . '</td>';
-    echo '<td class="ph2">' . $dataFinal . '</td>';
-    echo '<td class="ph3"><span class="badge" style="background-color: ' . $corGarantia . '; border-color: ' . $corGarantia . '">' . $vencGarantia . '</span> </td>';
-    echo '<td>R$ ' . number_format($r->totalProdutos + $r->totalServicos, 2, ',', '.') . '</td>';
-    echo '<td>R$ ' . number_format(floatval($r->desconto), 2, ',', '.') . '</td>';
-    echo '<td>R$ ' . number_format(floatval($r->valor_desconto), 2, ',', '.') . '</td>';
-    echo '<td class="ph4">R$ ' . number_format($r->faturado ? floatval($r->valor_desconto) : 0.00, 2, ',', '.') . '</td>';
-    echo '<td><span class="badge" style="background-color: ' . $cor . '; border-color: ' . $cor . '">' . $r->status . '</span> </td>';
-    echo '<td>';
+    echo '<td data-col="numero">' . $r->idOs . '</td>';
+    echo '<td data-col="cliente" class="cli1"><a href="' . base_url() . 'index.php/clientes/visualizar/' . $r->idClientes . '" style="margin-right: 1%">' . $r->nomeCliente . '</a></td>';
+    echo '<td data-col="tipo">' . ($r->equipamento_tipo ?: '-') . '</td>';
+    echo '<td data-col="marca">' . ($r->equipamento_marca ?: '-') . '</td>';
+    echo '<td data-col="modelo">' . ($r->equipamento_modelo ?: '-') . '</td>';
+    echo '<td data-col="responsavel" class="ph1">' . $r->nome . '</td>';
+    echo '<td data-col="data_inicial">' . $dataInicial . '</td>';
+    echo '<td data-col="data_final" class="ph2">' . $dataFinal . '</td>';
+    echo '<td data-col="venc_garantia" class="ph3"><span class="badge" style="background-color: ' . $corGarantia . '; border-color: ' . $corGarantia . '">' . $vencGarantia . '</span> </td>';
+    echo '<td data-col="valor_total">R$ ' . number_format($r->totalProdutos + $r->totalServicos, 2, ',', '.') . '</td>';
+    echo '<td data-col="desconto">R$ ' . number_format(floatval($r->desconto), 2, ',', '.') . '</td>';
+    echo '<td data-col="valor_desconto">R$ ' . number_format(floatval($r->valor_desconto), 2, ',', '.') . '</td>';
+    echo '<td data-col="vt_faturado" class="ph4">R$ ' . number_format($r->faturado ? floatval($r->valor_desconto) : 0.00, 2, ',', '.') . '</td>';
+    echo '<td data-col="status"><span class="badge" style="background-color: ' . $cor . '; border-color: ' . $cor . '">' . $r->status . '</span> </td>';
+    echo '<td data-col="acoes">';
 
     $editavel = $this->os_model->isEditable($r->idOs);
 
@@ -242,4 +316,72 @@ foreach ($results as $r) {
             dateFormat: 'dd/mm/yy'
         });
     });
+
+    // Seletor de colunas da listagem de OS
+    (function() {
+        var STORAGE_KEY = 'mapos_os_table_visible_columns';
+        var DEFAULT_VISIBLE = ['numero','cliente','tipo','marca','modelo','responsavel','data_inicial','data_final','valor_total','vt_faturado','status','acoes'];
+
+        function loadVisible() {
+            try {
+                var stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) return JSON.parse(stored);
+            } catch(e) {}
+            return DEFAULT_VISIBLE.slice();
+        }
+
+        function saveVisible(cols) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cols));
+        }
+
+        function applyVisibility() {
+            var visible = loadVisible();
+            $('.table thead th[data-col], .table tbody td[data-col]').each(function() {
+                var col = $(this).attr('data-col');
+                if (col) {
+                    if (visible.indexOf(col) === -1) {
+                        $(this).addClass('os-col-hidden');
+                    } else {
+                        $(this).removeClass('os-col-hidden');
+                    }
+                }
+            });
+            // sync checkboxes
+            $('.os-columns-panel input[type="checkbox"]').each(function() {
+                var col = $(this).attr('data-col');
+                $(this).prop('checked', visible.indexOf(col) !== -1);
+            });
+        }
+
+        // init
+        applyVisibility();
+
+        // checkbox change
+        $('.os-columns-panel').on('change', 'input[type="checkbox"]', function() {
+            var col = $(this).attr('data-col');
+            var visible = loadVisible();
+            var idx = visible.indexOf(col);
+            if ($(this).is(':checked')) {
+                if (idx === -1) visible.push(col);
+            } else {
+                if (idx !== -1) visible.splice(idx, 1);
+            }
+            saveVisible(visible);
+            applyVisibility();
+        });
+
+        // restaurar padrão
+        $('#os-columns-reset').on('click', function() {
+            saveVisible(DEFAULT_VISIBLE.slice());
+            applyVisibility();
+            document.getElementById('os-columns-panel').classList.remove('open');
+        });
+
+        // fechar dropdown ao clicar fora
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.os-columns-dropdown').length) {
+                document.getElementById('os-columns-panel').classList.remove('open');
+            }
+        });
+    })();
 </script>
