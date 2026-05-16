@@ -162,6 +162,26 @@ class Produtos extends MY_Controller
         return $this->layout();
     }
 
+    public function imprimirEtiqueta($id = null)
+    {
+        if (! $id || ! is_numeric($id)) {
+            show_404();
+        }
+
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vProduto')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para visualizar produtos.');
+            redirect(base_url());
+        }
+
+        $produto = $this->produtos_model->getById($id);
+
+        if (! $produto) {
+            show_404();
+        }
+
+        $this->load->view('produtos/etiqueta', ['produto' => $produto]);
+    }
+
     public function excluir()
     {
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'dProduto')) {

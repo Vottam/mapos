@@ -34,6 +34,9 @@
                             <a target="_blank" title="Impressão Cupom Não Fical" class="button btn btn-mini btn-inverse" href="<?php echo site_url() ?>/os/imprimirTermica/<?php echo $result->idOs; ?>">
                                 <span class="button__icon"><i class='bx bx-receipt'></i></span> <span class="button__text">Cupom 80mm</span>
                             </a>
+                            <a target="_blank" title="Imprimir Etiqueta 40x25mm" class="button btn btn-mini btn-inverse" href="<?php echo site_url() ?>/os/imprimirEtiqueta/<?php echo $result->idOs; ?>">
+                                <span class="button__icon"><i class='bx bx-barcode'></i></span> <span class="button__text">Etiqueta 40x25</span>
+                            </a>
                             <?php if ($result->garantias_id) { ?>
                                 <a target="_blank" title="Imprimir Termo de Garantia" class="button btn btn-mini btn-inverse" href="<?php echo site_url() ?>/garantias/imprimirGarantiaOs/<?php echo $result->idOs; ?>">
                                     <span class="button__icon"><i class="bx bx-paperclip"></i></span> <span class="button__text">Termo Garantia</span>

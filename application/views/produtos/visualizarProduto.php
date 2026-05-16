@@ -6,6 +6,11 @@
                     <span class="icon"><i class="fas fa-shopping-bag"></i></span>
                     <h5>Dados do Produto</h5>
                 </a>
+                <div class="buttons" style="float:right; margin-right: 10px; margin-top: -6px;">
+                    <a target="_blank" title="Imprimir Etiqueta 40x25" class="button btn btn-mini btn-inverse" href="<?php echo site_url() ?>/produtos/imprimirEtiqueta/<?php echo $result->idProdutos; ?>">
+                        <span class="button__icon"><i class='bx bx-barcode'></i></span> <span class="button__text">Etiqueta 40x25</span>
+                    </a>
+                </div>
             </div>
         </div>
         <div class="collapse in accordion-body">

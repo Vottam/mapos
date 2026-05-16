@@ -64,6 +64,7 @@
             echo '<td>';
             if ($this->permission->checkPermission($this->session->userdata('permissao'), 'vProduto')) {
                 echo '<a style="margin-right: 1%" href="' . base_url() . 'index.php/produtos/visualizar/' . $r->idProdutos . '" class="btn-nwe" title="Visualizar Produto"><i class="bx bx-show bx-xs"></i></a>  ';
+                echo '<a style="margin-right: 1%" href="' . base_url() . 'index.php/produtos/imprimirEtiqueta/' . $r->idProdutos . '" target="_blank" class="btn-nwe6" title="Imprimir Etiqueta 40x25"><i class="bx bx-barcode bx-xs"></i></a>  ';
             }
             if ($this->permission->checkPermission($this->session->userdata('permissao'), 'eProduto')) {
                 echo '<a style="margin-right: 1%" href="' . base_url() . 'index.php/produtos/editar/' . $r->idProdutos . '" class="btn-nwe3" title="Editar Produto"><i class="bx bx-edit bx-xs"></i></a>';
