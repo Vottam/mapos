@@ -1040,7 +1040,7 @@ class OsController extends REST_Controller
         }
 
         if ($os = $this->os_model->getById($id)) {
-            $osT = (int) ($os->status === 'Faturado' || $os->status === 'Cancelado' || $os->faturado == 1);
+            $osT = (int) ($os->status === 'Faturado' || $os->status === 'Cancelado' || $os->status === 'Sem Conserto' || $os->faturado == 1);
             if ($osT) {
                 return $this->getConfig('control_editos') == '1';
             }

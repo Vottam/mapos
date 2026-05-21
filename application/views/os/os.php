@@ -80,6 +80,7 @@
                     <option value="Orçamento" <?=$this->input->get('status') == 'Orçamento' ? 'selected' : ''?>>Orçamento</option>
                     <option value="Finalizado" <?=$this->input->get('status') == 'Finalizado' ? 'selected' : ''?>>Finalizado</option>
                     <option value="Cancelado" <?=$this->input->get('status') == 'Cancelado' ? 'selected' : ''?>>Cancelado</option>
+                    <option value="Sem Conserto" <?=$this->input->get('status') == 'Sem Conserto' ? 'selected' : ''?>>Sem Conserto</option>
                     <option value="Aguardando Peças" <?=$this->input->get('status') == 'Aguardando Peças' ? 'selected' : ''?>>Aguardando Peças</option>
                     <option value="Aprovado" <?=$this->input->get('status') == 'Aprovado' ? 'selected' : ''?>>Aprovado</option>
                 </select>
@@ -181,6 +182,9 @@ foreach ($results as $r) {
             break;
         case 'Cancelado':
             $cor = '#CD0000';
+            break;
+        case 'Sem Conserto':
+            $cor = '#f78da7';
             break;
         case 'Finalizado':
             $cor = '#256';

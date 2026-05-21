@@ -53,6 +53,7 @@
                                                 <option value="Finalizado">Finalizado</option>
                                                 <option value="Faturado">Faturado</option>
                                                 <option value="Cancelado">Cancelado</option>
+                                                <option value="Sem Conserto">Sem Conserto</option>
                                             </select>
                                         </div>
                                         <div class="span3">

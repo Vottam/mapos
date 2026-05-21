@@ -106,6 +106,9 @@
                                 case 'Cancelado':
                                     $cor = '#CD0000';
                                     break;
+                                case 'Sem Conserto':
+                                    $cor = '#f78da7';
+                                    break;
                                 case 'Finalizado':
                                     $cor = '#256';
                                     break;
@@ -210,6 +213,9 @@
                             break;
                         case 'Cancelado':
                             $cor = '#CD0000';
+                            break;
+                        case 'Sem Conserto':
+                            $cor = '#f78da7';
                             break;
                         case 'Finalizado':
                             $cor = '#256';

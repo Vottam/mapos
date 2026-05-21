@@ -119,7 +119,10 @@
                                                 } ?> value="Faturado">Faturado</option>
                                                 <option <?php if ($result->status == 'Cancelado') {
                                                     echo 'selected';
-                                                } ?> value="Cancelado">Cancelado</option>                                                          
+                                                } ?> value="Cancelado">Cancelado</option>
+                                                <option <?php if ($result->status == 'Sem Conserto') {
+                                                    echo 'selected';
+                                                } ?> value="Sem Conserto">Sem Conserto</option>
                                             </select>
                                         </div>
                                         <div class="span3">
