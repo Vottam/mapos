@@ -211,8 +211,12 @@ class Os extends MY_Controller
 
                 $tecnico = $this->usuarios_model->getById($os->usuarios_id);
 
-                // Verificar configuração de notificação
-                if ($this->data['configuration']['os_notification'] != 'nenhum' && $this->data['configuration']['email_automatico'] == 1) {
+                // Verificar configuração de notificação e whitelist de status
+                if (
+                    $this->data['configuration']['os_notification'] != 'nenhum'
+                    && $this->data['configuration']['email_automatico'] == 1
+                    && $this->deveEnviarEmailAutomaticoPorStatus(null, $os->status)
+                ) {
                     $remetentes = [];
                     switch ($this->data['configuration']['os_notification']) {
                         case 'todos':
@@ -308,6 +312,8 @@ class Os extends MY_Controller
                 'clientes_id' => $clienteId,
             ];
             $os = $this->os_model->getById($this->input->post('idOs'));
+            $statusAnterior = $os->status;
+            $statusNovo = $this->input->post('status');
 
             //Verifica para poder fazer a devolução do produto para o estoque caso OS seja cancelada.
 
@@ -331,8 +337,12 @@ class Os extends MY_Controller
                 $emitente = $this->mapos_model->getEmitente();
                 $tecnico = $this->usuarios_model->getById($os->usuarios_id);
 
-                // Verificar configuração de notificação
-                if ($this->data['configuration']['os_notification'] != 'nenhum' && $this->data['configuration']['email_automatico'] == 1) {
+                // Verificar configuração de notificação e whitelist de status
+                if (
+                    $this->data['configuration']['os_notification'] != 'nenhum'
+                    && $this->data['configuration']['email_automatico'] == 1
+                    && $this->deveEnviarEmailAutomaticoPorStatus($statusAnterior, $statusNovo)
+                ) {
                     $remetentes = [];
                     switch ($this->data['configuration']['os_notification']) {
                         case 'todos':
@@ -1236,6 +1246,45 @@ class Os extends MY_Controller
         $this->session->set_flashdata('error', 'Ocorreu um erro ao tentar faturar OS.');
         $json = ['result' => false];
         echo json_encode($json);
+    }
+
+    private function obterListaStatusEmailAutomatico()
+    {
+        $fallback = ['Orçamento', 'Finalizado', 'Faturado'];
+        $config = $this->data['configuration']['os_status_email_notify_list'] ?? null;
+        $lista = is_array($config) ? $config : json_decode((string) $config, true);
+
+        if (!is_array($lista)) {
+            return $fallback;
+        }
+
+        $lista = array_values(array_filter(array_map('trim', $lista), static function ($status) {
+            return $status !== '';
+        }));
+
+        return empty($lista) ? $fallback : $lista;
+    }
+
+    private function statusPermiteEmailAutomatico($status)
+    {
+        if (! is_string($status) || trim($status) === '') {
+            return false;
+        }
+
+        return in_array(trim($status), $this->obterListaStatusEmailAutomatico(), true);
+    }
+
+    private function deveEnviarEmailAutomaticoPorStatus($statusAnterior, $statusNovo)
+    {
+        if (! $this->statusPermiteEmailAutomatico($statusNovo)) {
+            return false;
+        }
+
+        if ($statusAnterior === null) {
+            return true;
+        }
+
+        return trim((string) $statusAnterior) !== trim((string) $statusNovo);
     }
 
     private function enviarOsPorEmail($idOs, $remetentes, $assunto)

@@ -433,6 +433,29 @@ class Mapos extends MY_Controller
             $this->data['custom_error'] = (validation_errors() ? '<div class="alert">' . validation_errors() . '</div>' : false);
         } else {
             // Edição do .env
+            $statusEmailNotifyPermitidos = [
+                'Aberto',
+                'Orçamento',
+                'Negociação',
+                'Aprovado',
+                'Aguardando Peças',
+                'Em Andamento',
+                'Finalizado',
+                'Faturado',
+                'Cancelado',
+                'Sem Conserto',
+            ];
+            $statusEmailNotifySelecionados = $this->input->post('os_status_email_notify_list');
+            $statusEmailNotifyPadrao = ['Orçamento', 'Finalizado', 'Faturado'];
+            if (! is_array($statusEmailNotifySelecionados)) {
+                $statusEmailNotifySelecionados = [];
+            }
+            $statusEmailNotifySelecionados = array_values(array_intersect($statusEmailNotifySelecionados, $statusEmailNotifyPermitidos));
+            if (empty($statusEmailNotifySelecionados)) {
+                $statusEmailNotifySelecionados = $statusEmailNotifyPadrao;
+            }
+
+            // Edição do .env
             $dataDotEnv = [
                 'IMPRIMIR_ANEXOS' => $this->input->post('imprmirAnexos'),
                 'PAYMENT_GATEWAYS_EFI_PRODUCTION' => $this->input->post('PAYMENT_GATEWAYS_EFI_PRODUCTION'),
@@ -478,6 +501,7 @@ class Mapos extends MY_Controller
                 'control_datatable' => $this->input->post('control_datatable'),
                 'pix_key' => $this->input->post('pix_key'),
                 'os_status_list' => json_encode($this->input->post('os_status_list')),
+                'os_status_email_notify_list' => json_encode($statusEmailNotifySelecionados),
                 'control_2vias' => $this->input->post('control_2vias'),
             ];
             if ($this->mapos_model->saveConfiguracao($data) == true) {

@@ -381,6 +381,28 @@
                                     <label> <input <?= @in_array("Sem Conserto", json_decode($configuration['os_status_list'])) == 'true' ? 'checked' : ''; ?> name="os_status_list[]" class="marcar" type="checkbox" value="Sem Conserto"> <span class="lbl"> Sem Conserto</span> </label>
                                 </div>
                             </div>
+                            <?php
+                            $osStatusEmailNotifyDefault = ['Orçamento', 'Finalizado', 'Faturado'];
+                            $osStatusEmailNotifyList = json_decode($configuration['os_status_email_notify_list'] ?? '', true);
+                            if (!is_array($osStatusEmailNotifyList) || empty($osStatusEmailNotifyList)) {
+                                $osStatusEmailNotifyList = $osStatusEmailNotifyDefault;
+                            }
+                            ?>
+                            <div class="span8">
+                                <span6 class="span10" style="margin-left: 2em;"> Status que enviam e-mail automático ao cliente. </span6>
+                                <div class="span10" style="margin-left: 3em;">
+                                    <label> <input <?= @in_array("Aberto", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Aberto"> <span class="lbl"> Aberto</span> </label>
+                                    <label> <input <?= @in_array("Orçamento", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Orçamento"> <span class="lbl"> Orçamento</span> </label>
+                                    <label> <input <?= @in_array("Negociação", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Negociação"> <span class="lbl"> Negociação</span> </label>
+                                    <label> <input <?= @in_array("Aprovado", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Aprovado"> <span class="lbl"> Aprovado </span> </label>
+                                    <label> <input <?= @in_array("Aguardando Peças", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Aguardando Peças"> <span class="lbl"> Aguardando Peças </span> </label>
+                                    <label> <input <?= @in_array("Em Andamento", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Em Andamento"> <span class="lbl"> Em Andamento</span> </label>
+                                    <label> <input <?= @in_array("Finalizado", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Finalizado"> <span class="lbl"> Finalizado</span> </label>
+                                    <label> <input <?= @in_array("Faturado", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Faturado"> <span class="lbl"> Faturado</span> </label>
+                                    <label> <input <?= @in_array("Cancelado", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Cancelado"> <span class="lbl"> Cancelado</span> </label>
+                                    <label> <input <?= @in_array("Sem Conserto", $osStatusEmailNotifyList) == 'true' ? 'checked' : ''; ?> name="os_status_email_notify_list[]" class="marcar" type="checkbox" value="Sem Conserto"> <span class="lbl"> Sem Conserto</span> </label>
+                                </div>
+                            </div>
                             <div class="span8">
                                 <label for="imprmirAnexos" class="control-label">Imprimir Anexos na A4?</label>
                                 <div class="controls">
