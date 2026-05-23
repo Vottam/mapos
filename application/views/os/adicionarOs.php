@@ -1,6 +1,7 @@
 <link rel="stylesheet" href="<?php echo base_url(); ?>assets/js/jquery-ui/css/smoothness/jquery-ui-1.9.2.custom.css" />
 <script type="text/javascript" src="<?php echo base_url() ?>assets/js/jquery-ui/js/jquery-ui-1.9.2.custom.js"></script>
 <script type="text/javascript" src="<?php echo base_url() ?>assets/js/jquery.validate.js"></script>
+<script src="<?php echo base_url() ?>assets/js/sweetalert2.all.min.js"></script>
 
 <link rel="stylesheet" href="<?php echo base_url() ?>assets/trumbowyg/ui/trumbowyg.css">
 <script type="text/javascript" src="<?php echo base_url() ?>assets/trumbowyg/trumbowyg.js"></script>
@@ -72,6 +73,16 @@
                                             <label for="termoGarantia">Termo Garantia</label>
                                             <input id="termoGarantia" class="span12" type="text" name="termoGarantia" value="" />
                                             <input id="garantias_id" class="span12" type="hidden" name="garantias_id" value="" />
+                                            <div id="garantia_retorno_block" class="garantia-retorno-block" style="margin-top:14px; padding:10px 12px; border:1px solid #d9d9d9; border-radius:6px; background:#f9f9f9; width:100%; box-sizing:border-box; clear:both;">
+                                                <label for="garantia_retorno" style="display:flex; align-items:center; gap:8px; margin:0; font-weight:bold; cursor:pointer;">
+                                                    <input type="checkbox" id="garantia_retorno" name="garantia_retorno" value="1" style="margin:0;" />
+                                                    <span>OS em garantia / Retorno de garantia</span>
+                                                </label>
+                                                <div id="garantia_origem_container" class="hidden" style="margin-top:8px; padding:6px 10px; background:#fff3cd; border:1px solid #ffc107; border-radius:4px; font-size:13px;">
+                                                    <span id="garantia_origem_info"></span>
+                                                </div>
+                                            </div>
+                                            <input type="hidden" id="garantia_origem_os_id" name="garantia_origem_os_id" value="" />
                                         </div>
                                     </div>
                                     <div class="span12" style="padding: 1%; margin-left: 0">
@@ -145,8 +156,16 @@
 </div>
 <script type="text/javascript">
     $(document).ready(function() {
-        var equipamentoEndpoint = "<?php echo base_url(); ?>index.php/os/equipamentosCliente/";
+        var equipamentoEndpoint = "/index.php/os/equipamentosCliente/";
+        var historicoSerialEndpoint = "/index.php/os/historicoSerial";
+        var osAtualId = 0;
         var serialInternoSugerido = "<?= isset($serialInternoSugerido) ? html_escape($serialInternoSugerido) : '' ?>";
+        var serialHistoricoTimer = null;
+        var serialHistoricoUltimoConsultado = '';
+
+        function escapeHtml(text) {
+            return $('<div>').text(text == null ? '' : String(text)).html();
+        }
 
         function atualizarFlagSerialInterno() {
             if (!serialInternoSugerido) {
@@ -165,11 +184,202 @@
             $('#equipamento_id').val('');
         }
 
+        function montarResumoHistorico(item) {
+            var resumo = '[Histórico anterior por número de série — OS #' + escapeHtml(String(item.idOs)) + ']\n';
+            resumo += 'Cliente: ' + escapeHtml(item.cliente || '-') + '\n';
+            resumo += 'Data: ' + escapeHtml(item.dataInicial || '-') + (item.dataFinal ? ' até ' + escapeHtml(item.dataFinal) : '') + '\n';
+            resumo += 'Status: ' + escapeHtml(item.status || '-') + '\n';
+            resumo += 'Garantia: ' + escapeHtml(item.situacaoGarantia || 'Indefinido');
+            if (item.vencimentoGarantia) {
+                resumo += ' (vence em ' + escapeHtml(item.vencimentoGarantia) + ')';
+            }
+            resumo += '\n';
+            resumo += 'Equipamento: ' + escapeHtml(item.equipamento || '-') + '\n';
+            resumo += 'Serial: ' + escapeHtml(item.num_serie || '-') + '\n';
+            resumo += 'Descrição:\n' + escapeHtml(item.descricaoProduto || '-') + '\n';
+            resumo += 'Defeito:\n' + escapeHtml(item.defeito || '-') + '\n';
+            resumo += 'Laudo:\n' + escapeHtml(item.laudoTecnico || '-') + '\n';
+            resumo += 'Observações:\n' + escapeHtml(item.observacoes || '-') + '\n';
+            return resumo;
+        }
+
+        function anexarAoObservacoes(texto) {
+            var $obs = $('#observacoes');
+            if ($obs.length && $obs.trumbowyg) {
+                try {
+                    var atual = $obs.trumbowyg('html') || '';
+                    // Convert plain text to HTML for appending
+                    var textoHtml = $('<div>').text(texto).html().replace(/\n/g, '<br>');
+                    if (atual && atual.length && atual !== '<br>') {
+                        $obs.trumbowyg('html', atual + '<br><br>' + textoHtml);
+                    } else {
+                        $obs.trumbowyg('html', textoHtml);
+                    }
+                    return true;
+                } catch(e) {
+                    console.warn('Trumbowyg write failed, falling back to textarea', e);
+                }
+            }
+            // Fallback for plain textarea
+            try {
+                var atual2 = $obs.val() || '';
+                if (atual2.length) {
+                    $obs.val(atual2 + '\n\n' + texto);
+                } else {
+                    $obs.val(texto);
+                }
+                return true;
+            } catch(e2) {
+                return false;
+            }
+        }
+
+        function copiarHistoricoObservacoes(item) {
+            var resumo = montarResumoHistorico(item);
+            var ok = anexarAoObservacoes(resumo);
+            $('#garantia_retorno').prop('checked', false);
+            $('#garantia_origem_os_id').val('');
+            $('#garantia_origem_container').addClass('hidden');
+            if (ok) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Histórico copiado para Observações.',
+                    showConfirmButton: false,
+                    timer: 2000,
+                });
+            }
+        }
+
+        function receberGarantia(item) {
+            var resumo = montarResumoHistorico(item);
+            var ok = anexarAoObservacoes(resumo);
+            $('#garantia_retorno').prop('checked', true);
+            $('#garantia_origem_os_id').val(item.idOs);
+            $('#garantia_origem_info')
+                .html('Origem da garantia: <strong>OS #' + escapeHtml(String(item.idOs)) + '</strong>');
+            $('#garantia_origem_container').removeClass('hidden');
+            $('#garantia_retorno_block').addClass('garantia-retorno--active');
+            if (ok) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Histórico copiado e garantia marcada.',
+                    showConfirmButton: false,
+                    timer: 2000,
+                });
+            }
+        }
+
+        function exibirHistoricoSerial(items) {
+            if (!items || !items.length) {
+                return;
+            }
+
+            var html = '<div style="text-align:left;">';
+            html += '<p style="margin-bottom:12px;">Este número de série já apareceu em OS anterior.</p>';
+            html += '<div style="max-height:420px; overflow:auto; padding-right:4px;">';
+
+            $.each(items, function(_, item) {
+                var itemId = item.idOs;
+                html += '<div class="serial-historico-card" data-os-id="' + escapeHtml(String(itemId)) + '" style="border:1px solid #d9d9d9; border-radius:8px; padding:12px; margin-bottom:12px; background:#fafafa;">';
+                html += '<div style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">';
+                html += '<strong>OS #' + escapeHtml(String(itemId)) + '</strong>';
+                html += '<a href="' + escapeHtml(item.urlVisualizarOs) + '" target="_blank" rel="noopener noreferrer" class="btn btn-mini btn-primary">Abrir OS</a>';
+                html += '</div>';
+                html += '<div><strong>Cliente:</strong> ' + escapeHtml(item.cliente || '-') + '</div>';
+                html += '<div><strong>Data:</strong> ' + escapeHtml(item.dataInicial || '-') + (item.dataFinal ? ' até ' + escapeHtml(item.dataFinal) : '') + '</div>';
+                html += '<div><strong>Status:</strong> ' + escapeHtml(item.status || '-') + '</div>';
+                html += '<div><strong>Garantia:</strong> ' + escapeHtml(item.situacaoGarantia || 'Indefinido');
+                if (item.vencimentoGarantia) {
+                    html += ' <span style="color:#666;">(vence em ' + escapeHtml(item.vencimentoGarantia) + ')</span>';
+                }
+                html += '</div>';
+                html += '<div><strong>Equipamento:</strong> ' + escapeHtml(item.equipamento || '-') + '</div>';
+                html += '<div><strong>Série:</strong> ' + escapeHtml(item.num_serie || '-') + '</div>';
+                html += '<div style="margin-top:8px;"><strong>Descrição:</strong> ' + escapeHtml(item.descricaoProduto || '-') + '</div>';
+                html += '<div><strong>Defeito:</strong> ' + escapeHtml(item.defeito || '-') + '</div>';
+                html += '<div><strong>Laudo:</strong> ' + escapeHtml(item.laudoTecnico || '-') + '</div>';
+                html += '<div><strong>Observações:</strong> ' + escapeHtml(item.observacoes || '-') + '</div>';
+                html += '<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">';
+                html += '<button type="button" class="btn btn-mini btn-info btn-copiar-obs" data-os-id="' + escapeHtml(String(itemId)) + '">Copiar para Observações</button>';
+                html += '<button type="button" class="btn btn-mini btn-warning btn-receber-garantia" data-os-id="' + escapeHtml(String(itemId)) + '">Receber em Garantia</button>';
+                html += '</div>';
+                html += '</div>';
+            });
+
+            html += '</div></div>';
+
+            Swal.fire({
+                title: 'Equipamento já possui histórico',
+                html: html,
+                icon: 'info',
+                confirmButtonText: 'Fechar',
+                width: 980,
+                scrollbarPadding: false,
+                showCloseButton: true,
+            });
+
+            // Store items for later access
+            window.__serialHistoricoItems = {};
+            $.each(items, function(_, item) {
+                window.__serialHistoricoItems[item.idOs] = item;
+            });
+        }
+
+        // Event delegation for popup buttons
+        $(document).on('click', '.btn-copiar-obs', function() {
+            var osId = $(this).data('os-id');
+            if (window.__serialHistoricoItems && window.__serialHistoricoItems[osId]) {
+                copiarHistoricoObservacoes(window.__serialHistoricoItems[osId]);
+            }
+        });
+
+        $(document).on('click', '.btn-receber-garantia', function() {
+            var osId = $(this).data('os-id');
+            if (window.__serialHistoricoItems && window.__serialHistoricoItems[osId]) {
+                receberGarantia(window.__serialHistoricoItems[osId]);
+            }
+        });
+
+        function consultarHistoricoSerial(forcar) {
+            var serial = $.trim($('#equipamento_num_serie').val() || '');
+
+            if (!serial) {
+                serialHistoricoUltimoConsultado = '';
+                return;
+            }
+
+            if (!forcar && serial === serialHistoricoUltimoConsultado) {
+                return;
+            }
+
+            serialHistoricoUltimoConsultado = serial;
+
+            $.getJSON(historicoSerialEndpoint, { serial: serial, idOs: osAtualId })
+                .done(function(response) {
+                    if (response && response.found && response.historico && response.historico.length) {
+                        exibirHistoricoSerial(response.historico);
+                    }
+                });
+        }
+
+        function agendarConsultaHistorico(forcar, delay) {
+            clearTimeout(serialHistoricoTimer);
+            serialHistoricoTimer = setTimeout(function() {
+                consultarHistoricoSerial(!!forcar);
+            }, delay || 450);
+        }
+
         function preencherCamposEquipamento(equipamento) {
             $('#equipamento_tipo').val(equipamento.equipamento || '');
             $('#equipamento_marca').val(equipamento.marca || '');
             $('#equipamento_modelo').val(equipamento.modelo || '');
             $('#equipamento_num_serie').val(equipamento.num_serie || '');
+            atualizarFlagSerialInterno();
+            agendarConsultaHistorico(true, 100);
         }
 
         function carregarEquipamentosCliente(clienteId, equipamentoSelecionadoId) {
@@ -209,6 +419,7 @@
             if (!equipamentoId) {
                 limparCamposEquipamento();
                 atualizarFlagSerialInterno();
+                serialHistoricoUltimoConsultado = '';
                 return;
             }
             preencherCamposEquipamento({
@@ -217,11 +428,14 @@
                 modelo: $option.data('modelo'),
                 num_serie: $option.data('num_serie')
             });
-            atualizarFlagSerialInterno();
         });
 
-        $('#equipamento_num_serie').on('input change', function() {
+        $('#equipamento_num_serie').on('input', function() {
             atualizarFlagSerialInterno();
+            agendarConsultaHistorico(false, 500);
+        }).on('blur', function() {
+            atualizarFlagSerialInterno();
+            agendarConsultaHistorico(true, 0);
         });
         atualizarFlagSerialInterno();
 
@@ -295,5 +509,17 @@
             lang: 'pt_br',
             semantic: { 'strikethrough': 's', }
         });
+    });
+
+    // Garantia retorno: toggle visual
+    $(document).on('change', '#garantia_retorno', function() {
+        var $block = $('#garantia_retorno_block');
+        if ($(this).is(':checked')) {
+            $block.addClass('garantia-retorno--active');
+        } else {
+            $block.removeClass('garantia-retorno--active');
+            $('#garantia_origem_os_id').val('');
+            $('#garantia_origem_container').addClass('hidden');
+        }
     });
 </script>

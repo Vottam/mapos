@@ -230,10 +230,13 @@ class Os_model extends CI_Model
     public function salvarEquipamentoOs($osId, $clienteId, array $dados, $equipamentoAtual = null, $serialInternoSugerido = false)
     {
         $dados = $this->normalizarEquipamentoDados($dados);
-        $tipo = $dados['equipamento'];
-        $marca = $dados['marca'];
-        $modelo = $dados['modelo'];
-        $serie = $dados['num_serie'];
+        $tipo = trim((string) ($dados['equipamento'] ?? ''));
+        $marca = trim((string) ($dados['marca'] ?? ''));
+        $modelo = trim((string) ($dados['modelo'] ?? ''));
+        $serie = trim((string) ($dados['num_serie'] ?? ''));
+        $clienteId = (int) $clienteId;
+        $equipamentoAtual = $equipamentoAtual ?: null;
+        $equipamentoAtualId = $equipamentoAtual ? (int) ($equipamentoAtual->idEquipamentos ?? 0) : null;
 
         if ($serialInternoSugerido) {
             $serie = $this->buildInternalSerial($osId);
@@ -246,10 +249,6 @@ class Os_model extends CI_Model
         if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '' && $equipamentoAtualId) {
             return null;
         }
-
-        $clienteId = (int) $clienteId;
-        $equipamentoAtual = $equipamentoAtual ?: null;
-        $equipamentoAtualId = $equipamentoAtual ? (int) ($equipamentoAtual->idEquipamentos ?? 0) : null;
 
         $this->db->trans_start();
 

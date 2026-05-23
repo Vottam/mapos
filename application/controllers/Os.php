@@ -51,7 +51,11 @@ class Os extends MY_Controller
     private function salvarOuVincularEquipamentoOs($osId, $clienteId, array $equipamentoData, $equipamentoSelecionado = null, $equipamentoAtual = null, $serialInternoSugerido = false)
     {
         if ($equipamentoSelecionado) {
-            return $this->os_model->vincularEquipamentoOsExistente($osId, $equipamentoSelecionado->idEquipamentos);
+            if ($this->equipamentoDadosBatemSelecionado($equipamentoData, $equipamentoSelecionado)) {
+                return $this->os_model->vincularEquipamentoOsExistente($osId, $equipamentoSelecionado->idEquipamentos);
+            }
+
+            return $this->os_model->salvarEquipamentoOs($osId, $clienteId, $equipamentoData, $equipamentoSelecionado, $serialInternoSugerido);
         }
 
         if ($this->hasEquipamentoData($equipamentoData) || ! $equipamentoAtual) {
@@ -74,6 +78,67 @@ class Os extends MY_Controller
         }
 
         return false;
+    }
+
+    private function resumirTextoHistorico($texto, $limite = 140)
+    {
+        $texto = trim(preg_replace('/\s+/', ' ', strip_tags((string) $texto)));
+
+        if ($texto === '') {
+            return '-';
+        }
+
+        if (function_exists('mb_strlen') && mb_strlen($texto, 'UTF-8') > $limite) {
+            return mb_substr($texto, 0, $limite, 'UTF-8') . '...';
+        }
+
+        if (strlen($texto) > $limite) {
+            return substr($texto, 0, $limite) . '...';
+        }
+
+        return $texto;
+    }
+
+    private function formatarHistoricoSerialItem($row)
+    {
+        $equipamento = trim(implode(' ', array_filter([
+            $row->tipo ?? '',
+            $row->marca ?? '',
+            $row->modelo ?? '',
+        ])));
+
+        return [
+            'idOs' => (int) ($row->idOs ?? 0),
+            'cliente' => $row->cliente ?? '',
+            'dataInicial' => ! empty($row->dataInicial) ? date('d/m/Y', strtotime($row->dataInicial)) : '',
+            'dataFinal' => ! empty($row->dataFinal) ? date('d/m/Y', strtotime($row->dataFinal)) : '',
+            'status' => $row->status ?? '',
+            'garantia' => isset($row->garantia) ? (int) $row->garantia : 0,
+            'vencimentoGarantia' => $row->vencimento_garantia ?? null,
+            'situacaoGarantia' => $row->situacao_garantia ?? 'Indefinido',
+            'descricaoProduto' => $this->resumirTextoHistorico($row->descricaoProduto ?? '', 140),
+            'defeito' => $this->resumirTextoHistorico($row->defeito ?? '', 140),
+            'laudoTecnico' => $this->resumirTextoHistorico($row->laudoTecnico ?? '', 140),
+            'observacoes' => $this->resumirTextoHistorico($row->observacoes ?? '', 140),
+            'equipamento' => $equipamento !== '' ? $equipamento : 'Não informado',
+            'marca' => $row->marca ?? '',
+            'modelo' => $row->modelo ?? '',
+            'num_serie' => $row->num_serie ?? '',
+            'urlVisualizarOs' => site_url('os/visualizar/' . (int) ($row->idOs ?? 0)),
+        ];
+    }
+
+    public function equipamentosCliente($idCliente = null)
+    {
+        $this->output->set_content_type('application/json');
+
+        if ($idCliente === null || ! is_numeric($idCliente)) {
+            echo json_encode(['equipamentos' => []]);
+            return;
+        }
+
+        $equipamentos = $this->os_model->getEquipamentosCliente((int) $idCliente);
+        echo json_encode(['equipamentos' => $equipamentos]);
     }
 
     public function index()
@@ -186,8 +251,8 @@ class Os extends MY_Controller
 
             $data = [
                 'dataInicial' => $dataInicial,
-                'clientes_id' => $clienteId, //set_value('idCliente'),
-                'usuarios_id' => $this->input->post('usuarios_id'), //set_value('idUsuario'),
+                'clientes_id' => $clienteId,
+                'usuarios_id' => $this->input->post('usuarios_id'),
                 'dataFinal' => $dataFinal,
                 'garantia' => set_value('garantia'),
                 'garantias_id' => $termoGarantiaId,
@@ -197,6 +262,8 @@ class Os extends MY_Controller
                 'observacoes' => $this->input->post('observacoes'),
                 'laudoTecnico' => $this->input->post('laudoTecnico'),
                 'faturado' => 0,
+                'garantia_retorno' => $this->input->post('garantia_retorno') ? 1 : 0,
+                'garantia_origem_os_id' => is_numeric($this->input->post('garantia_origem_os_id')) ? (int) $this->input->post('garantia_origem_os_id') : null,
             ];
 
             if (is_numeric($id = $this->os_model->add('os', $data, true))) {
@@ -311,6 +378,8 @@ class Os extends MY_Controller
                 'laudoTecnico' => $this->input->post('laudoTecnico'),
                 'usuarios_id' => $this->input->post('usuarios_id'),
                 'clientes_id' => $clienteId,
+                'garantia_retorno' => $this->input->post('garantia_retorno') ? 1 : 0,
+                'garantia_origem_os_id' => is_numeric($this->input->post('garantia_origem_os_id')) ? (int) $this->input->post('garantia_origem_os_id') : null,
             ];
             $os = $this->os_model->getById($this->input->post('idOs'));
             $statusAnterior = $os->status;
@@ -785,32 +854,35 @@ class Os extends MY_Controller
         }
     }
 
-    public function equipamentosCliente($idCliente = null)
+    public function historicoSerial()
     {
         $this->output->set_content_type('application/json');
 
-        if ($idCliente === null || ! is_numeric($idCliente)) {
-            return $this->output
-                ->set_status_header(400)
-                ->set_output(json_encode(['result' => false, 'equipamentos' => []]));
+        $serial = trim((string) $this->input->get_post('serial', true));
+        $idOsAtual = $this->input->get_post('idOs', true);
+        $idOsAtual = is_numeric($idOsAtual) ? (int) $idOsAtual : null;
+
+        if ($serial === '') {
+            return $this->output->set_output(json_encode([
+                'found' => false,
+                'serial' => '',
+                'total' => 0,
+                'historico' => [],
+            ]));
         }
 
-        $equipamentos = $this->os_model->getEquipamentosCliente((int) $idCliente);
+        $historico = $this->os_model->getHistoricoPorSerial($serial, $idOsAtual, 5);
         $payload = [];
 
-        foreach ($equipamentos as $equipamento) {
-            $payload[] = [
-                'idEquipamentos' => (int) $equipamento->idEquipamentos,
-                'equipamento' => $equipamento->equipamento,
-                'marca' => $equipamento->marca,
-                'modelo' => $equipamento->modelo,
-                'num_serie' => $equipamento->num_serie,
-            ];
+        foreach ($historico as $row) {
+            $payload[] = $this->formatarHistoricoSerialItem($row);
         }
 
         return $this->output->set_output(json_encode([
-            'result' => true,
-            'equipamentos' => $payload,
+            'found' => ! empty($payload),
+            'serial' => $serial,
+            'total' => count($payload),
+            'historico' => $payload,
         ]));
     }
 

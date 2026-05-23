@@ -143,6 +143,16 @@
                                             <label for="termoGarantia">Termo Garantia</label>
                                             <input id="termoGarantia" class="span12" type="text" name="termoGarantia" value="<?php echo $result->refGarantia ?>" />
                                             <input id="garantias_id" class="span12" type="hidden" name="garantias_id" value="<?php echo $result->garantias_id ?>" />
+                                            <div id="garantia_retorno_block" class="garantia-retorno-block <?php echo ($result->garantia_retorno ?? 0) ? 'garantia-retorno--active' : ''; ?>" style="margin-top:14px; padding:10px 12px; border:1px solid #d9d9d9; border-radius:6px; background:#f9f9f9; width:100%; box-sizing:border-box; clear:both;">
+                                                <label for="garantia_retorno" style="display:flex; align-items:center; gap:8px; margin:0; font-weight:bold; cursor:pointer;">
+                                                    <input type="checkbox" id="garantia_retorno" name="garantia_retorno" value="1" <?php echo ($result->garantia_retorno ?? 0) ? 'checked' : ''; ?> style="margin:0;" />
+                                                    <span>OS em garantia / Retorno de garantia</span>
+                                                </label>
+                                                <div id="garantia_origem_container" class="<?php echo ($result->garantia_origem_os_id ?? '') ? '' : 'hidden'; ?>" style="margin-top:8px; padding:6px 10px; background:#fff3cd; border:1px solid #ffc107; border-radius:4px; font-size:13px;">
+                                                    <span id="garantia_origem_info">Origem da garantia: <strong>OS #<?php echo (int) ($result->garantia_origem_os_id ?? 0); ?></strong></span>
+                                                </div>
+                                            </div>
+                                            <input type="hidden" id="garantia_origem_os_id" name="garantia_origem_os_id" value="<?php echo $result->garantia_origem_os_id ?? ''; ?>" />
                                         </div>
                                     </div>
                                     <div class="span12" style="padding: 1%; margin-left: 0">
@@ -151,6 +161,9 @@
                                             <label for="equipamento_id">Equipamento existente</label>
                                             <select id="equipamento_id" name="equipamento_id" class="span12">
                                                 <option value="">Novo equipamento</option>
+                                                <?php if (!empty($equipamento) && !empty($equipamento->idEquipamentos)) : ?>
+                                                    <option value="<?= (int) $equipamento->idEquipamentos ?>" selected data-equipamento="<?= html_escape($equipamento->equipamento ?? '') ?>" data-marca="<?= html_escape($equipamento->marca_nome ?? '') ?>" data-modelo="<?= html_escape($equipamento->modelo ?? '') ?>" data-num_serie="<?= html_escape($equipamento->num_serie ?? '') ?>"><?= html_escape(trim(implode(' | ', array_filter([$equipamento->equipamento ?? '', $equipamento->marca_nome ?? '', $equipamento->modelo ?? '', $equipamento->num_serie ?? ''])))) ?></option>
+                                                <?php endif; ?>
                                             </select>
                                         </div>
                                         <div class="span3" style="margin-left: 0">
@@ -879,8 +892,16 @@ if (!$anotacoes) {
             }
         });
 
-        var equipamentoEndpoint = "<?php echo base_url(); ?>index.php/os/equipamentosCliente/";
+        var equipamentoEndpoint = "/index.php/os/equipamentosCliente/";
+        var historicoSerialEndpoint = "/index.php/os/historicoSerial";
+        var osAtualId = <?= (int) $result->idOs ?>;
         var equipamentoAtualId = <?= isset($equipamento->idEquipamentos) ? (int) $equipamento->idEquipamentos : 0 ?>;
+        var serialHistoricoTimer = null;
+        var serialHistoricoUltimoConsultado = '';
+
+        function escapeHtml(text) {
+            return $('<div>').text(text == null ? '' : String(text)).html();
+        }
 
         function limparCamposEquipamento() {
             $('#equipamento_tipo').val('');
@@ -890,20 +911,100 @@ if (!$anotacoes) {
             $('#equipamento_id').val('');
         }
 
+        function exibirHistoricoSerial(items) {
+            if (!items || !items.length) {
+                return;
+            }
+
+            var html = '<div style="text-align:left;">';
+            html += '<p style="margin-bottom:12px;">Este número de série já apareceu em OS anterior.</p>';
+            html += '<div style="max-height:420px; overflow:auto; padding-right:4px;">';
+
+            $.each(items, function(_, item) {
+                html += '<div style="border:1px solid #d9d9d9; border-radius:8px; padding:12px; margin-bottom:12px; background:#fafafa;">';
+                html += '<div style="margin-bottom:8px;"><strong>OS #' + escapeHtml(item.idOs) + '</strong> ';
+                html += '<a href="' + escapeHtml(item.urlVisualizarOs) + '" target="_blank" rel="noopener noreferrer" class="btn btn-mini btn-primary" style="float:right;">Abrir OS anterior</a></div>';
+                html += '<div><strong>Cliente:</strong> ' + escapeHtml(item.cliente || '-') + '</div>';
+                html += '<div><strong>Data:</strong> ' + escapeHtml(item.dataInicial || '-') + (item.dataFinal ? ' até ' + escapeHtml(item.dataFinal) : '') + '</div>';
+                html += '<div><strong>Status:</strong> ' + escapeHtml(item.status || '-') + '</div>';
+                html += '<div><strong>Garantia:</strong> ' + escapeHtml(item.situacaoGarantia || 'Indefinido');
+                if (item.vencimentoGarantia) {
+                    html += ' <span style="color:#666;">(vence em ' + escapeHtml(item.vencimentoGarantia) + ')</span>';
+                }
+                html += '</div>';
+                html += '<div><strong>Equipamento:</strong> ' + escapeHtml(item.equipamento || '-') + '</div>';
+                html += '<div><strong>Série:</strong> ' + escapeHtml(item.num_serie || '-') + '</div>';
+                html += '<div style="margin-top:8px;"><strong>Descrição:</strong> ' + escapeHtml(item.descricaoProduto || '-') + '</div>';
+                html += '<div><strong>Defeito:</strong> ' + escapeHtml(item.defeito || '-') + '</div>';
+                html += '<div><strong>Laudo:</strong> ' + escapeHtml(item.laudoTecnico || '-') + '</div>';
+                html += '<div><strong>Observações:</strong> ' + escapeHtml(item.observacoes || '-') + '</div>';
+                html += '</div>';
+            });
+
+            html += '</div></div>';
+
+            Swal.fire({
+                title: 'Equipamento já possui histórico',
+                html: html,
+                icon: 'info',
+                confirmButtonText: 'Fechar',
+                width: 980,
+                scrollbarPadding: false,
+                showCloseButton: true,
+            });
+        }
+
+        function consultarHistoricoSerial(forcar) {
+            var serial = $.trim($('#equipamento_num_serie').val() || '');
+
+            if (!serial) {
+                serialHistoricoUltimoConsultado = '';
+                return;
+            }
+
+            if (!forcar && serial === serialHistoricoUltimoConsultado) {
+                return;
+            }
+
+            serialHistoricoUltimoConsultado = serial;
+
+            $.getJSON(historicoSerialEndpoint, { serial: serial, idOs: osAtualId })
+                .done(function(response) {
+                    if (response && response.found && response.historico && response.historico.length) {
+                        exibirHistoricoSerial(response.historico);
+                    }
+                });
+        }
+
+        function agendarConsultaHistorico(forcar, delay) {
+            clearTimeout(serialHistoricoTimer);
+            serialHistoricoTimer = setTimeout(function() {
+                consultarHistoricoSerial(!!forcar);
+            }, delay || 450);
+        }
+
         function preencherCamposEquipamento(equipamento) {
             $('#equipamento_tipo').val(equipamento.equipamento || '');
             $('#equipamento_marca').val(equipamento.marca || '');
             $('#equipamento_modelo').val(equipamento.modelo || '');
             $('#equipamento_num_serie').val(equipamento.num_serie || '');
+            // No auto-popup on edit — popup is for new OS registration only
         }
 
-        function carregarEquipamentosCliente(clienteId, equipamentoSelecionadoId) {
+        function carregarEquipamentosCliente(clienteId, equipamentoSelecionadoId, limparAntes) {
             var $select = $('#equipamento_id');
-            limparCamposEquipamento();
+
+            if (limparAntes) {
+                limparCamposEquipamento();
+            }
+
             $select.prop('disabled', true).html('<option value="">Carregando...</option>');
 
             if (!clienteId) {
                 $select.prop('disabled', false).html('<option value="">Novo equipamento</option>');
+                if (limparAntes) {
+                    limparCamposEquipamento();
+                }
                 return;
             }
 
@@ -921,10 +1022,15 @@ if (!$anotacoes) {
                     $select.html(options).prop('disabled', false);
                     if (equipamentoSelecionadoId) {
                         $select.val(String(equipamentoSelecionadoId)).trigger('change');
+                    } else if (limparAntes) {
+                        limparCamposEquipamento();
                     }
                 })
                 .fail(function() {
                     $select.html('<option value="">Novo equipamento</option>').prop('disabled', false);
+                    if (limparAntes) {
+                        limparCamposEquipamento();
+                    }
                 });
         }
 
@@ -933,6 +1039,7 @@ if (!$anotacoes) {
             var equipamentoId = $(this).val();
             if (!equipamentoId) {
                 limparCamposEquipamento();
+                serialHistoricoUltimoConsultado = '';
                 return;
             }
             preencherCamposEquipamento({
@@ -943,13 +1050,16 @@ if (!$anotacoes) {
             });
         });
 
+        // No auto-popup on edit — popup is for new OS registration only
+        // Serial input/blur triggers removed intentionally for edit view
+
         $('#cliente').one('focus', function () {
             if ($('#clientes_id').val()) {
-                carregarEquipamentosCliente($('#clientes_id').val(), equipamentoAtualId);
+                carregarEquipamentosCliente($('#clientes_id').val(), equipamentoAtualId, false);
             }
         });
 
-        carregarEquipamentosCliente($('#clientes_id').val(), equipamentoAtualId);
+        carregarEquipamentosCliente($('#clientes_id').val(), equipamentoAtualId, false);
 
         $("#produto").autocomplete({
             source: "<?php echo base_url(); ?>index.php/os/autoCompleteProduto",
@@ -979,7 +1089,7 @@ if (!$anotacoes) {
             minLength: 2,
             select: function (event, ui) {
                 $("#clientes_id").val(ui.item.id);
-                carregarEquipamentosCliente(ui.item.id, equipamentoAtualId);
+                carregarEquipamentosCliente(ui.item.id, equipamentoAtualId, true);
             }
         });
 
@@ -1370,6 +1480,17 @@ if (!$anotacoes) {
         $('.editor').trumbowyg({
             lang: 'pt_br',
             semantic: { 'strikethrough': 's', }
+        });
+
+        $(document).on('change', '#garantia_retorno', function() {
+            var $block = $('#garantia_retorno_block');
+            if ($(this).is(':checked')) {
+                $block.addClass('garantia-retorno--active');
+            } else {
+                $block.removeClass('garantia-retorno--active');
+                $('#garantia_origem_os_id').val('');
+                $('#garantia_origem_container').addClass('hidden');
+            }
         });
     });
 </script>
