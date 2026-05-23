@@ -631,6 +631,32 @@ class Os extends MY_Controller
         $this->load->view('os/etiqueta', ['os' => $os]);
     }
 
+    public function imprimirEtiquetaSerial($id = null)
+    {
+        if (! $id || ! is_numeric($id)) {
+            show_404();
+        }
+
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para visualizar O.S.');
+            redirect(base_url());
+        }
+
+        $os = $this->os_model->getById((int) $id);
+        if (! $os) {
+            show_404();
+        }
+
+        $equipamento = $this->os_model->getEquipamentoOs((int) $id);
+        $serial = trim((string) ($equipamento->num_serie ?? ''));
+
+        $this->load->view('os/etiquetaSerial', [
+            'os' => $os,
+            'equipamento' => $equipamento,
+            'serial' => $serial,
+        ]);
+    }
+
     public function imprimirTermica()
     {
         if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3))) {

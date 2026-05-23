@@ -181,6 +181,18 @@
                                         <div class="span3">
                                             <label for="equipamento_num_serie">Número de série</label>
                                             <input id="equipamento_num_serie" class="span12" type="text" name="equipamento_num_serie" value="<?= html_escape(set_value('equipamento_num_serie', isset($equipamento->num_serie) ? $equipamento->num_serie : '')) ?>" placeholder="TEST-SERIAL-001" />
+                                            <?php $serialEtiqueta = trim((string) ($equipamento->num_serie ?? '')); ?>
+                                            <div style="margin-top: 6px;">
+                                                <?php if (!empty($serialEtiqueta)) : ?>
+                                                    <a target="_blank" class="btn btn-mini btn-info" href="<?= site_url('os/imprimirEtiquetaSerial/' . (int) $result->idOs) ?>">
+                                                        Imprimir etiqueta do serial
+                                                    </a>
+                                                <?php else : ?>
+                                                    <button type="button" class="btn btn-mini" disabled title="Salve a OS com número de série para liberar a impressão.">
+                                                        Imprimir etiqueta do serial
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="span6" style="padding: 1%; margin-left: 0">

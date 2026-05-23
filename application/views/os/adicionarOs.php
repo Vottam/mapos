@@ -109,7 +109,12 @@
                                             <label for="equipamento_num_serie">Número de série</label>
                                             <input id="equipamento_num_serie" class="span12" type="text" name="equipamento_num_serie" value="<?= html_escape(set_value('equipamento_num_serie', isset($serialInternoSugerido) ? $serialInternoSugerido : '')) ?>" placeholder="<?= html_escape(isset($serialInternoSugerido) ? $serialInternoSugerido : 'TEST-SERIAL-001') ?>" />
                                             <input type="hidden" id="serial_interno_sugerido" name="serial_interno_sugerido" value="<?= (!empty($serialInternoSugerido) && set_value('equipamento_num_serie', $serialInternoSugerido) === $serialInternoSugerido) ? '1' : '0' ?>" />
-                                            <small class="muted">Se vazio, será gerado automaticamente como serial interno.</small>
+                                            <div style="margin-top: 6px;">
+                                                <button type="button" class="btn btn-mini" disabled title="Salve a OS para liberar a etiqueta do serial definitivo.">
+                                                    Imprimir etiqueta do serial
+                                                </button>
+                                            </div>
+                                            <small class="muted">Salve a OS para imprimir a etiqueta do serial definitivo.</small>
                                         </div>
                                     </div>
                                     <div class="span6" style="padding: 1%; margin-left: 0">
