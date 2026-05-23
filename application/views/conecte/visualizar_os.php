@@ -67,7 +67,7 @@ $totalProdutos = 0; ?>
                                             </td>
 
                                             <td>
-                                                <b><?php if ($result->status == 'Finalizado') { ?> VENC. DA GARANTIA: </b><?php echo dateInterval($result->dataFinal, $result->garantia); ?><?php } ?>
+                                                <b><?php if ($result->status == 'Finalizado' || $result->status == 'Entregue') { ?> VENC. DA GARANTIA: </b><?php echo dateInterval($result->dataFinal, $result->garantia); ?><?php } ?>
                                             </td>
                                         </tr>
                                     <?php } ?>

@@ -125,6 +125,7 @@
                                 <option value="">Todos os Status</option>
                                 <option value="Aberto">Aberto</option>
                                 <option value="Faturado">Faturado</option>
+                                <option value="Entregue">Entregue</option>
                                 <option value="Negociação">Negociação</option>
                                 <option value="Orçamento">Orçamento</option>
                                 <option value="Em Andamento">Em Andamento</option>
@@ -524,6 +525,9 @@
                                         case 'Faturado':
                                             $cor = '#B266FF';
                                             break;
+                                        case 'Entregue':
+                                            $cor = '#17a2b8';
+                                            break;
                                         case 'Aguardando Peças':
                                             $cor = '#FF7F00';
                                             break;
@@ -615,6 +619,9 @@
                                             break;
                                         case 'Faturado':
                                             $cor = '#B266FF';
+                                            break;
+                                        case 'Entregue':
+                                            $cor = '#17a2b8';
                                             break;
                                         case 'Aguardando Peças':
                                             $cor = '#FF7F00';
@@ -709,6 +716,9 @@
                                         case 'Faturado':
                                             $cor = '#B266FF';
                                             break;
+                                        case 'Entregue':
+                                            $cor = '#17a2b8';
+                                            break;
                                         case 'Aguardando Peças':
                                             $cor = '#FF7F00';
                                             break;
@@ -800,6 +810,9 @@
                                             break;
                                         case 'Faturado':
                                             $cor = '#B266FF';
+                                            break;
+                                        case 'Entregue':
+                                            $cor = '#17a2b8';
                                             break;
                                         case 'Aguardando Peças':
                                             $cor = '#FF7F00';
@@ -893,6 +906,9 @@
                                         case 'Faturado':
                                             $cor = '#B266FF';
                                             break;
+                                        case 'Entregue':
+                                            $cor = '#17a2b8';
+                                            break;
                                         case 'Aguardando Peças':
                                             $cor = '#FF7F00';
                                             break;
@@ -982,6 +998,9 @@
                                             break;
                                         case 'Faturado':
                                             $cor = '#B266FF';
+                                            break;
+                                        case 'Entregue':
+                                            $cor = '#17a2b8';
                                             break;
                                         case 'Aguardando Peças':
                                             $cor = '#FF7F00';

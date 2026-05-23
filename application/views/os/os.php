@@ -75,6 +75,7 @@
                     <option value="">Selecione status</option>
                     <option value="Aberto" <?=$this->input->get('status') == 'Aberto' ? 'selected' : ''?>>Aberto</option>
                     <option value="Faturado" <?=$this->input->get('status') == 'Faturado' ? 'selected' : ''?>>Faturado</option>
+                    <option value="Entregue" <?=$this->input->get('status') == 'Entregue' ? 'selected' : ''?>>Entregue</option>
                     <option value="Negociação" <?=$this->input->get('status') == 'Negociação' ? 'selected' : ''?>>Negociação</option>
                     <option value="Em Andamento" <?=$this->input->get('status') == 'Em Andamento' ? 'selected' : ''?>>Em Andamento</option>
                     <option value="Orçamento" <?=$this->input->get('status') == 'Orçamento' ? 'selected' : ''?>>Orçamento</option>
@@ -191,6 +192,9 @@ foreach ($results as $r) {
             break;
         case 'Faturado':
             $cor = '#B266FF';
+            break;
+        case 'Entregue':
+            $cor = '#17a2b8';
             break;
         case 'Aguardando Peças':
             $cor = '#FF7F00';

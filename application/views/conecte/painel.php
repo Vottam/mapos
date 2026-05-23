@@ -115,6 +115,9 @@
                                 case 'Faturado':
                                     $cor = '#B266FF';
                                     break;
+                                case 'Entregue':
+                                    $cor = '#17a2b8';
+                                    break;
                                 case 'Aguardando Peças':
                                     $cor = '#FF7F00';
                                     break;

@@ -117,6 +117,9 @@
                                                 <option <?php if ($result->status == 'Faturado') {
                                                     echo 'selected';
                                                 } ?> value="Faturado">Faturado</option>
+                                                <option <?php if ($result->status == 'Entregue') {
+                                                    echo 'selected';
+                                                } ?> value="Entregue">Entregue</option>
                                                 <option <?php if ($result->status == 'Cancelado') {
                                                     echo 'selected';
                                                 } ?> value="Cancelado">Cancelado</option>

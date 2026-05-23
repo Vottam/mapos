@@ -59,7 +59,7 @@ $totalProdutos = 0;
                                     <?php if ($result->garantia) : ?>
                                         <th class="text-center">GARANTIA</th>
                                     <?php endif; ?>
-                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado'])) : ?>
+                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
                                         <th class="text-center">VENC. GARANTIA</th>
                                     <?php endif; ?>
                                 </tr>
@@ -72,7 +72,7 @@ $totalProdutos = 0;
                                     <?php if ($result->garantia) : ?>
                                         <td class="text-center"><?= $result->garantia . ' dia(s)' ?></td>
                                     <?php endif; ?>
-                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado'])) : ?>
+                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
                                         <td class="text-center"><?= dateInterval($result->dataFinal, $result->garantia) ?></td>
                                     <?php endif; ?>
                                 </tr>

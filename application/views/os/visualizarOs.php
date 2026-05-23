@@ -154,7 +154,7 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                             <?php } ?>
                                         </td>
 
-                                        <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Orçamento', 'Aberto'])): ?>
+                                        <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue', 'Orçamento', 'Aberto'])): ?>
                                             <td>
                                                 <b>VENC. DA GARANTIA:</b><br>
                                                 <?= dateInterval($result->dataFinal, $result->garantia); ?>

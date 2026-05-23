@@ -442,6 +442,7 @@ class Mapos extends MY_Controller
                 'Em Andamento',
                 'Finalizado',
                 'Faturado',
+                'Entregue',
                 'Cancelado',
                 'Sem Conserto',
             ];
@@ -602,6 +603,9 @@ class Mapos extends MY_Controller
                     break;
                 case 'Faturado':
                     $cor = '#B266FF';
+                    break;
+                case 'Entregue':
+                    $cor = '#17a2b8';
                     break;
                 case 'Aguardando Peças':
                     $cor = '#FF7F00';
