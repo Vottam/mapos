@@ -94,9 +94,11 @@
                                             <label for="equipamento_modelo">Modelo</label>
                                             <input id="equipamento_modelo" class="span12" type="text" name="equipamento_modelo" value="<?= html_escape(set_value('equipamento_modelo')) ?>" placeholder="Aspire 5 A315-33" />
                                         </div>
-                                        <div class="span3">
+                                        <div class="span3"> 
                                             <label for="equipamento_num_serie">Número de série</label>
-                                            <input id="equipamento_num_serie" class="span12" type="text" name="equipamento_num_serie" value="<?= html_escape(set_value('equipamento_num_serie')) ?>" placeholder="TEST-SERIAL-001" />
+                                            <input id="equipamento_num_serie" class="span12" type="text" name="equipamento_num_serie" value="<?= html_escape(set_value('equipamento_num_serie', isset($serialInternoSugerido) ? $serialInternoSugerido : '')) ?>" placeholder="<?= html_escape(isset($serialInternoSugerido) ? $serialInternoSugerido : 'TEST-SERIAL-001') ?>" />
+                                            <input type="hidden" id="serial_interno_sugerido" name="serial_interno_sugerido" value="<?= (!empty($serialInternoSugerido) && set_value('equipamento_num_serie', $serialInternoSugerido) === $serialInternoSugerido) ? '1' : '0' ?>" />
+                                            <small class="muted">Se vazio, será gerado automaticamente como serial interno.</small>
                                         </div>
                                     </div>
                                     <div class="span6" style="padding: 1%; margin-left: 0">
@@ -144,6 +146,16 @@
 <script type="text/javascript">
     $(document).ready(function() {
         var equipamentoEndpoint = "<?php echo base_url(); ?>index.php/os/equipamentosCliente/";
+        var serialInternoSugerido = "<?= isset($serialInternoSugerido) ? html_escape($serialInternoSugerido) : '' ?>";
+
+        function atualizarFlagSerialInterno() {
+            if (!serialInternoSugerido) {
+                $('#serial_interno_sugerido').val('0');
+                return;
+            }
+
+            $('#serial_interno_sugerido').val($('#equipamento_num_serie').val() === serialInternoSugerido ? '1' : '0');
+        }
 
         function limparCamposEquipamento() {
             $('#equipamento_tipo').val('');
@@ -196,6 +208,7 @@
             var equipamentoId = $(this).val();
             if (!equipamentoId) {
                 limparCamposEquipamento();
+                atualizarFlagSerialInterno();
                 return;
             }
             preencherCamposEquipamento({
@@ -204,7 +217,13 @@
                 modelo: $option.data('modelo'),
                 num_serie: $option.data('num_serie')
             });
+            atualizarFlagSerialInterno();
         });
+
+        $('#equipamento_num_serie').on('input change', function() {
+            atualizarFlagSerialInterno();
+        });
+        atualizarFlagSerialInterno();
 
         $("#cliente").autocomplete({
             source: "<?php echo base_url(); ?>index.php/os/autoCompleteCliente",

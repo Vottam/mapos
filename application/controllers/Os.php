@@ -48,16 +48,14 @@ class Os extends MY_Controller
         return $postNormalizado == $selecionadoNormalizado;
     }
 
-    private function salvarOuVincularEquipamentoOs($osId, $clienteId, array $equipamentoData, $equipamentoSelecionado = null, $equipamentoAtual = null)
+    private function salvarOuVincularEquipamentoOs($osId, $clienteId, array $equipamentoData, $equipamentoSelecionado = null, $equipamentoAtual = null, $serialInternoSugerido = false)
     {
         if ($equipamentoSelecionado) {
-            if (! $this->hasEquipamentoData($equipamentoData) || $this->equipamentoDadosBatemSelecionado($equipamentoData, $equipamentoSelecionado)) {
-                return $this->os_model->vincularEquipamentoOsExistente($osId, $equipamentoSelecionado->idEquipamentos);
-            }
+            return $this->os_model->vincularEquipamentoOsExistente($osId, $equipamentoSelecionado->idEquipamentos);
         }
 
-        if ($this->hasEquipamentoData($equipamentoData)) {
-            return $this->os_model->salvarEquipamentoOs($osId, $clienteId, $equipamentoData);
+        if ($this->hasEquipamentoData($equipamentoData) || ! $equipamentoAtual) {
+            return $this->os_model->salvarEquipamentoOs($osId, $clienteId, $equipamentoData, $equipamentoAtual, $serialInternoSugerido);
         }
 
         if ($equipamentoAtual) {
@@ -153,6 +151,7 @@ class Os extends MY_Controller
         $this->load->library('form_validation');
         $this->data['custom_error'] = '';
         $this->data['equipamento'] = null;
+        $this->data['serialInternoSugerido'] = $this->os_model->getProximoSerialInternoEstimado();
 
         if ($this->form_validation->run('os') == false) {
             $this->data['custom_error'] = (validation_errors() ? true : false);
@@ -164,6 +163,7 @@ class Os extends MY_Controller
             $clienteId = $this->input->post('clientes_id');
             $equipamentoSelecionadoId = $this->equipamentoSelecionadoFromPost();
             $equipamentoSelecionado = $equipamentoSelecionadoId ? $this->os_model->getEquipamentoByIdAndCliente($equipamentoSelecionadoId, $clienteId) : null;
+            $serialInternoSugerido = $this->input->post('serial_interno_sugerido') === '1';
 
             try {
                 $dataInicial = explode('/', $dataInicial);
@@ -200,7 +200,7 @@ class Os extends MY_Controller
             ];
 
             if (is_numeric($id = $this->os_model->add('os', $data, true))) {
-                $this->salvarOuVincularEquipamentoOs($id, $clienteId, $equipamentoData, $equipamentoSelecionado, null);
+                $this->salvarOuVincularEquipamentoOs($id, $clienteId, $equipamentoData, $equipamentoSelecionado, null, $serialInternoSugerido);
 
                 $this->load->model('mapos_model');
                 $this->load->model('usuarios_model');
@@ -287,6 +287,7 @@ class Os extends MY_Controller
             $clienteId = $this->input->post('clientes_id');
             $equipamentoSelecionadoId = $this->equipamentoSelecionadoFromPost();
             $equipamentoSelecionado = $equipamentoSelecionadoId ? $this->os_model->getEquipamentoByIdAndCliente($equipamentoSelecionadoId, $clienteId) : null;
+            $serialInternoSugerido = $this->input->post('serial_interno_sugerido') === '1';
 
             try {
                 $dataInicial = explode('/', $dataInicial);
@@ -326,7 +327,7 @@ class Os extends MY_Controller
             }
 
             if ($this->os_model->edit('os', $data, 'idOs', $this->input->post('idOs')) == true) {
-                $this->salvarOuVincularEquipamentoOs($this->input->post('idOs'), $clienteId, $equipamentoData, $equipamentoSelecionado, $this->data['equipamento']);
+                $this->salvarOuVincularEquipamentoOs($this->input->post('idOs'), $clienteId, $equipamentoData, $equipamentoSelecionado, $this->data['equipamento'], $serialInternoSugerido);
 
                 $this->load->model('mapos_model');
                 $this->load->model('usuarios_model');

@@ -20,8 +20,49 @@ class Os_model extends CI_Model
             'equipamento' => $tipo !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $tipo), 'UTF-8')) : 'Não informado',
             'marca' => $marca !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $marca), 'UTF-8')) : null,
             'modelo' => $modelo !== '' ? preg_replace('/\s+/', ' ', $modelo) : null,
-            'num_serie' => $serie !== '' ? strtoupper(preg_replace('/\s+/', ' ', $serie)) : null,
+            'num_serie' => $serie !== '' ? $serie : null,
         ];
+    }
+
+    public function normalizeSerial($serial)
+    {
+        return trim((string) $serial);
+    }
+
+    public function buildInternalSerial($idOs)
+    {
+        return 'SN' . str_pad((int) $idOs, 6, '0', STR_PAD_LEFT);
+    }
+
+    public function getProximoSerialInternoEstimado()
+    {
+        $query = $this->db->query("SELECT AUTO_INCREMENT AS proximo_id FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'os' LIMIT 1");
+        $row = $query->row();
+        $proximoId = (int) ($row->proximo_id ?? 1);
+
+        if ($proximoId < 1) {
+            $proximoId = 1;
+        }
+
+        return $this->buildInternalSerial($proximoId);
+    }
+
+    public function getEquipamentoBySerial($serial)
+    {
+        $serial = $this->normalizeSerial($serial);
+
+        if ($serial === '') {
+            return null;
+        }
+
+        $this->db->select('equipamentos.*, marcas.marca as marca_nome');
+        $this->db->from('equipamentos');
+        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
+        $this->db->where('equipamentos.num_serie', $serial);
+        $this->db->order_by('equipamentos.idEquipamentos', 'desc');
+        $this->db->limit(1);
+
+        return $this->db->get()->row();
     }
 
     public function get($table, $fields, $where = '', $perpage = 0, $start = 0, $one = false, $array = 'array')
@@ -186,7 +227,7 @@ class Os_model extends CI_Model
         return $this->db->get()->result();
     }
 
-    public function salvarEquipamentoOs($osId, $clienteId, array $dados)
+    public function salvarEquipamentoOs($osId, $clienteId, array $dados, $equipamentoAtual = null, $serialInternoSugerido = false)
     {
         $dados = $this->normalizarEquipamentoDados($dados);
         $tipo = $dados['equipamento'];
@@ -194,16 +235,26 @@ class Os_model extends CI_Model
         $modelo = $dados['modelo'];
         $serie = $dados['num_serie'];
 
-        if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '') {
+        if ($serialInternoSugerido) {
+            $serie = $this->buildInternalSerial($osId);
+        }
+
+        if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '' && ! $equipamentoAtualId) {
+            $serie = $this->buildInternalSerial($osId);
+        }
+
+        if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '' && $equipamentoAtualId) {
             return null;
         }
 
         $clienteId = (int) $clienteId;
+        $equipamentoAtual = $equipamentoAtual ?: null;
+        $equipamentoAtualId = $equipamentoAtual ? (int) ($equipamentoAtual->idEquipamentos ?? 0) : null;
 
         $this->db->trans_start();
 
         $marcaId = null;
-        if ($marca !== null) {
+        if ($marca !== null && $marca !== '') {
             $marcaExistente = $this->db->get_where('marcas', ['marca' => $marca], 1)->row();
             if ($marcaExistente) {
                 $marcaId = $marcaExistente->idMarcas;
@@ -217,44 +268,48 @@ class Os_model extends CI_Model
             }
         }
 
-        $this->db->from('equipamentos');
-        $this->db->where('clientes_id', $clienteId);
-        if ($serie !== null) {
-            $this->db->where('num_serie', $serie);
-        }
-        if ($tipo !== null) {
-            $this->db->where('equipamento', $tipo);
-        }
-        if ($modelo !== null) {
-            $this->db->where('modelo', $modelo);
-        }
-        if ($marcaId !== null) {
-            $this->db->where('marcas_id', $marcaId);
+        $equipamentoPorSerial = null;
+        if ($serie !== '') {
+            $equipamentoPorSerial = $this->getEquipamentoBySerial($serie);
         }
 
-        $equipamentoExistente = $this->db->get()->row();
-
-        $equipamentoData = [
-            'equipamento' => $tipo,
-            'num_serie' => $serie,
-            'modelo' => $modelo,
-            'marcas_id' => $marcaId,
-            'clientes_id' => $clienteId,
-        ];
-
-        if ($equipamentoExistente) {
+        if ($equipamentoPorSerial) {
             $equipamentoData = [
-                'equipamento' => $tipo !== 'Não informado' ? $tipo : $equipamentoExistente->equipamento,
-                'num_serie' => $serie !== null ? $serie : $equipamentoExistente->num_serie,
-                'modelo' => $modelo !== null ? $modelo : $equipamentoExistente->modelo,
-                'marcas_id' => $marcaId !== null ? $marcaId : $equipamentoExistente->marcas_id,
+                'equipamento' => ($equipamentoPorSerial->equipamento === 'Não informado' && $tipo !== '') ? $tipo : $equipamentoPorSerial->equipamento,
+                'num_serie' => $equipamentoPorSerial->num_serie,
+                'modelo' => !empty($equipamentoPorSerial->modelo) ? $equipamentoPorSerial->modelo : $modelo,
+                'marcas_id' => !empty($equipamentoPorSerial->marcas_id) ? $equipamentoPorSerial->marcas_id : $marcaId,
+                'clientes_id' => !empty($equipamentoPorSerial->clientes_id) ? $equipamentoPorSerial->clientes_id : $clienteId,
+            ];
+
+            $this->db->where('idEquipamentos', (int) $equipamentoPorSerial->idEquipamentos);
+            $this->db->update('equipamentos', $equipamentoData);
+            $equipamentoId = (int) $equipamentoPorSerial->idEquipamentos;
+        } elseif ($equipamentoAtualId) {
+            $equipamentoData = [
+                'equipamento' => $tipo !== '' ? $tipo : $equipamentoAtual->equipamento,
+                'num_serie' => $serie !== '' ? $serie : (!empty($equipamentoAtual->num_serie) ? $equipamentoAtual->num_serie : $this->buildInternalSerial($osId)),
+                'modelo' => $modelo !== '' ? $modelo : $equipamentoAtual->modelo,
+                'marcas_id' => $marcaId !== null ? $marcaId : $equipamentoAtual->marcas_id,
                 'clientes_id' => $clienteId,
             ];
 
-            $this->db->where('idEquipamentos', $equipamentoExistente->idEquipamentos);
+            $this->db->where('idEquipamentos', $equipamentoAtualId);
             $this->db->update('equipamentos', $equipamentoData);
-            $equipamentoId = $equipamentoExistente->idEquipamentos;
+            $equipamentoId = $equipamentoAtualId;
         } else {
+            if ($serie === '') {
+                $serie = $this->buildInternalSerial($osId);
+            }
+
+            $equipamentoData = [
+                'equipamento' => $tipo !== '' ? $tipo : 'Não informado',
+                'num_serie' => $serie,
+                'modelo' => $modelo !== '' ? $modelo : null,
+                'marcas_id' => $marcaId,
+                'clientes_id' => $clienteId,
+            ];
+
             $this->db->insert('equipamentos', $equipamentoData);
             $equipamentoId = $this->db->insert_id();
         }
@@ -274,6 +329,46 @@ class Os_model extends CI_Model
         }
 
         return $equipamentoId;
+    }
+
+    public function getHistoricoPorSerial($serial, $osAtualId = null, $limit = 5)
+    {
+        $serial = $this->normalizeSerial($serial);
+
+        if ($serial === '') {
+            return [];
+        }
+
+        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, clientes.nomeCliente as cliente, equipamentos.idEquipamentos, equipamentos.equipamento as tipo, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie');
+        $this->db->from('equipamentos');
+        $this->db->join('equipamentos_os', 'equipamentos_os.equipamentos_id = equipamentos.idEquipamentos');
+        $this->db->join('os', 'os.idOs = equipamentos_os.os_id');
+        $this->db->join('clientes', 'clientes.idClientes = os.clientes_id');
+        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
+        $this->db->where('equipamentos.num_serie', $serial);
+
+        if ($osAtualId !== null) {
+            $this->db->where('os.idOs !=', (int) $osAtualId);
+        }
+
+        $this->db->order_by('os.idOs', 'desc');
+        $this->db->limit((int) $limit);
+
+        $rows = $this->db->get()->result();
+        $hoje = strtotime(date('Y-m-d'));
+
+        foreach ($rows as $row) {
+            $row->vencimento_garantia = null;
+            $row->situacao_garantia = 'Indefinido';
+
+            if (!empty($row->dataFinal) && is_numeric($row->garantia) && (int) $row->garantia > 0) {
+                $vencimento = strtotime('+' . (int) $row->garantia . ' days', strtotime($row->dataFinal));
+                $row->vencimento_garantia = date('d/m/Y', $vencimento);
+                $row->situacao_garantia = $hoje <= $vencimento ? 'Em garantia' : 'Fora de garantia';
+            }
+        }
+
+        return $rows;
     }
 
     public function vincularEquipamentoOsExistente($osId, $equipamentoId)
