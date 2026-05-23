@@ -904,11 +904,16 @@ class Os extends MY_Controller
             $payload[] = $this->formatarHistoricoSerialItem($row);
         }
 
+        $garantiaCritica = ! empty($historico)
+            ? $this->os_model->calcularCriticaGarantiaSerial($historico[0])
+            : null;
+
         return $this->output->set_output(json_encode([
             'found' => ! empty($payload),
             'serial' => $serial,
             'total' => count($payload),
             'historico' => $payload,
+            'garantiaCritica' => $garantiaCritica,
         ]));
     }
 

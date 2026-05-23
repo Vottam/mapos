@@ -350,6 +350,7 @@ class Os_model extends CI_Model
             $this->db->where('os.idOs !=', (int) $osAtualId);
         }
 
+        $this->db->order_by('os.dataFinal', 'desc');
         $this->db->order_by('os.idOs', 'desc');
         $this->db->limit((int) $limit);
 
@@ -368,6 +369,105 @@ class Os_model extends CI_Model
         }
 
         return $rows;
+    }
+
+    public function calcularCriticaGarantiaSerial($row)
+    {
+        if (! $row) {
+            return null;
+        }
+
+        $baseOsId = (int) ($row->idOs ?? 0);
+        $garantiaDias = is_numeric($row->garantia ?? null) ? (int) $row->garantia : 0;
+        $dataBaseRaw = trim((string) ($row->dataFinal ?? ''));
+
+        $dataBase = $this->parseDataBanco($dataBaseRaw);
+        if (! $dataBase) {
+            return [
+                'baseOsId' => $baseOsId,
+                'status' => 'indefinida',
+                'titulo' => 'Não foi possível calcular a garantia',
+                'contador' => 'Data final da OS anterior ausente ou inválida',
+                'dias_restantes' => 0,
+                'dias_vencidos' => 0,
+                'data_base' => $dataBaseRaw,
+                'data_base_formatada' => '',
+                'garantia_dias' => $garantiaDias,
+                'data_final_garantia' => '',
+                'data_final_garantia_formatada' => '',
+                'texto' => 'Verifique manualmente a OS anterior antes de decidir.',
+            ];
+        }
+
+        if ($garantiaDias <= 0) {
+            return [
+                'baseOsId' => $baseOsId,
+                'status' => 'sem_garantia_registrada',
+                'titulo' => 'Sem garantia registrada para a última OS',
+                'contador' => '0 dias de garantia registrados',
+                'dias_restantes' => 0,
+                'dias_vencidos' => 0,
+                'data_base' => $dataBase->format('Y-m-d'),
+                'data_base_formatada' => $dataBase->format('d/m/Y'),
+                'garantia_dias' => 0,
+                'data_final_garantia' => '',
+                'data_final_garantia_formatada' => '',
+                'texto' => 'A última OS deste equipamento não possui prazo de garantia registrado.',
+            ];
+        }
+
+        $dataFinalGarantia = $dataBase->modify('+' . $garantiaDias . ' days');
+        $hoje = new DateTimeImmutable('today');
+        $diasRestantes = (int) $hoje->diff($dataFinalGarantia)->format('%r%a');
+
+        if ($diasRestantes >= 0) {
+            return [
+                'baseOsId' => $baseOsId,
+                'status' => 'em_garantia',
+                'titulo' => '⚠️ Possível garantia de mão de obra',
+                'contador' => 'Restam ' . $diasRestantes . ' dias de garantia',
+                'dias_restantes' => $diasRestantes,
+                'dias_vencidos' => 0,
+                'data_base' => $dataBase->format('Y-m-d'),
+                'data_base_formatada' => $dataBase->format('d/m/Y'),
+                'garantia_dias' => $garantiaDias,
+                'data_final_garantia' => $dataFinalGarantia->format('Y-m-d'),
+                'data_final_garantia_formatada' => $dataFinalGarantia->format('d/m/Y'),
+                'texto' => 'A última OS deste equipamento ainda está dentro do prazo de garantia. Verifique se o defeito atual tem relação com o serviço anterior antes de confirmar atendimento em garantia.',
+            ];
+        }
+
+        $diasVencidos = abs($diasRestantes);
+
+        return [
+            'baseOsId' => $baseOsId,
+            'status' => 'vencida',
+            'titulo' => '❌ Fora do prazo de garantia',
+            'contador' => 'Garantia vencida há ' . $diasVencidos . ' dias',
+            'dias_restantes' => 0,
+            'dias_vencidos' => $diasVencidos,
+            'data_base' => $dataBase->format('Y-m-d'),
+            'data_base_formatada' => $dataBase->format('d/m/Y'),
+            'garantia_dias' => $garantiaDias,
+            'data_final_garantia' => $dataFinalGarantia->format('Y-m-d'),
+            'data_final_garantia_formatada' => $dataFinalGarantia->format('d/m/Y'),
+            'texto' => 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.',
+        ];
+    }
+
+    private function parseDataBanco($value)
+    {
+        $value = trim((string) $value);
+        if ($value === '' || $value === '0000-00-00') {
+            return null;
+        }
+
+        try {
+            $data = new DateTimeImmutable($value);
+            return $data->format('Y-m-d') === substr($value, 0, 10) ? $data : null;
+        } catch (Exception $e) {
+            return null;
+        }
     }
 
     public function vincularEquipamentoOsExistente($osId, $equipamentoId)

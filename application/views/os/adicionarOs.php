@@ -278,7 +278,61 @@
             }
         }
 
-        function exibirHistoricoSerial(items) {
+        function renderGarantiaCriticaBox(critica) {
+            if (!critica || !critica.status) {
+                return '';
+            }
+
+            var temas = {
+                em_garantia: {
+                    bg: '#fff8db',
+                    border: '#e3b341',
+                    color: '#6b4f00',
+                    destaque: '#7a5a00'
+                },
+                vencida: {
+                    bg: '#ffe5e9',
+                    border: '#d46a7d',
+                    color: '#7a1f31',
+                    destaque: '#9c1f3b'
+                },
+                sem_garantia_registrada: {
+                    bg: '#f4f4f4',
+                    border: '#c7c7c7',
+                    color: '#444444',
+                    destaque: '#666666'
+                },
+                indefinida: {
+                    bg: '#fff8e7',
+                    border: '#d8c68a',
+                    color: '#5c4e1b',
+                    destaque: '#6f5e20'
+                }
+            };
+
+            var tema = temas[critica.status] || temas.indefinida;
+            var ultimaOs = critica.baseOsId ? 'OS #' + escapeHtml(String(critica.baseOsId)) : '-';
+            var dataBase = critica.data_base_formatada || critica.data_base || '-';
+            var vencimento = critica.data_final_garantia_formatada || critica.data_final_garantia || '-';
+            var detalhes = [];
+
+            detalhes.push('<div><strong>Última OS considerada:</strong> ' + escapeHtml(ultimaOs) + '</div>');
+            detalhes.push('<div><strong>Data final da OS anterior:</strong> ' + escapeHtml(dataBase) + '</div>');
+            detalhes.push('<div><strong>Prazo registrado:</strong> ' + escapeHtml(String(critica.garantia_dias || 0)) + ' dia(s)</div>');
+
+            if (critica.status === 'em_garantia' || critica.status === 'vencida') {
+                detalhes.push('<div><strong>Vencimento da garantia:</strong> ' + escapeHtml(vencimento) + '</div>');
+            }
+
+            return '<div style="margin-top:16px; padding:14px; border-radius:10px; border:1px solid ' + tema.border + '; background:' + tema.bg + '; color:' + tema.color + ';">' +
+                '<div style="font-size:14px; font-weight:700; margin-bottom:6px; color:' + tema.destaque + ';">' + escapeHtml(critica.titulo || '') + '</div>' +
+                '<div style="font-size:18px; font-weight:700; line-height:1.25; margin-bottom:10px;">' + escapeHtml(critica.contador || '') + '</div>' +
+                '<div style="font-size:12px; line-height:1.55;">' + detalhes.join('') + '</div>' +
+                '<div style="margin-top:10px; font-size:12px; line-height:1.5;">' + escapeHtml(critica.texto || '') + '</div>' +
+            '</div>';
+        }
+
+        function exibirHistoricoSerial(items, garantiaCritica) {
             if (!items || !items.length) {
                 return;
             }
@@ -315,7 +369,9 @@
                 html += '</div>';
             });
 
-            html += '</div></div>';
+            html += '</div>';
+            html += renderGarantiaCriticaBox(garantiaCritica);
+            html += '</div>';
 
             Swal.fire({
                 title: 'Equipamento já possui histórico',
@@ -366,7 +422,7 @@
             $.getJSON(historicoSerialEndpoint, { serial: serial, idOs: osAtualId })
                 .done(function(response) {
                     if (response && response.found && response.historico && response.historico.length) {
-                        exibirHistoricoSerial(response.historico);
+                        exibirHistoricoSerial(response.historico, response.garantiaCritica || null);
                     }
                 });
         }
