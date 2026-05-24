@@ -35,6 +35,19 @@ class Clientes_model extends CI_Model
         return $this->db->get('clientes')->row();
     }
 
+    public function getByCpf($cpf)
+    {
+        $cpf = preg_replace('/\D+/', '', (string) $cpf);
+
+        if (strlen($cpf) !== 11) {
+            return [];
+        }
+
+        $sql = "SELECT idClientes, nomeCliente, documento, telefone, celular, email, contato, cep, rua, numero, complemento, bairro, cidade, estado, pessoa_fisica, fornecedor\n                FROM clientes\n               WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(documento, '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?\n            ORDER BY idClientes DESC";
+
+        return $this->db->query($sql, [$cpf])->result();
+    }
+
     public function add($table, $data)
     {
         $this->db->insert($table, $data);

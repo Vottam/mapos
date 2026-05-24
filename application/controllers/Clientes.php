@@ -108,6 +108,71 @@ class Clientes extends MY_Controller
         return $this->layout();
     }
 
+    public function buscarPorCpf()
+    {
+        $this->output->set_content_type('application/json');
+
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'aCliente')) {
+            return $this->output
+                ->set_status_header(403)
+                ->set_output(json_encode([
+                    'found' => false,
+                    'reason' => 'forbidden',
+                ]));
+        }
+
+        $cpf = $this->input->get_post('cpf', true);
+        $cpf = preg_replace('/\D+/', '', (string) $cpf);
+
+        if (strlen($cpf) !== 11) {
+            return $this->output->set_output(json_encode([
+                'found' => false,
+                'reason' => 'invalid_cpf_length',
+            ]));
+        }
+
+        $clientes = $this->clientes_model->getByCpf($cpf);
+
+        if (empty($clientes)) {
+            return $this->output->set_output(json_encode([
+                'found' => false,
+                'reason' => 'not_found',
+            ]));
+        }
+
+        $cliente = $clientes[0];
+        $payload = [
+            'idClientes' => (int) $cliente->idClientes,
+            'nomeCliente' => $cliente->nomeCliente,
+            'documento' => $cliente->documento,
+            'telefone' => $cliente->telefone,
+            'celular' => $cliente->celular,
+            'email' => $cliente->email,
+            'contato' => $cliente->contato,
+            'cep' => $cliente->cep,
+            'rua' => $cliente->rua,
+            'numero' => $cliente->numero,
+            'complemento' => $cliente->complemento,
+            'bairro' => $cliente->bairro,
+            'cidade' => $cliente->cidade,
+            'estado' => $cliente->estado,
+            'pessoa_fisica' => (int) $cliente->pessoa_fisica,
+            'fornecedor' => (int) $cliente->fornecedor,
+        ];
+
+        $duplicate = count($clientes) > 1;
+
+        return $this->output->set_output(json_encode([
+            'found' => true,
+            'duplicate' => $duplicate,
+            'total' => count($clientes),
+            'cliente' => $payload,
+            'message' => $duplicate
+                ? 'Há mais de um cliente com este CPF. Revise antes de salvar.'
+                : 'Cliente já cadastrado. Dados carregados automaticamente.',
+        ]));
+    }
+
     public function editar()
     {
         if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3)) || ! $this->clientes_model->getById($this->uri->segment(3))) {

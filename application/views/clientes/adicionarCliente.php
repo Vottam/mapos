@@ -96,6 +96,7 @@
                             <div class="controls">
                                 <input id="documento" class="cpfcnpj" type="text" name="documento" value="<?php echo set_value('documento'); ?>" />
                                 <button id="buscar_info_cnpj" class="btn btn-xs" type="button">Buscar(CNPJ)</button>
+                                <div id="cpfClienteAviso" class="alert alert-info" style="display:none; margin-top:8px; margin-bottom:0;"></div>
                             </div>
                         </div>
                         <div class="control-group">
@@ -208,9 +209,117 @@
 <script src="<?php echo base_url() ?>assets/js/jquery.validate.js"></script>
 <script type="text/javascript">
     $(document).ready(function() {
+        var cpfLookupTimer = null;
+        var cpfLookupLastValue = '';
+        var estadoClientePendente = '';
+
         let container = document.querySelector('div');
         let input = document.querySelector('#senha');
         let icon = document.querySelector('#imgSenha');
+
+        function normalizarDocumento(valor) {
+            return (valor || '').replace(/\D/g, '');
+        }
+
+        function ocultarAvisoCpf() {
+            $('#cpfClienteAviso').stop(true, true).hide().removeClass('alert-success alert-warning alert-info').text('');
+        }
+
+        function mostrarAvisoCpf(mensagem, tipo) {
+            var $aviso = $('#cpfClienteAviso');
+            var classe = 'alert-info';
+
+            if (tipo === 'success') {
+                classe = 'alert-success';
+            } else if (tipo === 'warning') {
+                classe = 'alert-warning';
+            }
+
+            $aviso.stop(true, true)
+                .removeClass('alert-success alert-warning alert-info')
+                .addClass(classe)
+                .text(mensagem)
+                .show();
+        }
+
+        function preencherSeVazio(selector, valor) {
+            if (valor === undefined || valor === null) {
+                return;
+            }
+
+            var $campo = $(selector);
+            if ($.trim($campo.val()) === '') {
+                $campo.val(valor);
+            }
+        }
+
+        function preencherClienteExistente(cliente) {
+            preencherSeVazio('#nomeCliente', cliente.nomeCliente);
+            preencherSeVazio('#contato', cliente.contato);
+            preencherSeVazio('#telefone', cliente.telefone);
+            preencherSeVazio('#celular', cliente.celular);
+            preencherSeVazio('#email', cliente.email);
+            preencherSeVazio('#cep', cliente.cep);
+            preencherSeVazio('#rua', cliente.rua);
+            preencherSeVazio('#numero', cliente.numero);
+            preencherSeVazio('#complemento', cliente.complemento);
+            preencherSeVazio('#bairro', cliente.bairro);
+            preencherSeVazio('#cidade', cliente.cidade);
+
+            if (cliente.estado) {
+                if ($('#estado option[value="' + cliente.estado + '"]').length) {
+                    if ($.trim($('#estado').val()) === '') {
+                        $('#estado').val(cliente.estado);
+                    }
+                    estadoClientePendente = '';
+                } else if ($.trim($('#estado').val()) === '') {
+                    estadoClientePendente = cliente.estado;
+                }
+            }
+
+
+            if (cliente.fornecedor == 1) {
+                $('#fornecedor').prop('checked', true);
+            }
+        }
+
+        function consultarCpfLocal(forcar) {
+            var documento = normalizarDocumento($('#documento').val());
+
+            if (documento.length !== 11) {
+                if (documento.length === 0 || documento.length === 14) {
+                    ocultarAvisoCpf();
+                }
+
+                cpfLookupLastValue = '';
+                return;
+            }
+
+            if (!forcar && documento === cpfLookupLastValue) {
+                return;
+            }
+
+            cpfLookupLastValue = documento;
+
+            $.getJSON('<?php echo site_url('clientes/buscarPorCpf'); ?>', { cpf: documento })
+                .done(function(response) {
+                    if (response && response.found && response.cliente) {
+                        preencherClienteExistente(response.cliente);
+                        mostrarAvisoCpf(response.message || 'Cliente já cadastrado. Dados carregados automaticamente.', response.duplicate ? 'warning' : 'success');
+                        return;
+                    }
+
+                    if (response && response.reason === 'invalid_cpf_length') {
+                        ocultarAvisoCpf();
+                        return;
+                    }
+
+                    mostrarAvisoCpf('CPF não encontrado. Continue o cadastro.', 'info');
+                })
+                .fail(function() {
+                    mostrarAvisoCpf('Não foi possível consultar o CPF agora.', 'warning');
+                });
+        }
 
         icon.addEventListener('click', function() {
             container.classList.toggle('visible');
@@ -231,8 +340,34 @@
             if (curState) {
                 $("#estado option[value=" + curState + "]").prop("selected", true);
             }
+            if (estadoClientePendente && $.trim($('#estado').val()) === '') {
+                $("#estado option[value=" + estadoClientePendente + "]").prop("selected", true);
+            }
         });
         $("#nomeCliente").focus();
+
+        $('#documento').on('input', function() {
+            var documento = normalizarDocumento($(this).val());
+
+            if (documento.length === 14 || documento.length < 11) {
+                clearTimeout(cpfLookupTimer);
+                cpfLookupLastValue = '';
+                ocultarAvisoCpf();
+                return;
+            }
+
+            clearTimeout(cpfLookupTimer);
+            cpfLookupTimer = setTimeout(function() {
+                consultarCpfLocal(false);
+            }, 400);
+        }).on('blur', function() {
+            var documento = normalizarDocumento($(this).val());
+
+            if (documento.length === 11) {
+                consultarCpfLocal(true);
+            }
+        });
+
         $('#formCliente').validate({
             rules: {
                 nomeCliente: {
