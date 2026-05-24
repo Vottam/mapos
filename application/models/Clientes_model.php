@@ -43,9 +43,20 @@ class Clientes_model extends CI_Model
             return [];
         }
 
+        return $this->getByDocumentoNormalizado($cpf);
+    }
+
+    public function getByDocumentoNormalizado($documento)
+    {
+        $documento = preg_replace('/\D+/', '', (string) $documento);
+
+        if ($documento === '') {
+            return [];
+        }
+
         $sql = "SELECT idClientes, nomeCliente, documento, telefone, celular, email, contato, cep, rua, numero, complemento, bairro, cidade, estado, pessoa_fisica, fornecedor\n                FROM clientes\n               WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(documento, '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?\n            ORDER BY idClientes DESC";
 
-        return $this->db->query($sql, [$cpf])->result();
+        return $this->db->query($sql, [$documento])->result();
     }
 
     public function add($table, $data)

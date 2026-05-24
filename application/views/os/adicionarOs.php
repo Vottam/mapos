@@ -31,6 +31,14 @@
                                 <form action="<?php echo current_url(); ?>" method="post" id="formOs">
                                     <div class="span12" style="padding: 1%">
                                         <div class="span6">
+                                            <div class="control-group" style="margin-bottom:10px;">
+                                                <label for="os_cliente_documento">CPF/CNPJ do cliente</label>
+                                                <div class="controls" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:0;">
+                                                    <input id="os_cliente_documento" class="cpfcnpj span8" type="text" name="os_cliente_documento" value="" autocomplete="off" />
+                                                    <button id="btn_buscar_cliente_documento" class="btn btn-xs btn-primary" type="button">Buscar</button>
+                                                </div>
+                                                <div id="os_cliente_documento_msg" class="alert alert-info" style="display:none; margin:8px 0 0;"></div>
+                                            </div>
                                             <label for="cliente">Cliente<span class="required">*</span></label>
                                             <input id="cliente" class="span12" type="text" name="cliente" value="" />
                                             <input id="clientes_id" class="span12" type="hidden" name="clientes_id" value="" />
@@ -159,6 +167,149 @@
         </div>
     </div>
 </div>
+
+<div id="modalClienteRapidoOs" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="modalClienteRapidoOsLabel" aria-hidden="true" style="width: 900px; margin-left: -450px;">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+        <h3 id="modalClienteRapidoOsLabel">Cadastrar novo cliente</h3>
+    </div>
+    <div class="modal-body">
+        <div id="clienteRapidoOsMensagem" class="alert" style="display:none; margin-bottom:10px;"></div>
+        <form id="formClienteRapidoOs" class="form-horizontal" autocomplete="off">
+            <div class="row-fluid">
+                <div class="span6">
+                    <div class="control-group">
+                        <label for="os_cliente_modal_documento" class="control-label">CPF/CNPJ</label>
+                        <div class="controls">
+                            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                <input id="os_cliente_modal_documento" type="text" name="documento" class="cpfcnpj span12" value="" autocomplete="off" style="flex:1 1 auto;" />
+                                <button id="btn_buscar_cnpj_modal_os" class="btn btn-xs" type="button">Buscar dados do CNPJ</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_nome" class="control-label">Nome/Razão Social<span class="required">*</span></label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_nome" type="text" name="nomeCliente" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_contato" class="control-label">Contato</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_contato" type="text" name="contato" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_telefone" class="control-label">Telefone</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_telefone" type="text" name="telefone" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_celular" class="control-label">Celular</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_celular" type="text" name="celular" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_email" class="control-label">Email</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_email" type="text" name="email" class="span12" value="" autocomplete="off" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Tipo de Cliente</label>
+                        <div class="controls">
+                            <label for="os_cliente_modal_fornecedor" class="btn btn-default">Fornecedor
+                                <input type="checkbox" id="os_cliente_modal_fornecedor" name="fornecedor" class="badgebox" value="1">
+                                <span class="badge">&check;</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="span6">
+                    <div class="control-group">
+                        <label for="os_cliente_modal_cep" class="control-label">CEP</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_cep" type="text" name="cep" class="span12" value="" autocomplete="off" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_rua" class="control-label">Rua</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_rua" type="text" name="rua" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_numero" class="control-label">Número</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_numero" type="text" name="numero" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_complemento" class="control-label">Complemento</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_complemento" type="text" name="complemento" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_bairro" class="control-label">Bairro</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_bairro" type="text" name="bairro" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_cidade" class="control-label">Cidade</label>
+                        <div class="controls">
+                            <input id="os_cliente_modal_cidade" type="text" name="cidade" class="span12" value="" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="os_cliente_modal_estado" class="control-label">Estado</label>
+                        <div class="controls">
+                            <select id="os_cliente_modal_estado" name="estado" class="span12">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-success" id="btn_salvar_cliente_rapido_os" type="button">Salvar cliente</button>
+        <button class="btn" data-dismiss="modal" aria-hidden="true" type="button">Cancelar</button>
+    </div>
+</div>
+
+<div id="modalClientesDuplicadosOs" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="modalClientesDuplicadosOsLabel" aria-hidden="true" style="width: 900px; margin-left: -450px;">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+        <h3 id="modalClientesDuplicadosOsLabel">Foram encontrados vários clientes com este CPF/CNPJ</h3>
+    </div>
+    <div class="modal-body">
+        <div id="clientesDuplicadosMensagem" class="alert alert-warning" style="margin-bottom:10px;">Selecione o cliente correto para vincular à OS.</div>
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered table-condensed">
+                <thead>
+                    <tr>
+                        <th>Nome/Razão Social</th>
+                        <th>CPF/CNPJ</th>
+                        <th>Contato</th>
+                        <th>Telefone/Celular</th>
+                        <th>Email</th>
+                        <th>ID</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="clientesDuplicadosLista"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" data-dismiss="modal" aria-hidden="true" type="button">Fechar</button>
+    </div>
+</div>
 <script type="text/javascript">
     $(document).ready(function() {
         var equipamentoEndpoint = "/index.php/os/equipamentosCliente/";
@@ -167,6 +318,376 @@
         var serialInternoSugerido = "<?= isset($serialInternoSugerido) ? html_escape($serialInternoSugerido) : '' ?>";
         var serialHistoricoTimer = null;
         var serialHistoricoUltimoConsultado = '';
+        var clientesDuplicadosOs = [];
+        var estadosClienteRapidoOsCarregados = false;
+        var estadoPendenteClienteRapidoOs = '';
+
+        function normalizarDocumentoOs(valor) {
+            return (valor || '').toString().replace(/\D+/g, '');
+        }
+
+        function formatarDocumentoOs(valor) {
+            var documento = normalizarDocumentoOs(valor);
+
+            if (documento.length === 11) {
+                return documento.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+            }
+
+            if (documento.length === 14) {
+                return documento.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+            }
+
+            return valor || '';
+        }
+
+        function mostrarMensagemDocumentoOs(mensagem, classe) {
+            var $box = $('#os_cliente_documento_msg');
+            $box
+                .removeClass('alert-info alert-success alert-warning alert-error')
+                .addClass('alert-' + (classe || 'info'))
+                .text(mensagem || '')
+                .show();
+        }
+
+        function ocultarMensagemDocumentoOs() {
+            $('#os_cliente_documento_msg')
+                .removeClass('alert-info alert-success alert-warning alert-error')
+                .hide()
+                .text('');
+        }
+
+        function mostrarMensagemModalClienteRapidoOs(mensagem, classe) {
+            var $box = $('#clienteRapidoOsMensagem');
+            $box
+                .removeClass('alert-info alert-success alert-warning alert-error')
+                .addClass('alert-' + (classe || 'info'))
+                .text(mensagem || '')
+                .show();
+        }
+
+        function limparMensagemModalClienteRapidoOs() {
+            $('#clienteRapidoOsMensagem')
+                .removeClass('alert-info alert-success alert-warning alert-error')
+                .hide()
+                .text('');
+        }
+
+        function carregarEstadosClienteRapidoOs() {
+            if (estadosClienteRapidoOsCarregados) {
+                return;
+            }
+
+            $.getJSON('<?php echo base_url() ?>assets/json/estados.json', function(data) {
+                var $estado = $('#os_cliente_modal_estado');
+                $estado.find('option:not(:first)').remove();
+
+                if (data && data.estados) {
+                    $.each(data.estados, function(i, item) {
+                        $estado.append(new Option(item.nome, item.sigla));
+                    });
+                }
+
+                if (estadoPendenteClienteRapidoOs && $.trim($estado.val()) === '') {
+                    $estado.val(estadoPendenteClienteRapidoOs);
+                    estadoPendenteClienteRapidoOs = '';
+                }
+
+                estadosClienteRapidoOsCarregados = true;
+            });
+        }
+
+        function preencherCampoSeVazioClienteRapidoOs(selector, valor) {
+            if (valor === undefined || valor === null) {
+                return;
+            }
+
+            var $campo = $(selector);
+            if ($.trim($campo.val()) === '') {
+                $campo.val(valor);
+            }
+        }
+
+        function formatarCnpjExternoClienteRapidoOs(valor) {
+            var documento = normalizarDocumentoOs(valor);
+            if (documento.length === 14) {
+                return documento.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+            }
+            return valor || '';
+        }
+
+        function capitalizarTextoClienteRapidoOs(valor) {
+            if (typeof capital_letter === 'function') {
+                return capital_letter(valor || '');
+            }
+            return valor || '';
+        }
+
+        function preencherEnderecoPorCepClienteRapidoOs(cep) {
+            var cepLimpo = normalizarDocumentoOs(cep);
+
+            if (cepLimpo.length !== 8) {
+                return;
+            }
+
+            $.getJSON('https://viacep.com.br/ws/' + cepLimpo + '/json/?callback=?', function(data) {
+                if (!data || data.erro) {
+                    return;
+                }
+
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_rua', data.logradouro || '');
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_bairro', data.bairro || '');
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_cidade', data.localidade || '');
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_estado', data.uf || '');
+            });
+        }
+
+        function consultarCnpjExternoClienteRapidoOs(auto) {
+            var documento = normalizarDocumentoOs($('#os_cliente_modal_documento').val());
+
+            if (documento.length !== 14) {
+                mostrarMensagemModalClienteRapidoOs('Informe um CNPJ válido com 14 dígitos para consultar os dados externos.', 'warning');
+                return;
+            }
+
+            mostrarMensagemModalClienteRapidoOs(auto ? 'CNPJ não encontrado no cadastro local. Consultando dados externos...' : 'Consultando dados externos do CNPJ...', 'info');
+
+            $.ajax({
+                url: 'https://www.receitaws.com.br/v1/cnpj/' + documento,
+                dataType: 'jsonp',
+                crossDomain: true,
+                contentType: 'text/javascript'
+            }).done(function(dados) {
+                if (!dados || dados.status !== 'OK') {
+                    mostrarMensagemModalClienteRapidoOs('CNPJ não encontrado no cadastro local. Não foi possível consultar dados externos; preencha manualmente.', 'warning');
+                    return;
+                }
+
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_nome', capitalizarTextoClienteRapidoOs(dados.nome || ''));
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_contato', dados.fantasia || '');
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_telefone', (dados.telefone || '').split('/')[0].replace(/\s+/g, ''));
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_email', (dados.email || '').toLowerCase());
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_cep', (dados.cep || '').replace(/\./g, ''));
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_rua', capitalizarTextoClienteRapidoOs(dados.logradouro || ''));
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_numero', dados.numero || '');
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_complemento', capitalizarTextoClienteRapidoOs(dados.complemento || ''));
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_bairro', capitalizarTextoClienteRapidoOs(dados.bairro || ''));
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_cidade', capitalizarTextoClienteRapidoOs(dados.municipio || ''));
+                preencherCampoSeVazioClienteRapidoOs('#os_cliente_modal_estado', dados.uf || '');
+                estadoPendenteClienteRapidoOs = dados.uf || '';
+
+                if ((dados.cep || '').replace(/\D+/g, '').length === 8) {
+                    preencherEnderecoPorCepClienteRapidoOs(dados.cep);
+                }
+
+                mostrarMensagemModalClienteRapidoOs('CNPJ não encontrado no cadastro local. Dados externos carregados para revisão.', 'success');
+            }).fail(function() {
+                mostrarMensagemModalClienteRapidoOs('CNPJ não encontrado no cadastro local. Não foi possível consultar dados externos; preencha manualmente.', 'warning');
+            });
+        }
+
+        function limparFormularioClienteRapidoOs() {
+            $('#formClienteRapidoOs')[0].reset();
+            limparMensagemModalClienteRapidoOs();
+        }
+
+        function preencherClienteNaOS(cliente) {
+            if (!cliente) {
+                return;
+            }
+
+            $('#cliente').val(cliente.nomeCliente || '').trigger('change').trigger('input');
+            $('#clientes_id').val(cliente.idClientes || '').trigger('change');
+            ocultarMensagemDocumentoOs();
+            $('#modalClienteRapidoOs').modal('hide');
+            $('#modalClientesDuplicadosOs').modal('hide');
+
+            if (typeof carregarEquipamentosCliente === 'function' && cliente.idClientes) {
+                carregarEquipamentosCliente(cliente.idClientes);
+            }
+        }
+
+        function abrirModalClienteRapidoOs(documento, mensagem, consultarExterno) {
+            limparFormularioClienteRapidoOs();
+            $('#os_cliente_modal_documento').val(formatarDocumentoOs(documento));
+            if (mensagem) {
+                mostrarMensagemModalClienteRapidoOs(mensagem, 'info');
+            }
+            carregarEstadosClienteRapidoOs();
+            $('#modalClienteRapidoOs').modal('show');
+            setTimeout(function() {
+                $('#os_cliente_modal_nome').focus();
+            }, 150);
+
+            if (consultarExterno && normalizarDocumentoOs(documento).length === 14) {
+                setTimeout(function() {
+                    consultarCnpjExternoClienteRapidoOs(true);
+                }, 250);
+            }
+        }
+
+        function abrirModalClientesDuplicadosOs(clientes, documento, mensagem) {
+            clientesDuplicadosOs = clientes || [];
+            var html = '';
+
+            if (mensagem) {
+                $('#clientesDuplicadosMensagem').text(mensagem).show();
+            }
+
+            $.each(clientesDuplicadosOs, function(index, cliente) {
+                html += '<tr>' +
+                    '<td>' + escapeHtml(cliente.nomeCliente || '-') + '</td>' +
+                    '<td>' + escapeHtml(formatarDocumentoOs(cliente.documento || '')) + '</td>' +
+                    '<td>' + escapeHtml(cliente.contato || '-') + '</td>' +
+                    '<td>' + escapeHtml([cliente.telefone || '', cliente.celular || ''].filter(Boolean).join(' / ') || '-') + '</td>' +
+                    '<td>' + escapeHtml(cliente.email || '-') + '</td>' +
+                    '<td>' + escapeHtml(String(cliente.idClientes || '-')) + '</td>' +
+                    '<td><button type="button" class="btn btn-mini btn-primary btn-usar-cliente-duplicado-os" data-index="' + index + '">Usar este cliente</button></td>' +
+                '</tr>';
+            });
+
+            if (!html) {
+                html = '<tr><td colspan="7">Nenhum cliente disponível para seleção.</td></tr>';
+            }
+
+            $('#clientesDuplicadosLista').html(html);
+            $('#modalClientesDuplicadosOs').modal('show');
+        }
+
+        function buscarClientePorDocumentoOs() {
+            var documento = normalizarDocumentoOs($('#os_cliente_documento').val());
+
+            if (documento.length !== 11 && documento.length !== 14) {
+                mostrarMensagemDocumentoOs('Informe um CPF ou CNPJ válido.', 'warning');
+                return;
+            }
+
+            mostrarMensagemDocumentoOs('Consultando cliente local...', 'info');
+
+            $.ajax({
+                url: '<?php echo site_url('clientes/buscarPorDocumento'); ?>',
+                type: 'GET',
+                dataType: 'json',
+                data: {
+                    documento: documento
+                }
+            }).done(function(response) {
+                if (response && response.found && response.duplicate && response.clients) {
+                    abrirModalClientesDuplicadosOs(response.clients, documento, response.message || 'Foram encontrados vários clientes com este CPF/CNPJ.');
+                    mostrarMensagemDocumentoOs(response.message || 'Foram encontrados vários clientes com este CPF/CNPJ.', 'warning');
+                    return;
+                }
+
+                if (response && response.found && response.client) {
+                    preencherClienteNaOS(response.client);
+                    mostrarMensagemDocumentoOs(response.message || 'Cliente encontrado e selecionado.', 'success');
+                    return;
+                }
+
+                if (response && response.reason === 'invalid_length') {
+                    mostrarMensagemDocumentoOs(response.message || 'Informe um CPF ou CNPJ válido.', 'warning');
+                    return;
+                }
+
+                if (response && response.reason === 'not_found') {
+                    mostrarMensagemDocumentoOs(response.message || 'Cliente não encontrado. Cadastre um novo cliente.', 'info');
+                    abrirModalClienteRapidoOs(documento, response.message || 'Cliente não encontrado. Cadastre um novo cliente.', response.type === 'cnpj');
+                    return;
+                }
+
+                mostrarMensagemDocumentoOs('Não foi possível localizar o cliente informado.', 'warning');
+            }).fail(function() {
+                mostrarMensagemDocumentoOs('Não foi possível consultar o cliente agora.', 'warning');
+            });
+        }
+
+        function salvarClienteRapidoOs() {
+            var documento = normalizarDocumentoOs($('#os_cliente_modal_documento').val());
+            var payload = {
+                documento: documento,
+                nomeCliente: $.trim($('#os_cliente_modal_nome').val()),
+                contato: $.trim($('#os_cliente_modal_contato').val()),
+                telefone: $.trim($('#os_cliente_modal_telefone').val()),
+                celular: $.trim($('#os_cliente_modal_celular').val()),
+                email: $.trim($('#os_cliente_modal_email').val()),
+                cep: $.trim($('#os_cliente_modal_cep').val()),
+                rua: $.trim($('#os_cliente_modal_rua').val()),
+                numero: $.trim($('#os_cliente_modal_numero').val()),
+                complemento: $.trim($('#os_cliente_modal_complemento').val()),
+                bairro: $.trim($('#os_cliente_modal_bairro').val()),
+                cidade: $.trim($('#os_cliente_modal_cidade').val()),
+                estado: $.trim($('#os_cliente_modal_estado').val()),
+                fornecedor: $('#os_cliente_modal_fornecedor').is(':checked') ? 1 : 0
+            };
+
+            if (!payload.nomeCliente) {
+                mostrarMensagemModalClienteRapidoOs('Informe o nome ou razão social do cliente.', 'warning');
+                return;
+            }
+
+            mostrarMensagemModalClienteRapidoOs('Salvando cliente...', 'info');
+
+            $.ajax({
+                url: '<?php echo site_url('clientes/salvarRapido'); ?>',
+                type: 'POST',
+                dataType: 'json',
+                data: payload
+            }).done(function(response) {
+                if (response && response.success && response.client) {
+                    $('#modalClienteRapidoOs').modal('hide');
+                    preencherClienteNaOS(response.client);
+                    mostrarMensagemDocumentoOs(response.message || 'Cliente cadastrado e selecionado.', 'success');
+                    $('#os_cliente_documento').val(formatarDocumentoOs(documento));
+                    return;
+                }
+
+                if (response && response.conflict && response.clients) {
+                    $('#modalClienteRapidoOs').modal('hide');
+                    abrirModalClientesDuplicadosOs(response.clients, documento, response.message || 'Cliente já cadastrado com este CPF/CNPJ.');
+                    mostrarMensagemDocumentoOs(response.message || 'Cliente já cadastrado com este CPF/CNPJ.', 'warning');
+                    return;
+                }
+
+                mostrarMensagemModalClienteRapidoOs((response && response.message) ? response.message : 'Não foi possível cadastrar o cliente.', 'warning');
+            }).fail(function(xhr) {
+                var mensagem = 'Não foi possível cadastrar o cliente.';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                    mensagem = xhr.responseJSON.message;
+                }
+                mostrarMensagemModalClienteRapidoOs(mensagem, 'warning');
+            });
+        }
+
+        function aplicarCEPClienteRapidoOs() {
+            var cep = normalizarDocumentoOs($('#os_cliente_modal_cep').val());
+
+            if (cep.length !== 8) {
+                return;
+            }
+
+            $.getJSON('https://viacep.com.br/ws/' + cep + '/json/?callback=?', function(data) {
+                if (!data || data.erro) {
+                    mostrarMensagemModalClienteRapidoOs('CEP não localizado.', 'warning');
+                    return;
+                }
+
+                $('#os_cliente_modal_rua').val(data.logradouro || '');
+                $('#os_cliente_modal_bairro').val(data.bairro || '');
+                $('#os_cliente_modal_cidade').val(data.localidade || '');
+                $('#os_cliente_modal_estado').val(data.uf || '');
+            }).fail(function() {
+                mostrarMensagemModalClienteRapidoOs('Não foi possível consultar o CEP agora.', 'warning');
+            });
+        }
+
+        function selecionarClienteDuplicadoOs(index) {
+            var cliente = clientesDuplicadosOs[index];
+            if (!cliente) {
+                return;
+            }
+
+            preencherClienteNaOS(cliente);
+            mostrarMensagemDocumentoOs('Cliente selecionado manualmente.', 'success');
+        }
 
         function escapeHtml(text) {
             return $('<div>').text(text == null ? '' : String(text)).html();
@@ -521,6 +1042,53 @@
             select: function(event, ui) {
                 $("#garantias_id").val(ui.item.id);
             }
+        });
+
+        $('#btn_buscar_cnpj_modal_os').on('click', function() {
+            consultarCnpjExternoClienteRapidoOs(false);
+        });
+
+        $('#btn_buscar_cliente_documento').on('click', function() {
+            buscarClientePorDocumentoOs();
+        });
+
+        $('#os_cliente_documento').on('keydown', function(event) {
+            if (event.which === 13 || event.keyCode === 13) {
+                event.preventDefault();
+                buscarClientePorDocumentoOs();
+            }
+        }).on('input', function() {
+            if (!$.trim($(this).val()).length) {
+                ocultarMensagemDocumentoOs();
+            }
+        });
+
+        $('#btn_salvar_cliente_rapido_os').on('click', function() {
+            salvarClienteRapidoOs();
+        });
+
+        $('#formClienteRapidoOs').on('submit', function(event) {
+            event.preventDefault();
+            salvarClienteRapidoOs();
+        });
+
+        $('#os_cliente_modal_cep').on('blur', function() {
+            aplicarCEPClienteRapidoOs();
+        });
+
+        $(document).on('click', '.btn-usar-cliente-duplicado-os', function() {
+            var index = $(this).data('index');
+            selecionarClienteDuplicadoOs(index);
+            $('#modalClientesDuplicadosOs').modal('hide');
+        });
+
+        $('#modalClienteRapidoOs').on('hidden', function() {
+            limparMensagemModalClienteRapidoOs();
+        });
+
+        $('#modalClientesDuplicadosOs').on('hidden', function() {
+            clientesDuplicadosOs = [];
+            $('#clientesDuplicadosLista').empty();
         });
 
         $("#formOs").validate({

@@ -173,6 +173,183 @@ class Clientes extends MY_Controller
         ]));
     }
 
+    public function buscarPorDocumento()
+    {
+        $this->output->set_content_type('application/json');
+
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'aCliente')) {
+            return $this->output
+                ->set_status_header(403)
+                ->set_output(json_encode([
+                    'found' => false,
+                    'reason' => 'forbidden',
+                    'message' => 'Você não tem permissão para consultar clientes.',
+                ]));
+        }
+
+        $documento = $this->input->get_post('documento', true);
+        $documento = preg_replace('/\D+/', '', (string) $documento);
+        $tamanhoDocumento = strlen($documento);
+
+        if (! in_array($tamanhoDocumento, [11, 14], true)) {
+            return $this->output->set_output(json_encode([
+                'found' => false,
+                'reason' => 'invalid_length',
+                'message' => 'Informe um CPF ou CNPJ válido.',
+            ]));
+        }
+
+        $type = $tamanhoDocumento === 11 ? 'cpf' : 'cnpj';
+        $clientes = $this->clientes_model->getByDocumentoNormalizado($documento);
+
+        if (empty($clientes)) {
+            return $this->output->set_output(json_encode([
+                'found' => false,
+                'type' => $type,
+                'documento' => $documento,
+                'reason' => 'not_found',
+                'message' => 'Cliente não encontrado. Cadastre um novo cliente.',
+            ]));
+        }
+
+        $clientesFormatados = array_map([$this, 'formatClienteDocumentoLookup'], $clientes);
+
+        if (count($clientesFormatados) > 1) {
+            return $this->output->set_output(json_encode([
+                'found' => true,
+                'duplicate' => true,
+                'type' => $type,
+                'documento' => $documento,
+                'total' => count($clientesFormatados),
+                'clients' => $clientesFormatados,
+                'message' => 'Foram encontrados vários clientes com este CPF/CNPJ.',
+            ]));
+        }
+
+        return $this->output->set_output(json_encode([
+            'found' => true,
+            'duplicate' => false,
+            'type' => $type,
+            'documento' => $documento,
+            'client' => $clientesFormatados[0],
+            'message' => 'Cliente encontrado e selecionado.',
+        ]));
+    }
+
+    public function salvarRapido()
+    {
+        $this->output->set_content_type('application/json');
+
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'aCliente')) {
+            return $this->output
+                ->set_status_header(403)
+                ->set_output(json_encode([
+                    'success' => false,
+                    'message' => 'Você não tem permissão para cadastrar clientes.',
+                ]));
+        }
+
+        $documentoOriginal = trim((string) $this->input->post('documento', true));
+        $documento = preg_replace('/\D+/', '', $documentoOriginal);
+        $nomeCliente = trim((string) $this->input->post('nomeCliente', true));
+        $email = trim((string) $this->input->post('email', true));
+
+        if ($nomeCliente === '') {
+            return $this->output
+                ->set_status_header(422)
+                ->set_output(json_encode([
+                    'success' => false,
+                    'message' => 'Informe o nome ou razão social do cliente.',
+                ]));
+        }
+
+        if ($email !== '' && $this->clientes_model->emailExists($email)) {
+            return $this->output
+                ->set_status_header(422)
+                ->set_output(json_encode([
+                    'success' => false,
+                    'message' => 'Este e-mail já está sendo utilizado por outro cliente.',
+                ]));
+        }
+
+        if (in_array(strlen($documento), [11, 14], true)) {
+            $clientesExistentes = $this->clientes_model->getByDocumentoNormalizado($documento);
+            if (! empty($clientesExistentes)) {
+                return $this->output->set_output(json_encode([
+                    'success' => false,
+                    'conflict' => true,
+                    'message' => 'Cliente já cadastrado com este CPF/CNPJ.',
+                    'clients' => array_map([$this, 'formatClienteDocumentoLookup'], $clientesExistentes),
+                ]));
+            }
+        }
+
+        $pessoaFisica = strlen($documento) === 11 ? 1 : 0;
+        $senhaInterna = $documento !== '' ? $documento : bin2hex(random_bytes(8));
+
+        $data = [
+            'nomeCliente' => $nomeCliente,
+            'contato' => trim((string) $this->input->post('contato', true)),
+            'documento' => $documentoOriginal,
+            'telefone' => trim((string) $this->input->post('telefone', true)),
+            'celular' => trim((string) $this->input->post('celular', true)),
+            'email' => $email,
+            'senha' => password_hash($senhaInterna, PASSWORD_DEFAULT),
+            'rua' => trim((string) $this->input->post('rua', true)),
+            'numero' => trim((string) $this->input->post('numero', true)),
+            'complemento' => trim((string) $this->input->post('complemento', true)),
+            'bairro' => trim((string) $this->input->post('bairro', true)),
+            'cidade' => trim((string) $this->input->post('cidade', true)),
+            'estado' => trim((string) $this->input->post('estado', true)),
+            'cep' => trim((string) $this->input->post('cep', true)),
+            'dataCadastro' => date('Y-m-d'),
+            'pessoa_fisica' => $pessoaFisica,
+            'fornecedor' => $this->input->post('fornecedor') ? 1 : 0,
+        ];
+
+        $idCliente = $this->clientes_model->add('clientes', $data);
+
+        if (! is_numeric($idCliente)) {
+            return $this->output
+                ->set_status_header(500)
+                ->set_output(json_encode([
+                    'success' => false,
+                    'message' => 'Ocorreu um erro ao cadastrar o cliente.',
+                ]));
+        }
+
+        return $this->output->set_output(json_encode([
+            'success' => true,
+            'client' => [
+                'idClientes' => (int) $idCliente,
+                'nomeCliente' => $nomeCliente,
+                'documento' => $documentoOriginal,
+            ],
+            'message' => 'Cliente cadastrado e selecionado.',
+        ]));
+    }
+
+    private function formatClienteDocumentoLookup($cliente)
+    {
+        return [
+            'idClientes' => (int) $cliente->idClientes,
+            'nomeCliente' => $cliente->nomeCliente,
+            'documento' => $cliente->documento,
+            'telefone' => $cliente->telefone,
+            'celular' => $cliente->celular,
+            'email' => $cliente->email,
+            'contato' => $cliente->contato,
+            'cep' => $cliente->cep,
+            'rua' => $cliente->rua,
+            'numero' => $cliente->numero,
+            'complemento' => $cliente->complemento,
+            'bairro' => $cliente->bairro,
+            'cidade' => $cliente->cidade,
+            'estado' => $cliente->estado,
+            'fornecedor' => (int) $cliente->fornecedor,
+        ];
+    }
+
     public function editar()
     {
         if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3)) || ! $this->clientes_model->getById($this->uri->segment(3))) {
