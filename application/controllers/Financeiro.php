@@ -160,6 +160,8 @@ class Financeiro extends MY_Controller
                 'tipo' => set_value('tipo'),
                 'observacoes' => set_value('observacoes'),
                 'usuarios_id' => $this->session->userdata('id_admin'),
+                  'contas_id' => (int)($this->input->post('contas_id') ?: 1),
+                  'categorias_id' => (int)($this->input->post('categorias_id') ?: (set_value('tipo') === 'despesa' ? 2 : 1)),
             ];
             if (set_value('idFornecedor')) {
                 $data['clientes_id'] = set_value('idFornecedor');

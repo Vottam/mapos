@@ -14,6 +14,41 @@ class Os extends MY_Controller
         $this->data['menuOs'] = 'OS';
     }
 
+    private function gerarTokenCriacaoOs()
+    {
+        $token = bin2hex(random_bytes(16));
+        $this->session->set_userdata('os_create_token', $token);
+
+        return $token;
+    }
+
+    private function obterTokenCriacaoOs()
+    {
+        $token = (string) $this->session->userdata('os_create_token');
+
+        if ($token === '') {
+            return $this->gerarTokenCriacaoOs();
+        }
+
+        return $token;
+    }
+
+    private function validarTokenCriacaoOs($tokenRecebido)
+    {
+        $tokenSessao = (string) $this->session->userdata('os_create_token');
+
+        if ($tokenSessao === '' || $tokenRecebido === '') {
+            return false;
+        }
+
+        return hash_equals($tokenSessao, $tokenRecebido);
+    }
+
+    private function consumirTokenCriacaoOs()
+    {
+        $this->session->unset_userdata('os_create_token');
+    }
+
     private function equipamentoFromPost()
     {
         return [
@@ -217,6 +252,17 @@ class Os extends MY_Controller
         $this->data['custom_error'] = '';
         $this->data['equipamento'] = null;
         $this->data['serialInternoSugerido'] = $this->os_model->getProximoSerialInternoEstimado();
+        $this->data['os_create_token'] = $this->obterTokenCriacaoOs();
+
+        if ($this->input->method(true) === 'POST') {
+            $tokenRecebido = (string) $this->input->post('os_create_token');
+
+            if (! $this->validarTokenCriacaoOs($tokenRecebido)) {
+                $this->consumirTokenCriacaoOs();
+                $this->session->set_flashdata('error', 'A solicitação da OS já foi processada ou expirou. Reabra a tela para criar uma nova OS.');
+                redirect(site_url('os/adicionar'));
+            }
+        }
 
         if ($this->form_validation->run('os') == false) {
             $this->data['custom_error'] = (validation_errors() ? true : false);
@@ -265,6 +311,8 @@ class Os extends MY_Controller
                 'garantia_retorno' => $this->input->post('garantia_retorno') ? 1 : 0,
                 'garantia_origem_os_id' => is_numeric($this->input->post('garantia_origem_os_id')) ? (int) $this->input->post('garantia_origem_os_id') : null,
             ];
+
+            $this->consumirTokenCriacaoOs();
 
             if (is_numeric($id = $this->os_model->add('os', $data, true))) {
                 $this->salvarOuVincularEquipamentoOs($id, $clienteId, $equipamentoData, $equipamentoSelecionado, null, $serialInternoSugerido);

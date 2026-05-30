@@ -29,6 +29,7 @@
                                 <?php
                                 } ?>
                                 <form action="<?php echo current_url(); ?>" method="post" id="formOs">
+                                    <input type="hidden" name="os_create_token" value="<?php echo html_escape($os_create_token ?? ''); ?>" />
                                     <div class="span12" style="padding: 1%">
                                         <div class="span6">
                                             <div class="control-group" style="margin-bottom:10px;">
@@ -151,7 +152,7 @@
                                     </div>
                                     <div class="span12" style="padding: 1%; margin-left: 0">
                                         <div class="span12" style="display:flex; justify-content: center;">
-                                            <button class="button btn btn-success" id="btnContinuar">
+                                            <button class="button btn btn-success" id="btnContinuar" type="submit">
                                               <span class="button__icon"><i class='bx bx-chevrons-right'></i></span><span class="button__text2">Continuar</span></button>
                                             <a href="<?php echo base_url() ?>index.php/os" class="button btn btn-mini btn-warning" style="max-width: 160px">
                                               <span class="button__icon"><i class="bx bx-undo"></i></span><span class="button__text2">Voltar</span></a>
@@ -1091,6 +1092,25 @@
             $('#clientesDuplicadosLista').empty();
         });
 
+        var $formOs = $('#formOs');
+        var $btnContinuar = $('#btnContinuar');
+        var $btnContinuarTexto = $btnContinuar.find('.button__text2');
+        var osCreateSubmitting = false;
+
+        function definirEstadoSubmitOs(emAndamento) {
+            osCreateSubmitting = emAndamento;
+            $btnContinuar.prop('disabled', emAndamento).toggleClass('disabled', emAndamento);
+            $btnContinuarTexto.text(emAndamento ? 'Salvando...' : 'Continuar');
+        }
+
+        $formOs.on('submit', function() {
+            if (osCreateSubmitting) {
+                return false;
+            }
+
+            return true;
+        });
+
         $("#formOs").validate({
             rules: {
                 cliente: {
@@ -1129,6 +1149,10 @@
             unhighlight: function(element, errorClass, validClass) {
                 $(element).parents('.control-group').removeClass('error');
                 $(element).parents('.control-group').addClass('success');
+            },
+            submitHandler: function(form) {
+                definirEstadoSubmitOs(true);
+                form.submit();
             }
         });
         $(".datepicker").datepicker({
