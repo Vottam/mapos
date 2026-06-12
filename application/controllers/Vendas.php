@@ -339,11 +339,15 @@ class Vendas extends MY_Controller
             }
         }
 
+        if ((int) $venda->faturado === 1) {
+            $this->db->set('lancamentos_id', null);
+            $this->db->where('idVendas', $id);
+            $this->db->update('vendas');
+
+            $this->vendas_model->delete('lancamentos', 'vendas_id', $id);
+        }
         $this->vendas_model->delete('itens_de_vendas', 'vendas_id', $id);
         $this->vendas_model->delete('vendas', 'idVendas', $id);
-        if ((int) $venda->faturado === 1) {
-            $this->vendas_model->delete('lancamentos', 'descricao', "Fatura de Venda - #${id}");
-        }
 
         log_info('Removeu uma venda. ID: ' . $id);
 
