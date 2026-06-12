@@ -258,9 +258,9 @@ class Mapos_model extends CI_Model
 
     public function getEstatisticasFinanceiro()
     {
-        $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita,
+        $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita,
                        SUM(CASE WHEN baixado = 1 AND tipo = 'despesa' THEN valor END) as total_despesa,
-                       SUM(CASE WHEN baixado = 0 AND tipo = 'receita' THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita_pendente,
+                       SUM(CASE WHEN baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita_pendente,
                        SUM(CASE WHEN baixado = 0 AND tipo = 'despesa' THEN valor END) as total_despesa_pendente FROM lancamentos";
         if ($this->db->query($sql) !== false) {
             return $this->db->query($sql)->row();
@@ -301,7 +301,7 @@ class Mapos_model extends CI_Model
         $sqlReceitas = "
             SELECT
                 EXTRACT(MONTH FROM data_pagamento) AS mes,
-                SUM(CASE WHEN baixado = 1 AND tipo = 'receita' THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100)) ELSE 0 END) AS total
+                SUM(CASE WHEN baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100)) ELSE 0 END) AS total
             FROM lancamentos
             WHERE EXTRACT(YEAR FROM data_pagamento) = ?
             GROUP BY EXTRACT(MONTH FROM data_pagamento)
@@ -378,7 +378,7 @@ class Mapos_model extends CI_Model
         }
         $sql = '
             SELECT
-                SUM(CASE WHEN (EXTRACT(DAY FROM data_pagamento) = ' . date('d') . ') AND EXTRACT(MONTH FROM data_pagamento) = ' . date('m') . " AND baixado = 1 AND tipo = 'receita' THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) AS VALOR_" . date('m') . '_REC,
+                SUM(CASE WHEN (EXTRACT(DAY FROM data_pagamento) = ' . date('d') . ') AND EXTRACT(MONTH FROM data_pagamento) = ' . date('m') . " AND baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) AS VALOR_" . date('m') . '_REC,
                 SUM(CASE WHEN (EXTRACT(DAY FROM data_pagamento) = ' . date('d') . ') AND EXTRACT(MONTH FROM data_pagamento) = ' . date('m') . " AND baixado = 1 AND tipo = 'despesa' THEN valor END) AS VALOR_" . date('m') . '_DES
             FROM lancamentos
             WHERE EXTRACT(YEAR FROM data_pagamento) = ?
@@ -400,29 +400,29 @@ class Mapos_model extends CI_Model
 
         $sql = "
             SELECT
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 1) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_JAN_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 1) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_JAN_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 1) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_JAN_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 2) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_FEV_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 2) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_FEV_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 2) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_FEV_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 3) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_MAR_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 3) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_MAR_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 3) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_MAR_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 4) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_ABR_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 4) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_ABR_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 4) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_ABR_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 5) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_MAI_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 5) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_MAI_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 5) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_MAI_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 6) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_JUN_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 6) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_JUN_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 6) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_JUN_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 7) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_JUL_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 7) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_JUL_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 7) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_JUL_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 8) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_AGO_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 8) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_AGO_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 8) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_AGO_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 9) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_SET_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 9) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_SET_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 9) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_SET_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 10) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_OUT_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 10) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_OUT_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 10) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_OUT_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 11) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_NOV_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 11) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_NOV_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 11) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_NOV_DES,
-                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 12) AND baixado = 0 AND tipo = 'receita' THEN valor END) AS VALOR_DEZ_REC,
+                SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 12) AND baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') THEN valor END) AS VALOR_DEZ_REC,
                 SUM(CASE WHEN (EXTRACT(MONTH FROM data_pagamento) = 12) AND baixado = 0 AND tipo = 'despesa' THEN valor END) AS VALOR_DEZ_DES
             FROM lancamentos
             WHERE EXTRACT(YEAR FROM data_pagamento) = ?
