@@ -11,11 +11,27 @@ class Financeiro_model extends CI_Model
         parent::__construct();
     }
 
+    private function lancamentoRealWhere($alias = 'lancamentos')
+    {
+        $alias = trim((string) $alias);
+
+        return "(({$alias}.descricao LIKE 'Fatura de Venda%' AND {$alias}.vendas_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM vendas v
+                    WHERE v.idVendas = {$alias}.vendas_id AND v.faturado = 1
+                )) OR ({$alias}.descricao LIKE 'Fatura de OS%' AND EXISTS (
+                    SELECT 1 FROM os o
+                    WHERE o.idOs = CAST(TRIM(SUBSTRING_INDEX({$alias}.descricao, ':', -1)) AS UNSIGNED) AND o.faturado = 1
+                )))";
+    }
+
     public function get($table, $fields, $where = '', $perpage = 0, $start = 0, $one = false, $array = 'array')
     {
         $this->db->select($fields . ', usuarios.*');
         $this->db->from($table);
         $this->db->join('usuarios', 'usuarios.idUsuarios = usuarios_id', 'left');
+        if ($table === 'lancamentos') {
+            $this->db->where($this->lancamentoRealWhere('lancamentos'), null, false);
+        }
         $this->db->order_by('data_vencimento', 'asc');
         $this->db->limit($perpage, $start);
         if ($where) {
@@ -33,7 +49,7 @@ class Financeiro_model extends CI_Model
     {
         $this->db->select("
             SUM(case when tipo = 'despesa' then valor - desconto end) as despesas,
-            SUM(case when tipo = 'receita' then (IF(valor_desconto = 0, valor, valor_desconto)) end) as receitas
+            SUM(case when tipo = 'receita' and (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') and " . $this->lancamentoRealWhere('lancamentos') . " then (IF(valor_desconto = 0, valor, valor_desconto)) end) as receitas
         ");
         $this->db->from('lancamentos');
 
@@ -105,13 +121,13 @@ class Financeiro_model extends CI_Model
 
     public function getEstatisticasFinanceiro2()
     {
-        $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' THEN IF(valor_desconto = 0, valor, valor_desconto) END) as total_receita,
+        $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN IF(valor_desconto = 0, valor, valor_desconto) END) as total_receita,
                        SUM(CASE WHEN baixado = 1 AND tipo = 'despesa' THEN valor - desconto END) as total_despesa,
-                       SUM(CASE WHEN baixado = 1 THEN desconto END) as total_valor_desconto,
-                       SUM(CASE WHEN baixado = 0 THEN valor - valor_desconto END) as total_valor_desconto_pendente,
-                       SUM(CASE WHEN tipo = 'receita' THEN valor END) as total_receita_sem_desconto,
+                       SUM(CASE WHEN baixado = 1 AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN desconto END) as total_valor_desconto,
+                       SUM(CASE WHEN baixado = 0 AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor - valor_desconto END) as total_valor_desconto_pendente,
+                       SUM(CASE WHEN tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor END) as total_receita_sem_desconto,
                        SUM(CASE WHEN tipo = 'despesa' THEN valor END) as total_despesa_sem_desconto,
-                       SUM(CASE WHEN baixado = 0 AND tipo = 'receita' THEN valor_desconto END) as total_receita_pendente,
+                       SUM(CASE WHEN baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor_desconto END) as total_receita_pendente,
                        SUM(CASE WHEN baixado = 0 AND tipo = 'despesa' THEN valor_desconto END) as total_despesa_pendente FROM lancamentos";
 
         return $this->db->query($sql)->row();
@@ -171,6 +187,9 @@ class Financeiro_model extends CI_Model
     public function count($table, $where)
     {
         $this->db->from($table);
+        if ($table === 'lancamentos') {
+            $this->db->where($this->lancamentoRealWhere('lancamentos'), null, false);
+        }
         if ($where) {
             $this->db->where($where);
         }

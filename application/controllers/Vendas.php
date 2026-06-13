@@ -339,11 +339,15 @@ class Vendas extends MY_Controller
             }
         }
 
+        if ((int) $venda->faturado === 1) {
+            $this->db->set('lancamentos_id', null);
+            $this->db->where('idVendas', $id);
+            $this->db->update('vendas');
+
+            $this->vendas_model->delete('lancamentos', 'vendas_id', $id);
+        }
         $this->vendas_model->delete('itens_de_vendas', 'vendas_id', $id);
         $this->vendas_model->delete('vendas', 'idVendas', $id);
-        if ((int) $venda->faturado === 1) {
-            $this->vendas_model->delete('lancamentos', 'descricao', "Fatura de Venda - #${id}");
-        }
 
         log_info('Removeu uma venda. ID: ' . $id);
 
@@ -403,17 +407,23 @@ class Vendas extends MY_Controller
             $quantidade = $this->input->post('quantidade');
             $subtotal = $preco * $quantidade;
             $produto = $this->input->post('idProduto');
+
+            $this->load->model('produtos_model');
+            $produtoData = $this->produtos_model->getById($produto);
+            $custoUnitario = $produtoData && isset($produtoData->precoCompra) ? (float) $produtoData->precoCompra : 0.0;
+            $custoTotal = $custoUnitario * (float) $quantidade;
+
             $data = [
                 'quantidade' => $quantidade,
                 'subTotal' => $subtotal,
                 'produtos_id' => $produto,
                 'preco' => $preco,
+                'custo_unitario' => $custoUnitario,
+                'custo_total' => $custoTotal,
                 'vendas_id' => $idVenda,
             ];
 
             if ($this->vendas_model->add('itens_de_vendas', $data) == true) {
-                $this->load->model('produtos_model');
-
                 if ($this->data['configuration']['control_estoque']) {
                     $this->produtos_model->updateEstoque($produto, $quantidade, '-');
                 }

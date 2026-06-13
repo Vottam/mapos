@@ -880,7 +880,8 @@ class Os extends MY_Controller
         $this->os_model->delete('anexos', 'os_id', $id);
         $this->os_model->delete('os', 'idOs', $id);
         if ((int) $os->faturado === 1) {
-            $this->os_model->delete('lancamentos', 'descricao', "Fatura de OS - #{$id}");
+            $this->db->where('descricao', "Fatura de OS Nº: {$id}");
+            $this->db->delete('lancamentos');
         }
 
         log_info('Removeu uma OS. ID: ' . $id);
