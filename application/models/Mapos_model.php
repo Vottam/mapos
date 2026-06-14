@@ -274,12 +274,55 @@ class Mapos_model extends CI_Model
         $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita,
                        SUM(CASE WHEN baixado = 1 AND tipo = 'despesa' THEN valor END) as total_despesa,
                        SUM(CASE WHEN baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita_pendente,
-                       SUM(CASE WHEN baixado = 0 AND tipo = 'despesa' THEN valor END) as total_despesa_pendente FROM lancamentos";
+                       SUM(CASE WHEN baixado = 0 AND tipo = 'despesa' THEN valor END) as total_despesa_pendente,
+                       (SELECT COALESCE(SUM(valor), 0) FROM custos_fixos WHERE ativo = 1 AND (periodicidade IS NULL OR periodicidade = '' OR LOWER(periodicidade) = 'mensal') AND (data_inicio IS NULL OR data_inicio <= CURDATE()) AND (data_fim IS NULL OR data_fim >= CURDATE())) as total_custos_fixos FROM lancamentos";
         if ($this->db->query($sql) !== false) {
             return $this->db->query($sql)->row();
         }
 
         return false;
+    }
+
+    private function normalizarDataCustoFixoPainel($data)
+    {
+        $data = trim((string) $data);
+        if ($data === '') {
+            return null;
+        }
+
+        foreach (['d/m/Y', 'Y-m-d'] as $formato) {
+            $dt = DateTime::createFromFormat($formato, $data);
+            if ($dt instanceof DateTime) {
+                return $dt->format('Y-m-d');
+            }
+        }
+
+        $timestamp = strtotime($data);
+        return $timestamp !== false ? date('Y-m-d', $timestamp) : null;
+    }
+
+    private function custoFixoAtivoNoMesPainel($custo, DateTime $inicioMes, DateTime $fimMes)
+    {
+        if ((int) $custo->ativo !== 1) {
+            return false;
+        }
+
+        if (! empty($custo->periodicidade) && strtolower((string) $custo->periodicidade) !== 'mensal') {
+            return false;
+        }
+
+        $inicioCompetencia = ! empty($custo->data_inicio) ? $this->normalizarDataCustoFixoPainel($custo->data_inicio) : null;
+        $fimCompetencia = ! empty($custo->data_fim) ? $this->normalizarDataCustoFixoPainel($custo->data_fim) : null;
+
+        if ($inicioCompetencia && $inicioCompetencia > $fimMes->format('Y-m-d')) {
+            return false;
+        }
+
+        if ($fimCompetencia && $fimCompetencia < $inicioMes->format('Y-m-d')) {
+            return false;
+        }
+
+        return true;
     }
 
     public function getEstatisticasFinanceiroMes($year)
@@ -371,12 +414,26 @@ class Mapos_model extends CI_Model
         $fillSeries($custoOs, $this->db->query($sqlCustoOs, [$ano])->result());
         $fillSeries($custoVendas, $this->db->query($sqlCustoVendas, [$ano])->result());
 
+        $custosFixos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $custoFixosMes = array_fill(1, 12, 0.0);
+        for ($mes = 1; $mes <= 12; $mes++) {
+            $mesInicio = DateTime::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $ano, $mes));
+            $mesFim = clone $mesInicio;
+            $mesFim->modify('last day of this month');
+            foreach ($custosFixos as $custo) {
+                if ($this->custoFixoAtivoNoMesPainel($custo, $mesInicio, $mesFim)) {
+                    $custoFixosMes[$mes] += (float) $custo->valor;
+                }
+            }
+        }
+
         $financeiroMes = new stdClass();
         foreach ($meses as $numero => $sigla) {
             $financeiroMes->{'VALOR_' . $sigla . '_REC'} = $receitas[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_DES'} = $despesas[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_OS'} = $custoOs[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_VENDAS'} = $custoVendas[$numero];
+            $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_FIXOS'} = $custoFixosMes[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_TOTAL'} = $custoOs[$numero] + $custoVendas[$numero];
         }
 

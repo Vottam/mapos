@@ -325,6 +325,26 @@
                 },
 
                 {
+                    label: 'Custos Fixos',
+                    data: [<?php echo($financeiro_mes->VALOR_JAN_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_FEV_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_MAR_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_ABR_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_MAI_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_JUN_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_JUL_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_AGO_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_SET_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_OUT_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_NOV_CUSTO_FIXOS); ?>,
+                        <?php echo($financeiro_mes->VALOR_DEZ_CUSTO_FIXOS); ?>
+                    ],
+
+                    backgroundColor: 'rgba(220, 53, 69, 0.55)',
+                    borderRadius: 15,
+                },
+
+                {
                     label: 'Despesas',
                     data: [<?php echo($financeiro_mes->VALOR_JAN_DES); ?>,
                         <?php echo($financeiro_mes->VALOR_FEV_DES); ?>,
@@ -415,7 +435,8 @@
             labels: [
                 'Receita total', 'Receita pendente',
                 'Previsto em caixa', 'Despesa total',
-                'Despesa pendente', 'Previsto a entrar'
+                'Despesa pendente', 'Previsto a entrar',
+                'Custos Fixos'
             ],
             datasets: [{
                 label: 'Total',
@@ -425,7 +446,8 @@
                     <?php echo($estatisticas_financeiro->total_receita - $estatisticas_financeiro->total_despesa); ?>,
                     <?php echo ($estatisticas_financeiro->total_despesa != null) ?  $estatisticas_financeiro->total_despesa : '0.00'; ?>,
                     <?php echo ($estatisticas_financeiro->total_despesa_pendente != null) ?  $estatisticas_financeiro->total_despesa_pendente : '0.00'; ?>,
-                    <?php echo($estatisticas_financeiro->total_receita_pendente - $estatisticas_financeiro->total_despesa_pendente); ?>
+                    <?php echo($estatisticas_financeiro->total_receita_pendente - $estatisticas_financeiro->total_despesa_pendente); ?>,
+                    <?php echo ($estatisticas_financeiro->total_custos_fixos != null) ? $estatisticas_financeiro->total_custos_fixos : '0.00'; ?>
                 ],
 
                 backgroundColor: [
@@ -434,7 +456,8 @@
                     'rgba(255, 206, 86, 0.5)',
                     'rgba(255, 99, 132, 0.5)',
                     'rgba(255, 159, 64, 0.5)',
-                    'rgba(153, 102, 255, 0.5)'
+                    'rgba(153, 102, 255, 0.5)',
+                    'rgba(220, 20, 60, 0.6)'
                 ],
                 borderWidth: 1
             }]
