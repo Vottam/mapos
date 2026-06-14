@@ -260,6 +260,11 @@
                     <div class="widget-content" style="padding:10px;margin:25px 0 0">
                         <canvas id="statusOS"> </canvas>
                     </div>
+                    <?php $saldo_realizado = ($estatisticas_financeiro->total_receita ?? 0) - ($estatisticas_financeiro->total_despesa ?? 0); $saldo_projetado = ($estatisticas_financeiro->total_receita_pendente ?? 0) - ($estatisticas_financeiro->total_despesa_pendente ?? 0); ?>
+                    <div style="display:flex;justify-content:space-between;margin-top:12px;padding:0 12px;font-size:11px;color:rgba(255,255,255,0.7)">
+                        <span>Saldo realizado: <strong style="color:<?php echo $saldo_realizado >= 0 ? '#28a745' : '#dc3545'; ?>">R$ <?php echo number_format($saldo_realizado, 2, ',', '.'); ?></strong></span>
+                        <span>Saldo projetado: <strong style="color:<?php echo $saldo_projetado >= 0 ? '#36a2eb' : '#ff9f40'; ?>">R$ <?php echo number_format($saldo_projetado, 2, ',', '.'); ?></strong></span>
+                    </div>
                 </div>
             </div>
         <?php endif ?>
@@ -433,9 +438,8 @@
     var myChart = new Chart(statusOS, {
         data: {
             labels: [
-                'Receita total', 'Receita pendente',
-                'Previsto em caixa', 'Despesa total',
-                'Despesa pendente', 'Previsto a entrar',
+                'Receita recebida', 'Receita a receber',
+                'Despesa paga', 'Despesa a pagar',
                 'Custos Fixos'
             ],
             datasets: [{
@@ -443,21 +447,17 @@
                 data: [
                     <?php echo ($estatisticas_financeiro->total_receita != null) ?  $estatisticas_financeiro->total_receita : '0.00'; ?>,
                     <?php echo ($estatisticas_financeiro->total_receita_pendente != null) ?  $estatisticas_financeiro->total_receita_pendente : '0.00'; ?>,
-                    <?php echo($estatisticas_financeiro->total_receita - $estatisticas_financeiro->total_despesa); ?>,
                     <?php echo ($estatisticas_financeiro->total_despesa != null) ?  $estatisticas_financeiro->total_despesa : '0.00'; ?>,
                     <?php echo ($estatisticas_financeiro->total_despesa_pendente != null) ?  $estatisticas_financeiro->total_despesa_pendente : '0.00'; ?>,
-                    <?php echo($estatisticas_financeiro->total_receita_pendente - $estatisticas_financeiro->total_despesa_pendente); ?>,
                     <?php echo ($estatisticas_financeiro->total_custos_fixos != null) ? $estatisticas_financeiro->total_custos_fixos : '0.00'; ?>
                 ],
 
                 backgroundColor: [
-                    'rgba(75, 192, 192, 0.5)',
-                    'rgba(54, 162, 235, 0.5)',
-                    'rgba(255, 206, 86, 0.5)',
-                    'rgba(255, 99, 132, 0.5)',
-                    'rgba(255, 159, 64, 0.5)',
-                    'rgba(153, 102, 255, 0.5)',
-                    'rgba(220, 20, 60, 0.6)'
+                    'rgba(40, 167, 69, 0.55)',
+                    'rgba(54, 162, 235, 0.55)',
+                    'rgba(220, 53, 69, 0.55)',
+                    'rgba(255, 159, 64, 0.55)',
+                    'rgba(180, 0, 40, 0.65)'
                 ],
                 borderWidth: 1
             }]
