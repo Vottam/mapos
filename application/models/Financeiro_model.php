@@ -119,6 +119,162 @@ class Financeiro_model extends CI_Model
         ];
     }
 
+    public function getCustosFixos($categoria = '', $status = '', $perpage = 0, $start = 0, $one = false, $array = 'array')
+    {
+        $this->db->select('custos_fixos.*, usuarios.nome as usuario_nome');
+        $this->db->from('custos_fixos');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = custos_fixos.usuarios_id', 'left');
+
+        if ($categoria !== '' && $categoria !== null) {
+            $this->db->like('custos_fixos.categoria', $categoria);
+        }
+
+        if ($status !== '' && $status !== null) {
+            $this->db->where('custos_fixos.ativo', (int) $status);
+        }
+
+        $this->db->order_by('custos_fixos.ativo', 'desc');
+        $this->db->order_by('custos_fixos.categoria', 'asc');
+        $this->db->order_by('custos_fixos.titulo', 'asc');
+
+        if ((int) $perpage > 0) {
+            $this->db->limit($perpage, $start);
+        }
+
+        $query = $this->db->get();
+        return ! $one ? $query->result() : $query->row();
+    }
+
+    public function countCustosFixos($categoria = '', $status = '')
+    {
+        $this->db->from('custos_fixos');
+
+        if ($categoria !== '' && $categoria !== null) {
+            $this->db->like('categoria', $categoria);
+        }
+
+        if ($status !== '' && $status !== null) {
+            $this->db->where('ativo', (int) $status);
+        }
+
+        return $this->db->count_all_results();
+    }
+
+    public function getCustoFixoById($id)
+    {
+        $this->db->select('custos_fixos.*, usuarios.nome as usuario_nome');
+        $this->db->from('custos_fixos');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = custos_fixos.usuarios_id', 'left');
+        $this->db->where('custos_fixos.idCustoFixo', (int) $id);
+        $this->db->limit(1);
+
+        return $this->db->get()->row();
+    }
+
+    private function normalizarDataCustoFixo($data)
+    {
+        $data = trim((string) $data);
+        if ($data === '') {
+            return null;
+        }
+
+        foreach (['d/m/Y', 'Y-m-d'] as $formato) {
+            $dt = DateTime::createFromFormat($formato, $data);
+            if ($dt instanceof DateTime) {
+                return $dt->format('Y-m-d');
+            }
+        }
+
+        $timestamp = strtotime($data);
+        return $timestamp !== false ? date('Y-m-d', $timestamp) : null;
+    }
+
+    private function custoFixoAtivoNoMes($custo, DateTime $inicioMes, DateTime $fimMes)
+    {
+        if ((int) $custo->ativo !== 1) {
+            return false;
+        }
+
+        if (! empty($custo->periodicidade) && strtolower((string) $custo->periodicidade) !== 'mensal') {
+            return false;
+        }
+
+        $inicioCompetencia = ! empty($custo->data_inicio) ? $this->normalizarDataCustoFixo($custo->data_inicio) : null;
+        $fimCompetencia = ! empty($custo->data_fim) ? $this->normalizarDataCustoFixo($custo->data_fim) : null;
+
+        if ($inicioCompetencia && $inicioCompetencia > $fimMes->format('Y-m-d')) {
+            return false;
+        }
+
+        if ($fimCompetencia && $fimCompetencia < $inicioMes->format('Y-m-d')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function getCustosFixosPeriodo($dataInicial = null, $dataFinal = null)
+    {
+        $inicio = $this->normalizarDataCustoFixo($dataInicial) ?: date('Y-m-01');
+        $fim = $this->normalizarDataCustoFixo($dataFinal) ?: date('Y-m-t');
+
+        $inicioPeriodo = new DateTime($inicio);
+        $fimPeriodo = new DateTime($fim);
+        $inicioPeriodo->modify('first day of this month');
+        $fimPeriodo->modify('first day of this month');
+
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        if (! $custos) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+        $cursor = clone $inicioPeriodo;
+        while ($cursor <= $fimPeriodo) {
+            $mesInicio = new DateTime($cursor->format('Y-m-01'));
+            $mesFim = new DateTime($cursor->format('Y-m-t'));
+            foreach ($custos as $custo) {
+                if ($this->custoFixoAtivoNoMes($custo, $mesInicio, $mesFim)) {
+                    $total += (float) $custo->valor;
+                }
+            }
+            $cursor->modify('first day of next month');
+        }
+
+        return $total;
+    }
+
+    public function getCustosFixosMensais($ano)
+    {
+        $numbersOnly = preg_replace('/[^0-9]/', '', (string) $ano);
+        if (! $numbersOnly) {
+            $numbersOnly = date('Y');
+        }
+
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $series = array_fill(1, 12, 0.0);
+
+        for ($mes = 1; $mes <= 12; $mes++) {
+            $mesInicio = DateTime::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', (int) $numbersOnly, $mes));
+            $mesFim = clone $mesInicio;
+            $mesFim->modify('last day of this month');
+
+            foreach ($custos as $custo) {
+                if ($this->custoFixoAtivoNoMes($custo, $mesInicio, $mesFim)) {
+                    $series[$mes] += (float) $custo->valor;
+                }
+            }
+        }
+
+        $obj = new stdClass();
+        $meses = [1 => 'JAN', 2 => 'FEV', 3 => 'MAR', 4 => 'ABR', 5 => 'MAI', 6 => 'JUN', 7 => 'JUL', 8 => 'AGO', 9 => 'SET', 10 => 'OUT', 11 => 'NOV', 12 => 'DEZ'];
+        foreach ($meses as $numero => $sigla) {
+            $obj->{'VALOR_' . $sigla . '_CUSTO_FIXOS'} = $series[$numero];
+        }
+
+        return $obj;
+    }
+
     public function getEstatisticasFinanceiro2()
     {
         $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN IF(valor_desconto = 0, valor, valor_desconto) END) as total_receita,

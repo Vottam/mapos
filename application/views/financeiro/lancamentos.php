@@ -33,9 +33,11 @@ $periodo = $this->input->get('periodo');
                 <h5>Lançamentos Financeiros</h5>
     </div>
     <?php if ($this->permission->checkPermission($this->session->userdata('permissao'), 'aLancamento')) { ?>
-        <div class="" style="display:flex">
+        <div class="" style="display:flex;gap:10px;flex-wrap:wrap;">
             <a href="#modalReceita" data-toggle="modal" role="button" class="button btn btn-mini btn-success" style="width: 230px">
                 <span class="button__icon"><i class='bx bx-plus-circle'></i></span><span class="button__text2" title="Cadastrar nova receita ou despesa"> Receita/Despesa</span></a>
+            <a href="<?= site_url('financeiro/custosFixos') ?>" role="button" class="button btn btn-mini btn-danger" style="width: 230px">
+                <span class="button__icon"><i class='bx bx-receipt'></i></span><span class="button__text2" title="Gerenciar custos fixos"> Custos Fixos</span></a>
         </div>
     <?php } ?>
 
@@ -188,6 +190,18 @@ foreach ($results as $r) {
                             <td colspan="6" style="text-align: right"><strong>Saldo:</strong></td>
                             <td colspan="6" style="text-align: left;">
                                 <strong>R$ <?php echo number_format($totals['receitas'] - $totals['despesas'], 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: #b30000"><strong>Custos Fixos:</strong></td>
+                            <td colspan="6" style="text-align: left; color: #b30000">
+                                <strong>R$ <?php echo number_format($custosFixosPeriodo ?? 0, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right"><strong>Resultado após Custos Fixos:</strong></td>
+                            <td colspan="6" style="text-align: left;">
+                                <strong>R$ <?php echo number_format($resultadoAposCustosFixos ?? 0, 2, ',', '.') ?></strong>
                             </td>
                         </tr>
                         <tr>

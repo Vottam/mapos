@@ -127,6 +127,16 @@
                         </a>
                     </li>
                 <?php } ?>
+                <?php if ($this->permission->checkPermission($this->session->userdata('permissao'), 'vLancamento')) { ?>
+                    <li class="<?php if (isset($menuCustosFixos)) {
+                        echo 'active';
+                    }; ?>">
+                        <a class="tip-bottom" title="" href="<?= site_url('financeiro/custosFixos') ?>"><i class="bx bx-receipt iconX"></i>
+                            <span class="title">Custos Fixos</span>
+                            <span class="title-tooltip">Custos Fixos</span>
+                        </a>
+                    </li>
+                <?php } ?>
                 <?php if ($this->permission->checkPermission($this->session->userdata('permissao'), 'vCobranca')) { ?>
                     <li class="<?php if (isset($menuCobrancas)) {
                         echo 'active';
