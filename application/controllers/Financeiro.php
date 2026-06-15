@@ -27,8 +27,8 @@ class Financeiro extends MY_Controller
         }
 
         $where = '';
-        $vencimento_de = $this->input->get('vencimento_de') ?: date('d/m/Y');
-        $vencimento_ate = $this->input->get('vencimento_ate') ?: date('d/m/Y');
+        $vencimento_de = $this->input->get('vencimento_de') ?: date('01/m/Y');
+        $vencimento_ate = $this->input->get('vencimento_ate') ?: date('t/m/Y');
         $cliente = $this->input->get('cliente');
         $tipo = $this->input->get('tipo');
         $status = $this->input->get('status');
@@ -95,12 +95,334 @@ class Financeiro extends MY_Controller
         $custoProdutosPeriodo = $this->financeiro_model->getCustoProdutosPeriodo($vencimento_de, $vencimento_ate, $cliente, $tipo, $status);
         $this->data['custoProdutosPeriodo'] = $custoProdutosPeriodo->custo_total;
         $this->data['resultadoLiquidoReal'] = $this->data['totals']['receitas'] - $this->data['totals']['despesas'] - $this->data['custoProdutosPeriodo'];
+        $this->data['custosFixosPeriodo'] = $this->financeiro_model->getCustosFixosCompetenciaPeriodo($vencimento_de, $vencimento_ate);
+        $totaisCf = $this->financeiro_model->getTotaisCustosFixosCompetencia($vencimento_de, $vencimento_ate);
+        $this->data['custosFixosPago'] = $totaisCf->pago;
+        $this->data['custosFixosAPagar'] = $totaisCf->a_pagar;
+        $this->data['resultadoAposCustosFixos'] = $this->data['resultadoLiquidoReal'] - $this->data['custosFixosPeriodo'];
 
         $this->data['estatisticas_financeiro'] = $this->financeiro_model->getEstatisticasFinanceiro2();
 
         $this->data['view'] = 'financeiro/lancamentos';
 
         return $this->layout();
+    }
+
+    public function valorMonetario($valor)
+    {
+        if ($this->normalizarValorMonetario($valor) === null) {
+            $this->form_validation->set_message('valorMonetario', 'O campo {field} deve conter um valor monetário válido.');
+            return false;
+        }
+
+        return true;
+    }
+
+    private function normalizarDataCustoFixo($data)
+    {
+        $data = trim((string) $data);
+        if ($data === '') {
+            return null;
+        }
+
+        foreach (['d/m/Y', 'Y-m-d'] as $formato) {
+            $dt = DateTime::createFromFormat($formato, $data);
+            if ($dt instanceof DateTime) {
+                return $dt->format('Y-m-d');
+            }
+        }
+
+        $timestamp = strtotime($data);
+        return $timestamp !== false ? date('Y-m-d', $timestamp) : null;
+    }
+
+    private function normalizarValorMonetario($valor)
+    {
+        if ($valor === null) {
+            return null;
+        }
+
+        $valor = trim((string) $valor);
+        if ($valor === '') {
+            return null;
+        }
+
+        $valor = preg_replace('/[^0-9,.-]/', '', $valor);
+        $valor = str_replace(['.', ' '], ['', ''], $valor);
+        $valor = str_replace(',', '.', $valor);
+
+        return is_numeric($valor) ? (float) $valor : null;
+    }
+
+    private function montarDadosCustoFixo($id = null)
+    {
+        $valor = $this->normalizarValorMonetario($this->input->post('valor'));
+        $data = [
+            'titulo' => trim((string) $this->input->post('titulo')),
+            'categoria' => trim((string) $this->input->post('categoria')),
+            'valor' => $valor !== null ? number_format($valor, 2, '.', '') : null,
+            'periodicidade' => $this->input->post('periodicidade') ?: 'mensal',
+            'dia_vencimento' => (int) $this->input->post('dia_vencimento'),
+            'forma_pagamento' => trim((string) $this->input->post('forma_pagamento')),
+            'ativo' => (int) $this->input->post('ativo'),
+            'observacoes' => trim((string) $this->input->post('observacoes')),
+            'data_inicio' => $this->normalizarDataCustoFixo($this->input->post('data_inicio')),
+            'data_fim' => $this->normalizarDataCustoFixo($this->input->post('data_fim')),
+            'usuarios_id' => $this->session->userdata('id_admin'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($id === null) {
+            $data['created_at'] = date('Y-m-d H:i:s');
+        }
+
+        return $data;
+    }
+
+    public function custosFixos()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vLancamento')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para acessar custos fixos.');
+            redirect(base_url());
+        }
+
+        // Buscar competências para o dashboard operacional
+        // Regra: mês corrente (todas) + meses anteriores pendentes
+        $mesAtual = date('Y-m-01');
+        $mesFim = date('Y-m-t');
+        $this->data['competencias'] = $this->financeiro_model->getCompetenciasDashboard($mesAtual, $mesFim);
+        $this->data['mesAtual'] = date('m/Y');
+
+        // Cards resumo
+        $totalPago = 0;
+        $totalAPagar = 0;
+        foreach ($this->data['competencias'] as $c) {
+            if ($c->pago) {
+                $totalPago += (float) $c->valor;
+            } else {
+                $totalAPagar += (float) $c->valor;
+            }
+        }
+        $this->data['totalPago'] = $totalPago;
+        $this->data['totalAPagar'] = $totalAPagar;
+        $this->data['totalGeral'] = $totalPago + $totalAPagar;
+
+        // Cadastros de custos fixos (seção secundária)
+        $categoria = $this->input->get('categoria');
+        $status = $this->input->get('status');
+        $this->data['results'] = $this->financeiro_model->getCustosFixos($categoria, $status);
+
+        $this->data['menuCustosFixos'] = 'financeiro';
+        $this->data['view'] = 'financeiro/custosFixos';
+
+        return $this->layout();
+    }
+
+    public function adicionarCustoFixo()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'aLancamento')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para cadastrar custos fixos.');
+            redirect(base_url());
+        }
+
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
+        $this->form_validation->set_rules('titulo', 'Título', 'trim|required');
+        $this->form_validation->set_rules('categoria', 'Categoria', 'trim|required');
+        $this->form_validation->set_rules('valor', 'Valor', 'trim|required|callback_valorMonetario');
+        $this->form_validation->set_rules('periodicidade', 'Periodicidade', 'trim|required|in_list[mensal,unico]');
+        $this->form_validation->set_rules('dia_vencimento', 'Dia de vencimento', 'trim|required|integer|greater_than[0]|less_than[32]');
+        $this->form_validation->set_rules('forma_pagamento', 'Forma de pagamento', 'trim|required');
+        $this->form_validation->set_rules('ativo', 'Ativo', 'trim|required|in_list[0,1]');
+
+        if ($this->form_validation->run() == false) {
+            $this->data['custom_error'] = validation_errors() ? '<div class="alert alert-danger">' . validation_errors() . '</div>' : false;
+        } else {
+            $data = $this->montarDadosCustoFixo();
+            if ($this->financeiro_model->add('custos_fixos', $data) == true) {
+                $novoId = $this->financeiro_model->getInsertId();
+                if ($novoId) {
+                    $this->financeiro_model->gerarCompetencias($novoId);
+                }
+                $this->session->set_flashdata('success', 'Custo fixo cadastrado com sucesso!');
+                log_info('Adicionou um custo fixo.');
+                redirect(site_url('financeiro/custosFixos'));
+                return;
+            }
+
+            $this->data['custom_error'] = '<div class="form_error"><p>Ocorreu um erro ao cadastrar o custo fixo.</p></div>';
+        }
+
+        $this->data['result'] = null;
+        $this->data['action'] = 'financeiro/adicionarCustoFixo';
+        $this->data['button_text'] = 'Cadastrar';
+        $this->data['menuCustosFixos'] = 'financeiro';
+        $this->data['view'] = 'financeiro/custoFixoForm';
+
+        return $this->layout();
+    }
+
+    public function editarCustoFixo()
+    {
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3)) || ! $this->financeiro_model->getCustoFixoById($this->uri->segment(3))) {
+            $this->session->set_flashdata('error', 'Custo fixo não encontrado ou parâmetro inválido.');
+            redirect(site_url('financeiro/custosFixos'));
+        }
+
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eLancamento')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar custos fixos.');
+            redirect(base_url());
+        }
+
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
+        $this->form_validation->set_rules('titulo', 'Título', 'trim|required');
+        $this->form_validation->set_rules('categoria', 'Categoria', 'trim|required');
+        $this->form_validation->set_rules('valor', 'Valor', 'trim|required|callback_valorMonetario');
+        $this->form_validation->set_rules('periodicidade', 'Periodicidade', 'trim|required|in_list[mensal,unico]');
+        $this->form_validation->set_rules('dia_vencimento', 'Dia de vencimento', 'trim|required|integer|greater_than[0]|less_than[32]');
+        $this->form_validation->set_rules('forma_pagamento', 'Forma de pagamento', 'trim|required');
+        $this->form_validation->set_rules('ativo', 'Ativo', 'trim|required|in_list[0,1]');
+
+        if ($this->form_validation->run() == false) {
+            $this->data['custom_error'] = validation_errors() ? '<div class="alert alert-danger">' . validation_errors() . '</div>' : false;
+        } else {
+            $id = (int) $this->input->post('idCustoFixo');
+            $data = $this->montarDadosCustoFixo($id);
+            if ($this->financeiro_model->edit('custos_fixos', $data, 'idCustoFixo', $id) == true) {
+                $this->session->set_flashdata('success', 'Custo fixo editado com sucesso!');
+                log_info('Alterou um custo fixo. ID: ' . $id);
+                redirect(site_url('financeiro/editarCustoFixo/' . $id));
+                return;
+            }
+
+            $this->data['custom_error'] = '<div class="form_error"><p>Ocorreu um erro ao editar o custo fixo.</p></div>';
+        }
+
+        $this->data['result'] = $this->financeiro_model->getCustoFixoById($this->uri->segment(3));
+        $this->data['action'] = 'financeiro/editarCustoFixo/' . $this->uri->segment(3);
+        $this->data['button_text'] = 'Salvar alterações';
+        $this->data['menuCustosFixos'] = 'financeiro';
+        $this->data['view'] = 'financeiro/custoFixoForm';
+
+        return $this->layout();
+    }
+
+    public function competenciasCustoFixo()
+    {
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3))) {
+            $this->session->set_flashdata('error', 'Custo fixo não encontrado.');
+            redirect(site_url('financeiro/custosFixos'));
+        }
+
+        $id = (int) $this->uri->segment(3);
+        $custo = $this->financeiro_model->getCustoFixoById($id);
+        if (! $custo) {
+            $this->session->set_flashdata('error', 'Custo fixo não encontrado.');
+            redirect(site_url('financeiro/custosFixos'));
+        }
+
+        // Salvar edição de competência
+        if ($this->input->post('salvar_competencia')) {
+            $competencia = $this->input->post('competencia');
+            $valor = $this->input->post('valor_competencia');
+            $dataVencimento = $this->input->post('data_vencimento_competencia');
+            $obs = $this->input->post('observacoes_competencia');
+
+            if ($competencia && $valor !== '') {
+                $this->financeiro_model->salvarCompetencia($id, $competencia, $valor, $dataVencimento, $obs);
+                $this->session->set_flashdata('success', 'Competência ' . $competencia . ' salva com sucesso!');
+            }
+            redirect(site_url('financeiro/competenciasCustoFixo/' . $id));
+        }
+
+        // Buscar competências existentes
+        $this->data['competencias'] = $this->financeiro_model->getCompetenciasCustoFixo($id);
+        $this->data['custo'] = $custo;
+        $this->data['idCustoFixo'] = $id;
+        $this->data['menuCustosFixos'] = 'financeiro';
+        $this->data['view'] = 'financeiro/competenciasCustoFixo';
+
+        return $this->layout();
+    }
+
+    public function togglePagamentoCompetencia()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eLancamento')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para alterar pagamento de competências.');
+            redirect(base_url());
+        }
+
+        $idCompetencia = (int) $this->input->post('idCompetencia');
+        $action = $this->input->post('action'); // 'pagar' ou 'despagar'
+        $dataPagamento = $this->input->post('data_pagamento') ?: null;
+        $obsPagamento = $this->input->post('observacoes_pagamento') ?: null;
+
+        if ($idCompetencia && in_array($action, ['pagar', 'despagar'])) {
+            if ($action === 'pagar') {
+                $this->financeiro_model->marcarCompetenciaPaga($idCompetencia, $dataPagamento, $obsPagamento);
+                $this->session->set_flashdata('success', 'Competência marcada como paga.');
+            } else {
+                $this->financeiro_model->desmarcarCompetenciaPaga($idCompetencia);
+                $this->session->set_flashdata('success', 'Competência marcada como pendente.');
+            }
+        }
+
+        $custoFixoId = (int) $this->input->post('custo_fixo_id');
+        redirect(site_url('financeiro/competenciasCustoFixo/' . ($custoFixoId ?: $this->uri->segment(3))));
+    }
+
+    public function alternarStatusCustoFixo()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'dLancamento')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para alterar o status de custos fixos.');
+            redirect(base_url());
+        }
+
+        $id = (int) $this->uri->segment(3);
+        $custo = $this->financeiro_model->getCustoFixoById($id);
+        if (! $custo) {
+            $this->session->set_flashdata('error', 'Custo fixo não encontrado.');
+            redirect(site_url('financeiro/custosFixos'));
+        }
+
+        $ativo = (int) ($custo->ativo ? 0 : 1);
+        if ($this->financeiro_model->edit('custos_fixos', ['ativo' => $ativo, 'updated_at' => date('Y-m-d H:i:s'), 'usuarios_id' => $this->session->userdata('id_admin')], 'idCustoFixo', $id) == true) {
+            $this->session->set_flashdata('success', $ativo ? 'Custo fixo ativado com sucesso!' : 'Custo fixo inativado com sucesso!');
+            log_info('Alterou o status de um custo fixo. ID: ' . $id);
+        } else {
+            $this->session->set_flashdata('error', 'Ocorreu um erro ao alterar o status do custo fixo.');
+        }
+
+        redirect(site_url('financeiro/custosFixos'));
+    }
+
+    public function excluirCustoFixo()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'dLancamento')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para excluir custos fixos.');
+            redirect(base_url());
+        }
+
+        $id = (int) $this->input->post('id');
+        if (! $id) {
+            $id = (int) $this->uri->segment(3);
+        }
+
+        $custo = $this->financeiro_model->getCustoFixoById($id);
+        if (! $custo) {
+            $this->session->set_flashdata('error', 'Custo fixo não encontrado.');
+            redirect(site_url('financeiro/custosFixos'));
+        }
+
+        if ($this->financeiro_model->delete('custos_fixos', 'idCustoFixo', $id) == true) {
+            $this->session->set_flashdata('success', 'Custo fixo excluído com sucesso!');
+            log_info('Removeu um custo fixo. ID: ' . $id);
+        } else {
+            $this->session->set_flashdata('error', 'Ocorreu um erro ao excluir o custo fixo.');
+        }
+
+        redirect(site_url('financeiro/custosFixos'));
     }
 
     public function adicionarReceita()

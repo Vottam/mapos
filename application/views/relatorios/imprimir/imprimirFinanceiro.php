@@ -96,6 +96,26 @@
                                     </td>
                                 </tr>
                                 <tr>
+                                    <td colspan="5" style="text-align: right; color: #b30000">
+                                        <strong>Custos Fixos:</strong>
+                                    </td>
+                                    <td colspan="2" style="text-align: left; color: #b30000">
+                                        <strong>R$
+                                            <?php echo number_format($custosFixosPeriodo ?? 0, 2, ',', '.') ?>
+                                        </strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="5" style="text-align: right">
+                                        <strong>Resultado após Custos Fixos:</strong>
+                                    </td>
+                                    <td colspan="2" style="text-align: left;">
+                                        <strong>R$
+                                            <?php echo number_format(($totalReceita - $totalDespesa) - ($custosFixosPeriodo ?? 0), 2, ',', '.') ?>
+                                        </strong>
+                                    </td>
+                                </tr>
+                                <tr>
                                     <td colspan="5" style="text-align: right">
                                         <strong>Saldo:</strong>
                                     </td>

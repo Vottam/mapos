@@ -119,6 +119,504 @@ class Financeiro_model extends CI_Model
         ];
     }
 
+    public function getCustosFixos($categoria = '', $status = '', $perpage = 0, $start = 0, $one = false, $array = 'array')
+    {
+        $this->db->select('custos_fixos.*, usuarios.nome as usuario_nome');
+        $this->db->from('custos_fixos');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = custos_fixos.usuarios_id', 'left');
+
+        if ($categoria !== '' && $categoria !== null) {
+            $this->db->like('custos_fixos.categoria', $categoria);
+        }
+
+        if ($status !== '' && $status !== null) {
+            $this->db->where('custos_fixos.ativo', (int) $status);
+        }
+
+        $this->db->order_by('custos_fixos.ativo', 'desc');
+        $this->db->order_by('custos_fixos.categoria', 'asc');
+        $this->db->order_by('custos_fixos.titulo', 'asc');
+
+        if ((int) $perpage > 0) {
+            $this->db->limit($perpage, $start);
+        }
+
+        $query = $this->db->get();
+        return ! $one ? $query->result() : $query->row();
+    }
+
+    public function countCustosFixos($categoria = '', $status = '')
+    {
+        $this->db->from('custos_fixos');
+
+        if ($categoria !== '' && $categoria !== null) {
+            $this->db->like('categoria', $categoria);
+        }
+
+        if ($status !== '' && $status !== null) {
+            $this->db->where('ativo', (int) $status);
+        }
+
+        return $this->db->count_all_results();
+    }
+
+    public function getCustoFixoById($id)
+    {
+        $this->db->select('custos_fixos.*, usuarios.nome as usuario_nome');
+        $this->db->from('custos_fixos');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = custos_fixos.usuarios_id', 'left');
+        $this->db->where('custos_fixos.idCustoFixo', (int) $id);
+        $this->db->limit(1);
+
+        return $this->db->get()->row();
+    }
+
+    private function normalizarDataCustoFixo($data)
+    {
+        $data = trim((string) $data);
+        if ($data === '') {
+            return null;
+        }
+
+        foreach (['d/m/Y', 'Y-m-d'] as $formato) {
+            $dt = DateTime::createFromFormat($formato, $data);
+            if ($dt instanceof DateTime) {
+                return $dt->format('Y-m-d');
+            }
+        }
+
+        $timestamp = strtotime($data);
+        return $timestamp !== false ? date('Y-m-d', $timestamp) : null;
+    }
+
+    public function custoFixoAtivoNoMes($custo, DateTime $inicioMes, DateTime $fimMes)
+    {
+        if ((int) $custo->ativo !== 1) {
+            return false;
+        }
+
+        if (! empty($custo->periodicidade) && strtolower((string) $custo->periodicidade) !== 'mensal') {
+            return false;
+        }
+
+        $inicioCompetencia = ! empty($custo->data_inicio) ? $this->normalizarDataCustoFixo($custo->data_inicio) : null;
+        $fimCompetencia = ! empty($custo->data_fim) ? $this->normalizarDataCustoFixo($custo->data_fim) : null;
+
+        if ($inicioCompetencia && $inicioCompetencia > $fimMes->format('Y-m-d')) {
+            return false;
+        }
+
+        if ($fimCompetencia && $fimCompetencia < $inicioMes->format('Y-m-d')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function getCustosFixosPeriodo($dataInicial = null, $dataFinal = null)
+    {
+        $inicio = $this->normalizarDataCustoFixo($dataInicial) ?: date('Y-m-01');
+        $fim = $this->normalizarDataCustoFixo($dataFinal) ?: date('Y-m-t');
+
+        $inicioPeriodo = new DateTime($inicio);
+        $fimPeriodo = new DateTime($fim);
+        $inicioPeriodo->modify('first day of this month');
+        $fimPeriodo->modify('first day of this month');
+
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        if (! $custos) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+        $cursor = clone $inicioPeriodo;
+        while ($cursor <= $fimPeriodo) {
+            $mesInicio = new DateTime($cursor->format('Y-m-01'));
+            $mesFim = new DateTime($cursor->format('Y-m-t'));
+            foreach ($custos as $custo) {
+                if ($this->custoFixoAtivoNoMes($custo, $mesInicio, $mesFim)) {
+                    $total += (float) $custo->valor;
+                }
+            }
+            $cursor->modify('first day of next month');
+        }
+
+        return $total;
+    }
+
+    /**
+     * Gera competências mensais para um custo fixo
+     * Cria registros na tabela custos_fixos_competencias para cada mês de vigência
+     */
+    public function gerarCompetencias($custoFixoId)
+    {
+        $custo = $this->getCustoFixoById($custoFixoId);
+        if (!$custo || (int) $custo->ativo !== 1) {
+            return false;
+        }
+
+        $inicio = !empty($custo->data_inicio) ? new DateTime($custo->data_inicio) : new DateTime('first day of this month');
+        $fim = !empty($custo->data_fim) ? new DateTime($custo->data_fim) : new DateTime('last day of next year');
+        
+        // Para periodicidade "único", gera apenas o mês da data_inicio
+        if (strtolower((string) $custo->periodicidade) === 'unico') {
+            $fim = clone $inicio;
+            $fim->modify('last day of this month');
+        }
+
+        $cursor = clone $inicio;
+        $cursor->modify('first day of this month');
+        $fimMes = clone $fim;
+        $fimMes->modify('first day of this month');
+
+        while ($cursor <= $fimMes) {
+            $competencia = $cursor->format('Y-m-d');
+            
+            // Verifica se já existe competência para este mês
+            $existe = $this->db->get_where('custos_fixos_competencias', [
+                'custo_fixo_id' => $custoFixoId,
+                'competencia' => $competencia
+            ])->row();
+
+            if (!$existe) {
+                // Calcula data de vencimento: dia_vencimento do mês de competência
+                $vencimento = null;
+                if (!empty($custo->dia_vencimento)) {
+                    $vencDia = min((int) $custo->dia_vencimento, (int) $cursor->format('t'));
+                    $vencimento = $cursor->format('Y-m-') . str_pad($vencDia, 2, '0', STR_PAD_LEFT);
+                }
+
+                $this->db->insert('custos_fixos_competencias', [
+                    'custo_fixo_id' => $custoFixoId,
+                    'competencia' => $competencia,
+                    'valor' => (float) $custo->valor,
+                    'data_vencimento' => $vencimento,
+                    'observacoes' => null,
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+
+            $cursor->modify('first day of next month');
+        }
+
+        // Marca que competências foram geradas
+        $this->db->where('idCustoFixo', $custoFixoId);
+        $this->db->update('custos_fixos', ['competencias_geradas' => 1]);
+
+        return true;
+    }
+
+    /**
+     * Busca o valor de custo fixo para uma competência específica.
+     * Prioriza o valor da tabela de competências.
+     * Se não existir competência, usa o valor padrão (apenas se vigente).
+     */
+    public function getCustoFixoValorCompetencia($custo, $ano, $mes)
+    {
+        $competencia = sprintf('%04d-%02d-01', $ano, $mes);
+        
+        // Busca competência específica
+        $competenciaRow = $this->db->get_where('custos_fixos_competencias', [
+            'custo_fixo_id' => $custo->idCustoFixo,
+            'competencia' => $competencia
+        ])->row();
+
+        if ($competenciaRow) {
+            return (float) $competenciaRow->valor;
+        }
+
+        // Não existe competência: usar valor padrão apenas para meses futuros ou sem histórico
+        // Para meses passados já movimentados, retorna 0 (deve ser criada competência manualmente)
+        return 0.0;
+    }
+
+    /**
+     * Calcula total de custos fixos por competência para um período.
+     * Usa valores da tabela de competências; fallback para valor padrão.
+     */
+    public function getCustosFixosCompetenciaPeriodo($dataInicial, $dataFinal)
+    {
+        $inicio = $this->normalizarDataCustoFixo($dataInicial);
+        $fim = $this->normalizarDataCustoFixo($dataFinal);
+        if (!$inicio || !$fim) return 0.0;
+
+        $inicioPeriodo = new DateTime($inicio);
+        $fimPeriodo = new DateTime($fim);
+        $inicioPeriodo->modify('first day of this month');
+        $fimPeriodo->modify('first day of this month');
+        $mesAtual = (int) date('n');
+        $anoAtual = (int) date('Y');
+
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $total = 0.0;
+
+        $cursor = clone $inicioPeriodo;
+        while ($cursor <= $fimPeriodo) {
+            $ano = (int) $cursor->format('Y');
+            $mes = (int) $cursor->format('n');
+            // Não projetar meses futuros
+            if ($ano > $anoAtual || ($ano == $anoAtual && $mes > $mesAtual)) {
+                $cursor->modify('+1 month');
+                continue;
+            }
+            foreach ($custos as $custo) {
+                $mesFim = (clone $cursor)->modify('last day of this month');
+                if ($this->custoFixoAtivoNoMes($custo, clone $cursor, $mesFim)) {
+                    $total += $this->getCustoFixoValorCompetencia($custo, $ano, $mes);
+                }
+            }
+            $cursor->modify('+1 month');
+        }
+
+        return $total;
+    }
+
+    /**
+     * Salva ou atualiza uma competência mensal de custo fixo.
+     * Se já existe competência para o mês, atualiza. Senão, insere.
+     */
+    public function salvarCompetencia($custoFixoId, $competencia, $valor, $dataVencimento = null, $observacoes = null)
+    {
+        $existing = $this->db->get_where('custos_fixos_competencias', [
+            'custo_fixo_id' => $custoFixoId,
+            'competencia' => $competencia,
+        ])->row();
+
+        $data = [
+            'valor' => (float) str_replace(',', '.', str_replace('.', '', $valor)),
+            'data_vencimento' => $dataVencimento ?: null,
+            'observacoes' => $observacoes,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($existing) {
+            $this->db->where('idCompetencia', $existing->idCompetencia);
+            $this->db->update('custos_fixos_competencias', $data);
+        } else {
+            $data['custo_fixo_id'] = $custoFixoId;
+            $data['competencia'] = $competencia;
+            $data['created_at'] = date('Y-m-d H:i:s');
+            $this->db->insert('custos_fixos_competencias', $data);
+        }
+
+        return true;
+    }
+
+    /**
+     * Retorna todas as competências de um custo fixo, ordenadas por competência.
+     */
+    public function getCompetenciasCustoFixo($custoFixoId)
+    {
+        $this->db->where('custo_fixo_id', $custoFixoId);
+        $this->db->order_by('competencia', 'ASC');
+        return $this->db->get('custos_fixos_competencias')->result();
+    }
+
+    /**
+     * Marca uma competência como paga.
+     */
+    public function marcarCompetenciaPaga($idCompetencia, $dataPagamento = null, $observacoesPagamento = null)
+    {
+        $this->db->where('idCompetencia', $idCompetencia);
+        $dataPagamentoFormatada = null;
+        if ($dataPagamento) {
+            $date = DateTime::createFromFormat('d/m/Y', $dataPagamento);
+            if ($date) {
+                $dataPagamentoFormatada = $date->format('Y-m-d');
+            }
+        }
+        if (!$dataPagamentoFormatada) {
+            $dataPagamentoFormatada = date('Y-m-d');
+        }
+        $this->db->update('custos_fixos_competencias', [
+            'pago' => 1,
+            'data_pagamento' => $dataPagamentoFormatada,
+            'observacoes_pagamento' => $observacoesPagamento,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return true;
+    }
+
+    /**
+     * Marca uma competência como pendente (desmarca pago).
+     */
+    public function desmarcarCompetenciaPaga($idCompetencia)
+    {
+        $this->db->where('idCompetencia', $idCompetencia);
+        $this->db->update('custos_fixos_competencias', [
+            'pago' => 0,
+            'data_pagamento' => null,
+            'observacoes_pagamento' => null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return true;
+    }
+
+    /**
+     * Retorna totais de custos fixos pagos e a pagar para um período.
+     * Usa competências mensais.
+     */
+    public function getTotaisCustosFixosCompetencia($dataInicial, $dataFinal)
+    {
+        $inicio = $this->normalizarDataCustoFixo($dataInicial);
+        $fim = $this->normalizarDataCustoFixo($dataFinal);
+        if (!$inicio || !$fim) {
+            return (object) ['pago' => 0.0, 'a_pagar' => 0.0, 'total' => 0.0];
+        }
+
+        $inicioPeriodo = new DateTime($inicio);
+        $fimPeriodo = new DateTime($fim);
+        $inicioPeriodo->modify('first day of this month');
+        $fimPeriodo->modify('first day of this month');
+        $mesAtual = (int) date('n');
+        $anoAtual = (int) date('Y');
+
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $totalPago = 0.0;
+        $totalAPagar = 0.0;
+
+        $cursor = clone $inicioPeriodo;
+        while ($cursor <= $fimPeriodo) {
+            $ano = (int) $cursor->format('Y');
+            $mes = (int) $cursor->format('n');
+            if ($ano > $anoAtual || ($ano == $anoAtual && $mes > $mesAtual)) {
+                $cursor->modify('+1 month');
+                continue;
+            }
+            foreach ($custos as $custo) {
+                $mesFim = (clone $cursor)->modify('last day of this month');
+                if ($this->custoFixoAtivoNoMes($custo, clone $cursor, $mesFim)) {
+                    $valor = $this->getCustoFixoValorCompetencia($custo, $ano, $mes);
+                    if ($valor > 0) {
+                        // Verificar se está pago na competência
+                        $competencia = sprintf('%04d-%02d-01', $ano, $mes);
+                        $comp = $this->db->get_where('custos_fixos_competencias', [
+                            'custo_fixo_id' => $custo->idCustoFixo,
+                            'competencia' => $competencia,
+                        ])->row();
+                        if ($comp && $comp->pago) {
+                            $totalPago += $valor;
+                        } else {
+                            $totalAPagar += $valor;
+                        }
+                    }
+                }
+            }
+            $cursor->modify('+1 month');
+        }
+
+        return (object) [
+            'pago' => $totalPago,
+            'a_pagar' => $totalAPagar,
+            'total' => $totalPago + $totalAPagar,
+        ];
+    }
+
+    /**
+     * Busca competências para o dashboard operacional de contas a pagar.
+     * Regra: mês corrente (todas) + meses anteriores pendentes (atrasados).
+     * Não inclui competências futuras.
+     * Não inclui competências pagas de meses anteriores (só do mês corrente).
+     * Retorna competências com dados do custo fixo principal (titulo, categoria).
+     */
+    public function getCompetenciasDashboard($mesAtual, $mesFim)
+    {
+        // Buscar todos os custos fixos ativos
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $result = [];
+
+        foreach ($custos as $custo) {
+            // Buscar competências deste custo fixo
+            $this->db->where('custo_fixo_id', $custo->idCustoFixo);
+            $this->db->order_by('competencia', 'ASC');
+            $competencias = $this->db->get('custos_fixos_competencias')->result();
+
+            foreach ($competencias as $comp) {
+                $competenciaDate = new DateTime($comp->competencia);
+                $mesAtualDate = new DateTime($mesAtual);
+
+                // Não mostrar competências futuras
+                if ($competenciaDate > $mesAtualDate && $competenciaDate->format('Ym') > $mesAtualDate->format('Ym')) {
+                    // Verificar se é mês futuro (mesmo ano, mês posterior)
+                    if ($competenciaDate->format('Y') > $mesAtualDate->format('Y') ||
+                        ($competenciaDate->format('Y') == $mesAtualDate->format('Y') && $competenciaDate->format('n') > $mesAtualDate->format('n'))) {
+                        continue;
+                    }
+                }
+
+                $mesCompetencia = (int) $competenciaDate->format('n');
+                $anoCompetencia = (int) $competenciaDate->format('Y');
+                $mesAtualNum = (int) $mesAtualDate->format('n');
+                $anoAtualNum = (int) $mesAtualDate->format('Y');
+
+                $ehMesCorrente = ($anoCompetencia == $anoAtualNum && $mesCompetencia == $mesAtualNum);
+                $ehAtrasado = ($anoCompetencia < $anoAtualNum) ||
+                              ($anoCompetencia == $anoAtualNum && $mesCompetencia < $mesAtualNum);
+
+                // Regras de exibição:
+                // 1. Mês corrente: mostra todas (pago ou pendente)
+                // 2. Atrasado: mostra apenas pendentes
+                // 3. Futuro: não mostra
+                if ($ehMesCorrente) {
+                    // Mostra todas do mês corrente
+                } elseif ($ehAtrasado) {
+                    // Mostra apenas pendentes atrasados
+                    if ($comp->pago) {
+                        continue;
+                    }
+                } else {
+                    // Futuro - não mostra
+                    continue;
+                }
+
+                // Adicionar dados do custo fixo
+                $comp->titulo_custo = $custo->titulo;
+                $comp->categoria_custo = $custo->categoria;
+                $comp->idCustoFixo = $custo->idCustoFixo;
+                $result[] = $comp;
+            }
+        }
+
+        // Ordenar por competência ascendente (mais antigo primeiro)
+        usort($result, function ($a, $b) {
+            return strcmp($a->competencia, $b->competencia);
+        });
+
+        return $result;
+    }
+
+    public function getCustosFixosMensais($ano)
+    {
+        $numbersOnly = preg_replace('/[^0-9]/', '', (string) $ano);
+        if (! $numbersOnly) {
+            $numbersOnly = date('Y');
+        }
+
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $series = array_fill(1, 12, 0.0);
+
+        for ($mes = 1; $mes <= 12; $mes++) {
+            $mesInicio = DateTime::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', (int) $numbersOnly, $mes));
+            $mesFim = clone $mesInicio;
+            $mesFim->modify('last day of this month');
+
+            foreach ($custos as $custo) {
+                if ($this->custoFixoAtivoNoMes($custo, $mesInicio, $mesFim)) {
+                    $series[$mes] += (float) $custo->valor;
+                }
+            }
+        }
+
+        $obj = new stdClass();
+        $meses = [1 => 'JAN', 2 => 'FEV', 3 => 'MAR', 4 => 'ABR', 5 => 'MAI', 6 => 'JUN', 7 => 'JUL', 8 => 'AGO', 9 => 'SET', 10 => 'OUT', 11 => 'NOV', 12 => 'DEZ'];
+        foreach ($meses as $numero => $sigla) {
+            $obj->{'VALOR_' . $sigla . '_CUSTO_FIXOS'} = $series[$numero];
+        }
+
+        return $obj;
+    }
+
     public function getEstatisticasFinanceiro2()
     {
         $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN IF(valor_desconto = 0, valor, valor_desconto) END) as total_receita,
@@ -223,5 +721,10 @@ class Financeiro_model extends CI_Model
             }
             echo json_encode($row_set);
         }
+    }
+
+    public function getInsertId()
+    {
+        return $this->db->insert_id();
     }
 }

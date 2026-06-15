@@ -17,6 +17,7 @@ class Relatorios extends MY_Controller
         $this->load->model('Relatorios_model');
         $this->load->model('Usuarios_model');
         $this->load->model('Mapos_model');
+        $this->load->model('Financeiro_model');
 
         $this->data['menuRelatorios'] = 'Relatórios';
     }
@@ -700,6 +701,7 @@ class Relatorios extends MY_Controller
         }
 
         $data['lancamentos'] = $this->Relatorios_model->financeiroRapid();
+        $data['custosFixosPeriodo'] = $this->Financeiro_model->getCustosFixosPeriodo(date('d/m/Y', strtotime('first day of this month')), date('d/m/Y', strtotime('last day of this month')));
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório Financeiro';
         $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
@@ -772,6 +774,7 @@ class Relatorios extends MY_Controller
         }
 
         $data['lancamentos'] = $this->Relatorios_model->financeiroCustom($dataInicial, $dataFinal, $tipo, $situacao);
+        $data['custosFixosPeriodo'] = $this->Financeiro_model->getCustosFixosPeriodo($dataInicial, $dataFinal);
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório Financeiro Customizado';
         $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);

@@ -276,10 +276,68 @@ class Mapos_model extends CI_Model
                        SUM(CASE WHEN baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita_pendente,
                        SUM(CASE WHEN baixado = 0 AND tipo = 'despesa' THEN valor END) as total_despesa_pendente FROM lancamentos";
         if ($this->db->query($sql) !== false) {
-            return $this->db->query($sql)->row();
+            $row = $this->db->query($sql)->row();
+            if (!class_exists('Financeiro_model', false)) {
+                $this->load->model('Financeiro_model');
+            }
+            // Custos fixos por competência: meses não futuros com movimento e vigência ativa
+            $row->total_custos_fixos = $this->Financeiro_model->getCustosFixosCompetenciaPeriodo(
+                date('Y-01-01'),
+                date('Y-m-t')
+            );
+            // Totais de custos fixos pagos e a pagar
+            $totaisCf = $this->Financeiro_model->getTotaisCustosFixosCompetencia(
+                date('Y-01-01'),
+                date('Y-m-t')
+            );
+            $row->total_custos_fixos_pago = $totaisCf->pago;
+            $row->total_custos_fixos_a_pagar = $totaisCf->a_pagar;
+            return $row;
         }
 
         return false;
+    }
+
+    private function normalizarDataCustoFixoPainel($data)
+    {
+        $data = trim((string) $data);
+        if ($data === '') {
+            return null;
+        }
+
+        foreach (['d/m/Y', 'Y-m-d'] as $formato) {
+            $dt = DateTime::createFromFormat($formato, $data);
+            if ($dt instanceof DateTime) {
+                return $dt->format('Y-m-d');
+            }
+        }
+
+        $timestamp = strtotime($data);
+        return $timestamp !== false ? date('Y-m-d', $timestamp) : null;
+    }
+
+    private function custoFixoAtivoNoMesPainel($custo, DateTime $inicioMes, DateTime $fimMes)
+    {
+        if ((int) $custo->ativo !== 1) {
+            return false;
+        }
+
+        if (! empty($custo->periodicidade) && strtolower((string) $custo->periodicidade) !== 'mensal') {
+            return false;
+        }
+
+        $inicioCompetencia = ! empty($custo->data_inicio) ? $this->normalizarDataCustoFixoPainel($custo->data_inicio) : null;
+        $fimCompetencia = ! empty($custo->data_fim) ? $this->normalizarDataCustoFixoPainel($custo->data_fim) : null;
+
+        if ($inicioCompetencia && $inicioCompetencia > $fimMes->format('Y-m-d')) {
+            return false;
+        }
+
+        if ($fimCompetencia && $fimCompetencia < $inicioMes->format('Y-m-d')) {
+            return false;
+        }
+
+        return true;
     }
 
     public function getEstatisticasFinanceiroMes($year)
@@ -371,12 +429,49 @@ class Mapos_model extends CI_Model
         $fillSeries($custoOs, $this->db->query($sqlCustoOs, [$ano])->result());
         $fillSeries($custoVendas, $this->db->query($sqlCustoVendas, [$ano])->result());
 
+        $custosFixos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $custoFixosMes = array_fill(1, 12, 0.0);
+        $custoFixosPagoMes = array_fill(1, 12, 0.0);
+        $custoFixosAPagarMes = array_fill(1, 12, 0.0);
+        $mesAtual = (int) date('n');
+        for ($mes = 1; $mes <= 12; $mes++) {
+            if ($mes > $mesAtual) continue;
+            $temMovimento = ($receitas[$mes] > 0) || ($despesas[$mes] > 0);
+            if (!$temMovimento) continue;
+            $mesInicio = DateTime::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $ano, $mes));
+            $mesFim = clone $mesInicio;
+            $mesFim->modify('last day of this month');
+            foreach ($custosFixos as $custo) {
+                if ($this->custoFixoAtivoNoMesPainel($custo, $mesInicio, $mesFim)) {
+                    $valor = $this->Financeiro_model->getCustoFixoValorCompetencia($custo, $ano, $mes);
+                    $custoFixosMes[$mes] += $valor;
+                    // Verificar se está pago
+                    if (!class_exists('Financeiro_model', false)) {
+                        $this->load->model('Financeiro_model');
+                    }
+                    $competencia = sprintf('%04d-%02d-01', $ano, $mes);
+                    $comp = $this->db->get_where('custos_fixos_competencias', [
+                        'custo_fixo_id' => $custo->idCustoFixo,
+                        'competencia' => $competencia,
+                    ])->row();
+                    if ($comp && $comp->pago) {
+                        $custoFixosPagoMes[$mes] += $valor;
+                    } else {
+                        $custoFixosAPagarMes[$mes] += $valor;
+                    }
+                }
+            }
+        }
+
         $financeiroMes = new stdClass();
         foreach ($meses as $numero => $sigla) {
             $financeiroMes->{'VALOR_' . $sigla . '_REC'} = $receitas[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_DES'} = $despesas[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_OS'} = $custoOs[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_VENDAS'} = $custoVendas[$numero];
+            $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_FIXOS'} = $custoFixosMes[$numero];
+            $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_FIXOS_PAGO'} = $custoFixosPagoMes[$numero];
+            $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_FIXOS_A_PAGAR'} = $custoFixosAPagarMes[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_TOTAL'} = $custoOs[$numero] + $custoVendas[$numero];
         }
 

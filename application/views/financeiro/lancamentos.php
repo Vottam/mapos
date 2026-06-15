@@ -33,9 +33,11 @@ $periodo = $this->input->get('periodo');
                 <h5>Lançamentos Financeiros</h5>
     </div>
     <?php if ($this->permission->checkPermission($this->session->userdata('permissao'), 'aLancamento')) { ?>
-        <div class="" style="display:flex">
+        <div class="" style="display:flex;gap:10px;flex-wrap:wrap;">
             <a href="#modalReceita" data-toggle="modal" role="button" class="button btn btn-mini btn-success" style="width: 230px">
                 <span class="button__icon"><i class='bx bx-plus-circle'></i></span><span class="button__text2" title="Cadastrar nova receita ou despesa"> Receita/Despesa</span></a>
+            <a href="<?= site_url('financeiro/custosFixos') ?>" role="button" class="button btn btn-mini btn-danger" style="width: 230px">
+                <span class="button__icon"><i class='bx bx-receipt'></i></span><span class="button__text2" title="Gerenciar custos fixos"> Custos Fixos</span></a>
         </div>
     <?php } ?>
 
@@ -47,7 +49,7 @@ $periodo = $this->input->get('periodo');
                     <option value="dia" <?= $this->input->get('periodo') === 'dia' ? 'selected' : '' ?>>Dia</option>
                     <option value="semana" <?= $this->input->get('periodo') === 'semana' ? 'selected' : '' ?>>Semana</option>
                     <option value="mesAnterior" <?= $this->input->get('periodo') === 'mesAnterior' ? 'selected' : '' ?>>Mês Anterior</option>
-                    <option value="mes" <?= $this->input->get('periodo') === 'mes' ? 'selected' : '' ?>>Mês</option>
+                    <option value="mes" <?= $this->input->get('periodo') === 'mes' || $this->input->get('periodo') === null || $this->input->get('periodo') === '' ? 'selected' : '' ?>>Mês</option>
                     <option value="mesPosterior" <?= $this->input->get('periodo') === 'mesPosterior' ? 'selected' : '' ?>>Mês Posterior</option>
                     <option value="ano" <?= $this->input->get('periodo') === 'ano' ? 'selected' : '' ?>>Ano</option>
                     <option value="personalizado" <?= $this->input->get('periodo') === 'personalizado' ? 'selected' : '' ?>>Personalizado</option>
@@ -56,12 +58,12 @@ $periodo = $this->input->get('periodo');
 
             <div class="span2">
                 <label>Vencimento (de)</label>
-                <input id="vencimento_de" type="text" class="span12 datepicker" name="vencimento_de" value="<?= $this->input->get('vencimento_de') ? $this->input->get('vencimento_de') : date('d/m/Y') ?>">
+                <input id="vencimento_de" type="text" class="span12 datepicker" name="vencimento_de" value="<?= $this->input->get('vencimento_de') ? $this->input->get('vencimento_de') : date('01/m/Y') ?>">
             </div>
 
             <div class="span2">
                 <label>Vencimento (até)</label>
-                <input id="vencimento_ate" type="text" class="span12 datepicker" name="vencimento_ate" value="<?= $this->input->get('vencimento_ate') ? $this->input->get('vencimento_ate') : date('d/m/Y') ?>">
+                <input id="vencimento_ate" type="text" class="span12 datepicker" name="vencimento_ate" value="<?= $this->input->get('vencimento_ate') ? $this->input->get('vencimento_ate') : date('t/m/Y') ?>">
             </div>
 
             <div class="span2">
@@ -188,6 +190,30 @@ foreach ($results as $r) {
                             <td colspan="6" style="text-align: right"><strong>Saldo:</strong></td>
                             <td colspan="6" style="text-align: left;">
                                 <strong>R$ <?php echo number_format($totals['receitas'] - $totals['despesas'], 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: #6c757d"><strong>Custos Fixos pagos:</strong></td>
+                            <td colspan="6" style="text-align: left; color: #6c757d">
+                                <strong>R$ <?php echo number_format($custosFixosPago ?? 0, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: #dc3545"><strong>Custos Fixos a pagar:</strong></td>
+                            <td colspan="6" style="text-align: left; color: #dc3545">
+                                <strong>R$ <?php echo number_format($custosFixosAPagar ?? 0, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: #b30000"><strong>Custos Fixos total:</strong></td>
+                            <td colspan="6" style="text-align: left; color: #b30000">
+                                <strong>R$ <?php echo number_format($custosFixosPeriodo ?? 0, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right"><strong>Resultado após Custos Fixos (total):</strong></td>
+                            <td colspan="6" style="text-align: left;">
+                                <strong>R$ <?php echo number_format($resultadoAposCustosFixos ?? 0, 2, ',', '.') ?></strong>
                             </td>
                         </tr>
                         <tr>
