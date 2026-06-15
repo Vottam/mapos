@@ -414,6 +414,36 @@ class Financeiro_model extends CI_Model
      * Salva ou atualiza uma competência mensal de custo fixo.
      * Se já existe competência para o mês, atualiza. Senão, insere.
      */
+    /**
+     * Normaliza uma data de vencimento para o formato Y-m-d.
+     * Aceita Y-m-d ou d/m/Y. Retorna null se inválida/vazia.
+     * Nunca retorna 0000-00-00.
+     */
+    private function normalizarDataVencimento(?string $raw): ?string
+    {
+        if ($raw === null || trim($raw) === '') {
+            return null;
+        }
+
+        $raw = trim($raw);
+
+        // Tenta Y-m-d (ex: 2026-02-01)
+        $d = DateTime::createFromFormat('Y-m-d', $raw);
+        if ($d && $d->format('Y-m-d') === $raw) {
+            $ano = (int) $d->format('Y');
+            return ($ano >= 1900) ? $d->format('Y-m-d') : null;
+        }
+
+        // Tenta d/m/Y (ex: 01/02/2026)
+        $d = DateTime::createFromFormat('d/m/Y', $raw);
+        if ($d && $d->format('d/m/Y') === $raw) {
+            $ano = (int) $d->format('Y');
+            return ($ano >= 1900) ? $d->format('Y-m-d') : null;
+        }
+
+        return null;
+    }
+
     public function salvarCompetencia($custoFixoId, $competencia, $valor, $dataVencimento = null, $observacoes = null)
     {
         $existing = $this->db->get_where('custos_fixos_competencias', [
@@ -421,12 +451,32 @@ class Financeiro_model extends CI_Model
             'competencia' => $competencia,
         ])->row();
 
+        // Normaliza data de vencimento — nunca permite 0000-00-00
+        $vencimentoNormalizado = $this->normalizarDataVencimento($dataVencimento);
+
         $data = [
             'valor' => (float) str_replace(',', '.', str_replace('.', '', $valor)),
-            'data_vencimento' => $dataVencimento ?: null,
             'observacoes' => $observacoes,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
+
+        // Só atualiza data_vencimento se uma data válida foi enviada.
+        // Se null/vazia, preserva o valor existente (UPDATE) ou deixa null (INSERT).
+        if ($vencimentoNormalizado !== null) {
+            $data['data_vencimento'] = $vencimentoNormalizado;
+        } elseif (!$existing) {
+            // INSERT sem vencimento: tenta calcular automaticamente
+            $custo = $this->getCustoFixoById($custoFixoId);
+            if ($custo) {
+                $compDate = new DateTime($competencia);
+                $data['data_vencimento'] = $this->calcularDataVencimento(
+                    $compDate,
+                    (int) $custo->dia_vencimento,
+                    (string) ($custo->regra_vencimento ?? 'mes_vencido')
+                );
+            }
+        }
+        // Se existing e $vencimentoNormalizado === null: NÃO sobrescreve data_vencimento
 
         if ($existing) {
             $this->db->where('idCompetencia', $existing->idCompetencia);
