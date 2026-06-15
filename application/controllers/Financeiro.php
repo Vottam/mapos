@@ -163,6 +163,7 @@ class Financeiro extends MY_Controller
             'valor' => $valor !== null ? number_format($valor, 2, '.', '') : null,
             'periodicidade' => $this->input->post('periodicidade') ?: 'mensal',
             'dia_vencimento' => (int) $this->input->post('dia_vencimento'),
+            'regra_vencimento' => $this->input->post('regra_vencimento') ?: 'mes_vencido',
             'forma_pagamento' => trim((string) $this->input->post('forma_pagamento')),
             'ativo' => (int) $this->input->post('ativo'),
             'observacoes' => trim((string) $this->input->post('observacoes')),
@@ -234,6 +235,7 @@ class Financeiro extends MY_Controller
         $this->form_validation->set_rules('dia_vencimento', 'Dia de vencimento', 'trim|required|integer|greater_than[0]|less_than[32]');
         $this->form_validation->set_rules('forma_pagamento', 'Forma de pagamento', 'trim|required');
         $this->form_validation->set_rules('ativo', 'Ativo', 'trim|required|in_list[0,1]');
+        $this->form_validation->set_rules('regra_vencimento', 'Regra de vencimento', 'trim|required|in_list[mes_vencido,mes_corrente]');
 
         if ($this->form_validation->run() == false) {
             $this->data['custom_error'] = validation_errors() ? '<div class="alert alert-danger">' . validation_errors() . '</div>' : false;
@@ -283,6 +285,7 @@ class Financeiro extends MY_Controller
         $this->form_validation->set_rules('dia_vencimento', 'Dia de vencimento', 'trim|required|integer|greater_than[0]|less_than[32]');
         $this->form_validation->set_rules('forma_pagamento', 'Forma de pagamento', 'trim|required');
         $this->form_validation->set_rules('ativo', 'Ativo', 'trim|required|in_list[0,1]');
+        $this->form_validation->set_rules('regra_vencimento', 'Regra de vencimento', 'trim|required|in_list[mes_vencido,mes_corrente]');
 
         if ($this->form_validation->run() == false) {
             $this->data['custom_error'] = validation_errors() ? '<div class="alert alert-danger">' . validation_errors() . '</div>' : false;
@@ -290,6 +293,8 @@ class Financeiro extends MY_Controller
             $id = (int) $this->input->post('idCustoFixo');
             $data = $this->montarDadosCustoFixo($id);
             if ($this->financeiro_model->edit('custos_fixos', $data, 'idCustoFixo', $id) == true) {
+                // Recalcula vencimentos das competências não pagas
+                $this->financeiro_model->recalcularCompetenciasNaoPagas($id);
                 $this->session->set_flashdata('success', 'Custo fixo editado com sucesso!');
                 log_info('Alterou um custo fixo. ID: ' . $id);
                 redirect(site_url('financeiro/editarCustoFixo/' . $id));
