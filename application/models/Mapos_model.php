@@ -274,10 +274,14 @@ class Mapos_model extends CI_Model
         $sql = "SELECT SUM(CASE WHEN baixado = 1 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita,
                        SUM(CASE WHEN baixado = 1 AND tipo = 'despesa' THEN valor END) as total_despesa,
                        SUM(CASE WHEN baixado = 0 AND tipo = 'receita' AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%') AND " . $this->lancamentoRealWhere('lancamentos') . " THEN valor - (IF(tipo_desconto = 'real', desconto, (desconto * valor) / 100))  END) as total_receita_pendente,
-                       SUM(CASE WHEN baixado = 0 AND tipo = 'despesa' THEN valor END) as total_despesa_pendente,
-                       (SELECT COALESCE(SUM(valor), 0) FROM custos_fixos WHERE ativo = 1 AND (periodicidade IS NULL OR periodicidade = '' OR LOWER(periodicidade) = 'mensal') AND (data_inicio IS NULL OR data_inicio <= CURDATE()) AND (data_fim IS NULL OR data_fim >= CURDATE())) as total_custos_fixos FROM lancamentos";
+                       SUM(CASE WHEN baixado = 0 AND tipo = 'despesa' THEN valor END) as total_despesa_pendente FROM lancamentos";
         if ($this->db->query($sql) !== false) {
-            return $this->db->query($sql)->row();
+            $row = $this->db->query($sql)->row();
+            if (!class_exists('Financeiro_model', false)) {
+                $this->load->model('Financeiro_model');
+            }
+            $row->total_custos_fixos = $this->Financeiro_model->getCustosFixosPeriodo(date('Y-01-01'), date('Y-12-31'));
+            return $row;
         }
 
         return false;
