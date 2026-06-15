@@ -294,6 +294,44 @@ class Financeiro extends MY_Controller
         return $this->layout();
     }
 
+    public function competenciasCustoFixo()
+    {
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3))) {
+            $this->session->set_flashdata('error', 'Custo fixo não encontrado.');
+            redirect(site_url('financeiro/custosFixos'));
+        }
+
+        $id = (int) $this->uri->segment(3);
+        $custo = $this->financeiro_model->getCustoFixoById($id);
+        if (! $custo) {
+            $this->session->set_flashdata('error', 'Custo fixo não encontrado.');
+            redirect(site_url('financeiro/custosFixos'));
+        }
+
+        // Salvar edição de competência
+        if ($this->input->post('salvar_competencia')) {
+            $competencia = $this->input->post('competencia');
+            $valor = $this->input->post('valor_competencia');
+            $dataVencimento = $this->input->post('data_vencimento_competencia');
+            $obs = $this->input->post('observacoes_competencia');
+
+            if ($competencia && $valor !== '') {
+                $this->financeiro_model->salvarCompetencia($id, $competencia, $valor, $dataVencimento, $obs);
+                $this->session->set_flashdata('success', 'Competência ' . $competencia . ' salva com sucesso!');
+            }
+            redirect(site_url('financeiro/competenciasCustoFixo/' . $id));
+        }
+
+        // Buscar competências existentes
+        $this->data['competencias'] = $this->financeiro_model->getCompetenciasCustoFixo($id);
+        $this->data['custo'] = $custo;
+        $this->data['idCustoFixo'] = $id;
+        $this->data['menuCustosFixos'] = 'financeiro';
+        $this->data['view'] = 'financeiro/competenciasCustoFixo';
+
+        return $this->layout();
+    }
+
     public function alternarStatusCustoFixo()
     {
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'dLancamento')) {

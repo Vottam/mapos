@@ -56,7 +56,7 @@ $selectedStatus = $this->input->get('status');
                         <th>#</th>
                         <th>Título</th>
                         <th>Categoria</th>
-                        <th>Valor</th>
+                        <th>Valor padrão</th>
                         <th>Periodicidade</th>
                         <th>Vencimento</th>
                         <th>Forma de Pagamento</th>
@@ -82,6 +82,7 @@ $selectedStatus = $this->input->get('status');
                                 <td><?= html_escape($r->forma_pagamento) ?></td>
                                 <td><span class="badge <?= $statusBadge ?>"><?= ((int) $r->ativo === 1) ? 'Ativo' : 'Inativo' ?></span></td>
                                 <td>
+                                    <a href="<?= site_url('financeiro/competenciasCustoFixo/' . $r->idCustoFixo) ?>" class="btn-nwe3" title="Competências mensais"><i class="bx bx-calendar"></i></a>
                                     <a href="<?= site_url('financeiro/editarCustoFixo/' . $r->idCustoFixo) ?>" class="btn-nwe3" title="Editar"><i class="bx bx-edit"></i></a>
                                     <a href="<?= site_url('financeiro/alternarStatusCustoFixo/' . $r->idCustoFixo) ?>" class="btn-nwe4" title="<?= ((int) $r->ativo === 1) ? 'Inativar' : 'Ativar' ?>"><i class="bx bx-toggle-<?= ((int) $r->ativo === 1) ? 'left' : 'right' ?>"></i></a>
                                     <a href="#modal-excluir" role="button" data-toggle="modal" custo-fixo="<?= $r->idCustoFixo ?>" class="btn-nwe4" title="Excluir"><i class="bx bx-trash"></i></a>

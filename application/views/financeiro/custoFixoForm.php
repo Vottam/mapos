@@ -28,8 +28,9 @@ $button_text = $button_text ?? 'Salvar';
                 </div>
                 <div class="row-fluid" style="margin-top:15px;">
                     <div class="span3">
-                        <label>Valor</label>
+                        <label>Valor padrão</label>
                         <input type="text" name="valor" class="span12" value="<?= set_value('valor', isset($result->valor) ? number_format((float) $result->valor, 2, ',', '.') : '') ?>" required placeholder="0,00">
+                        <small style="color:#888">Valor sugerido para novas competências. Não altera meses já existentes.</small>
                     </div>
                     <div class="span3">
                         <label>Periodicidade</label>

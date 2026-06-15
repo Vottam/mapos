@@ -373,9 +373,45 @@ class Financeiro_model extends CI_Model
     }
 
     /**
-     * Retorna o valor de um custo fixo para uma competência específica.
-     * (Declaração em linha 315)
+     * Salva ou atualiza uma competência mensal de custo fixo.
+     * Se já existe competência para o mês, atualiza. Senão, insere.
      */
+    public function salvarCompetencia($custoFixoId, $competencia, $valor, $dataVencimento = null, $observacoes = null)
+    {
+        $existing = $this->db->get_where('custos_fixos_competencias', [
+            'custo_fixo_id' => $custoFixoId,
+            'competencia' => $competencia,
+        ])->row();
+
+        $data = [
+            'valor' => (float) str_replace(',', '.', str_replace('.', '', $valor)),
+            'data_vencimento' => $dataVencimento ?: null,
+            'observacoes' => $observacoes,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($existing) {
+            $this->db->where('idCompetencia', $existing->idCompetencia);
+            $this->db->update('custos_fixos_competencias', $data);
+        } else {
+            $data['custo_fixo_id'] = $custoFixoId;
+            $data['competencia'] = $competencia;
+            $data['created_at'] = date('Y-m-d H:i:s');
+            $this->db->insert('custos_fixos_competencias', $data);
+        }
+
+        return true;
+    }
+
+    /**
+     * Retorna todas as competências de um custo fixo, ordenadas por competência.
+     */
+    public function getCompetenciasCustoFixo($custoFixoId)
+    {
+        $this->db->where('custo_fixo_id', $custoFixoId);
+        $this->db->order_by('competencia', 'ASC');
+        return $this->db->get('custos_fixos_competencias')->result();
+    }
 
     public function getCustosFixosMensais($ano)
     {
