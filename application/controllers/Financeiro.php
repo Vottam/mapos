@@ -95,7 +95,7 @@ class Financeiro extends MY_Controller
         $custoProdutosPeriodo = $this->financeiro_model->getCustoProdutosPeriodo($vencimento_de, $vencimento_ate, $cliente, $tipo, $status);
         $this->data['custoProdutosPeriodo'] = $custoProdutosPeriodo->custo_total;
         $this->data['resultadoLiquidoReal'] = $this->data['totals']['receitas'] - $this->data['totals']['despesas'] - $this->data['custoProdutosPeriodo'];
-        $this->data['custosFixosPeriodo'] = $this->financeiro_model->getCustosFixosPeriodo($vencimento_de, $vencimento_ate);
+        $this->data['custosFixosPeriodo'] = $this->financeiro_model->getCustosFixosCompetenciaPeriodo($vencimento_de, $vencimento_ate);
         $this->data['resultadoAposCustosFixos'] = $this->data['resultadoLiquidoReal'] - $this->data['custosFixosPeriodo'];
 
         $this->data['estatisticas_financeiro'] = $this->financeiro_model->getEstatisticasFinanceiro2();

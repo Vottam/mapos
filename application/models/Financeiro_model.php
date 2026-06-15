@@ -189,7 +189,7 @@ class Financeiro_model extends CI_Model
         return $timestamp !== false ? date('Y-m-d', $timestamp) : null;
     }
 
-    private function custoFixoAtivoNoMes($custo, DateTime $inicioMes, DateTime $fimMes)
+    public function custoFixoAtivoNoMes($custo, DateTime $inicioMes, DateTime $fimMes)
     {
         if ((int) $custo->ativo !== 1) {
             return false;
@@ -337,34 +337,49 @@ class Financeiro_model extends CI_Model
      */
     public function getCustosFixosCompetenciaPeriodo($dataInicial, $dataFinal)
     {
-        $inicio = new DateTime($dataInicial);
-        $fim = new DateTime($dataFinal);
-        $inicio->modify('first day of this month');
-        $fim->modify('first day of this month');
+        $inicio = $this->normalizarDataCustoFixo($dataInicial);
+        $fim = $this->normalizarDataCustoFixo($dataFinal);
+        if (!$inicio || !$fim) return 0.0;
+
+        $inicioPeriodo = new DateTime($inicio);
+        $fimPeriodo = new DateTime($fim);
+        $inicioPeriodo->modify('first day of this month');
+        $fimPeriodo->modify('first day of this month');
+        $mesAtual = (int) date('n');
+        $anoAtual = (int) date('Y');
 
         $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
         $total = 0.0;
 
-        $cursor = clone $inicio;
-        while ($cursor <= $fim) {
+        $cursor = clone $inicioPeriodo;
+        while ($cursor <= $fimPeriodo) {
             $ano = (int) $cursor->format('Y');
             $mes = (int) $cursor->format('n');
-
-            foreach ($custos as $custo) {
-                if (!$this->custoFixoAtivoNoMes($custo, $cursor, (clone $cursor)->modify('last day of this month'))) {
-                    continue;
-                }
-                $total += $this->getCustoFixoValorCompetencia($custo, $ano, $mes);
+            // Não projetar meses futuros
+            if ($ano > $anoAtual || ($ano == $anoAtual && $mes > $mesAtual)) {
+                $cursor->modify('+1 month');
+                continue;
             }
-
-            $cursor->modify('first day of next month');
+            foreach ($custos as $custo) {
+                $mesFim = (clone $cursor)->modify('last day of this month');
+                if ($this->custoFixoAtivoNoMes($custo, clone $cursor, $mesFim)) {
+                    $total += $this->getCustoFixoValorCompetencia($custo, $ano, $mes);
+                }
+            }
+            $cursor->modify('+1 month');
         }
 
         return $total;
     }
 
+    /**
+     * Retorna o valor de um custo fixo para uma competência específica.
+     * (Declaração em linha 315)
+     */
+
     public function getCustosFixosMensais($ano)
     {
+        $numbersOnly = preg_replace('/[^0-9]/', '', (string) $ano);
         if (! $numbersOnly) {
             $numbersOnly = date('Y');
         }
