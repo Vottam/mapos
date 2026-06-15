@@ -27,8 +27,8 @@ class Financeiro extends MY_Controller
         }
 
         $where = '';
-        $vencimento_de = $this->input->get('vencimento_de') ?: date('d/m/Y');
-        $vencimento_ate = $this->input->get('vencimento_ate') ?: date('d/m/Y');
+        $vencimento_de = $this->input->get('vencimento_de') ?: date('01/m/Y');
+        $vencimento_ate = $this->input->get('vencimento_ate') ?: date('t/m/Y');
         $cliente = $this->input->get('cliente');
         $tipo = $this->input->get('tipo');
         $status = $this->input->get('status');
