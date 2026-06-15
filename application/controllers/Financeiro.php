@@ -186,21 +186,32 @@ class Financeiro extends MY_Controller
             redirect(base_url());
         }
 
-        $this->load->library('pagination');
+        // Buscar competências para o dashboard operacional
+        // Regra: mês corrente (todas) + meses anteriores pendentes
+        $mesAtual = date('Y-m-01');
+        $mesFim = date('Y-m-t');
+        $this->data['competencias'] = $this->financeiro_model->getCompetenciasDashboard($mesAtual, $mesFim);
+        $this->data['mesAtual'] = date('m/Y');
 
+        // Cards resumo
+        $totalPago = 0;
+        $totalAPagar = 0;
+        foreach ($this->data['competencias'] as $c) {
+            if ($c->pago) {
+                $totalPago += (float) $c->valor;
+            } else {
+                $totalAPagar += (float) $c->valor;
+            }
+        }
+        $this->data['totalPago'] = $totalPago;
+        $this->data['totalAPagar'] = $totalAPagar;
+        $this->data['totalGeral'] = $totalPago + $totalAPagar;
+
+        // Cadastros de custos fixos (seção secundária)
         $categoria = $this->input->get('categoria');
         $status = $this->input->get('status');
+        $this->data['results'] = $this->financeiro_model->getCustosFixos($categoria, $status);
 
-        $this->data['configuration']['base_url'] = site_url('financeiro/custosFixos/');
-        $this->data['configuration']['total_rows'] = $this->financeiro_model->countCustosFixos($categoria, $status);
-        $this->pagination->initialize($this->data['configuration']);
-
-        $this->data['results'] = $this->financeiro_model->getCustosFixos(
-            $categoria,
-            $status,
-            $this->data['configuration']['per_page'],
-            $this->uri->segment(3)
-        );
         $this->data['menuCustosFixos'] = 'financeiro';
         $this->data['view'] = 'financeiro/custosFixos';
 

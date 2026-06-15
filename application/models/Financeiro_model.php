@@ -513,6 +513,79 @@ class Financeiro_model extends CI_Model
         ];
     }
 
+    /**
+     * Busca competências para o dashboard operacional de contas a pagar.
+     * Regra: mês corrente (todas) + meses anteriores pendentes (atrasados).
+     * Não inclui competências futuras.
+     * Não inclui competências pagas de meses anteriores (só do mês corrente).
+     * Retorna competências com dados do custo fixo principal (titulo, categoria).
+     */
+    public function getCompetenciasDashboard($mesAtual, $mesFim)
+    {
+        // Buscar todos os custos fixos ativos
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $result = [];
+
+        foreach ($custos as $custo) {
+            // Buscar competências deste custo fixo
+            $this->db->where('custo_fixo_id', $custo->idCustoFixo);
+            $this->db->order_by('competencia', 'ASC');
+            $competencias = $this->db->get('custos_fixos_competencias')->result();
+
+            foreach ($competencias as $comp) {
+                $competenciaDate = new DateTime($comp->competencia);
+                $mesAtualDate = new DateTime($mesAtual);
+
+                // Não mostrar competências futuras
+                if ($competenciaDate > $mesAtualDate && $competenciaDate->format('Ym') > $mesAtualDate->format('Ym')) {
+                    // Verificar se é mês futuro (mesmo ano, mês posterior)
+                    if ($competenciaDate->format('Y') > $mesAtualDate->format('Y') ||
+                        ($competenciaDate->format('Y') == $mesAtualDate->format('Y') && $competenciaDate->format('n') > $mesAtualDate->format('n'))) {
+                        continue;
+                    }
+                }
+
+                $mesCompetencia = (int) $competenciaDate->format('n');
+                $anoCompetencia = (int) $competenciaDate->format('Y');
+                $mesAtualNum = (int) $mesAtualDate->format('n');
+                $anoAtualNum = (int) $mesAtualDate->format('Y');
+
+                $ehMesCorrente = ($anoCompetencia == $anoAtualNum && $mesCompetencia == $mesAtualNum);
+                $ehAtrasado = ($anoCompetencia < $anoAtualNum) ||
+                              ($anoCompetencia == $anoAtualNum && $mesCompetencia < $mesAtualNum);
+
+                // Regras de exibição:
+                // 1. Mês corrente: mostra todas (pago ou pendente)
+                // 2. Atrasado: mostra apenas pendentes
+                // 3. Futuro: não mostra
+                if ($ehMesCorrente) {
+                    // Mostra todas do mês corrente
+                } elseif ($ehAtrasado) {
+                    // Mostra apenas pendentes atrasados
+                    if ($comp->pago) {
+                        continue;
+                    }
+                } else {
+                    // Futuro - não mostra
+                    continue;
+                }
+
+                // Adicionar dados do custo fixo
+                $comp->titulo_custo = $custo->titulo;
+                $comp->categoria_custo = $custo->categoria;
+                $comp->idCustoFixo = $custo->idCustoFixo;
+                $result[] = $comp;
+            }
+        }
+
+        // Ordenar por competência ascendente (mais antigo primeiro)
+        usort($result, function ($a, $b) {
+            return strcmp($a->competencia, $b->competencia);
+        });
+
+        return $result;
+    }
+
     public function getCustosFixosMensais($ano)
     {
         $numbersOnly = preg_replace('/[^0-9]/', '', (string) $ano);
