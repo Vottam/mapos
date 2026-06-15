@@ -43,7 +43,15 @@ $button_text = $button_text ?? 'Salvar';
                         <label>Dia de vencimento</label>
                         <input type="number" name="dia_vencimento" class="span12" min="1" max="31" value="<?= set_value('dia_vencimento', $result->dia_vencimento ?? 1) ?>" required>
                     </div>
-                    <div class="span4">
+                    <div class="span2">
+                        <label>Regra de vencimento</label>
+                        <select name="regra_vencimento" class="span12" required>
+                            <option value="mes_vencido" <?= set_value('regra_vencimento', $result->regra_vencimento ?? 'mes_vencido') === 'mes_vencido' ? 'selected' : '' ?>>Mês vencido</option>
+                            <option value="mes_corrente" <?= set_value('regra_vencimento', $result->regra_vencimento ?? '') === 'mes_corrente' ? 'selected' : '' ?>>Pagamento antecipado / mês corrente</option>
+                        </select>
+                        <small style="color:#888">Mês vencido: competência 06/2026 vence em 07/2026. Antecipado: vence no próprio mês.</small>
+                    </div>
+                    <div class="span2">
                         <label>Forma de pagamento</label>
                         <input type="text" name="forma_pagamento" class="span12" value="<?= set_value('forma_pagamento', $result->forma_pagamento ?? '') ?>" maxlength="80" required placeholder="Boleto, PIX, débito...">
                     </div>

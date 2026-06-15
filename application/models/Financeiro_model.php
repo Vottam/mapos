@@ -279,12 +279,11 @@ class Financeiro_model extends CI_Model
             ])->row();
 
             if (!$existe) {
-                // Calcula data de vencimento: dia_vencimento do mês de competência
-                $vencimento = null;
-                if (!empty($custo->dia_vencimento)) {
-                    $vencDia = min((int) $custo->dia_vencimento, (int) $cursor->format('t'));
-                    $vencimento = $cursor->format('Y-m-') . str_pad($vencDia, 2, '0', STR_PAD_LEFT);
-                }
+                $vencimento = $this->calcularDataVencimento(
+                    $cursor,
+                    (int) $custo->dia_vencimento,
+                    (string) ($custo->regra_vencimento ?? 'mes_vencido')
+                );
 
                 $this->db->insert('custos_fixos_competencias', [
                     'custo_fixo_id' => $custoFixoId,
@@ -305,6 +304,45 @@ class Financeiro_model extends CI_Model
         $this->db->update('custos_fixos', ['competencias_geradas' => 1]);
 
         return true;
+    }
+
+    /**
+     * Calcula a data de vencimento de uma competência de custo fixo.
+     *
+     * Regras:
+     * - mes_vencido (padrão): vencimento no mês seguinte à competência.
+     *   Ex: competência 06/2026 + dia 02 → 02/07/2026
+     * - mes_corrente: vencimento no próprio mês da competência.
+     *   Ex: competência 06/2026 + dia 02 → 02/06/2026
+     *
+     * Se dia_vencimento > último dia do mês de vencimento, usa o último dia válido.
+     *
+     * @param DateTime $competenciaData  Data da competência (YYYY-MM-01)
+     * @param int      $diaVencimento    Dia de vencimento desejado (1-31)
+     * @param string   $regraVencimento  'mes_vencido' ou 'mes_corrente'
+     * @return string|null              Data no formato Y-m-d ou null
+     */
+    public function calcularDataVencimento(DateTime $competenciaData, int $diaVencimento, string $regraVencimento): ?string
+    {
+        if ($diaVencimento < 1) {
+            return null;
+        }
+
+        $vencimentoMes = clone $competenciaData;
+
+        if ($regraVencimento === 'mes_corrente') {
+            // Vence no próprio mês da competência
+            $vencimentoMes->modify('first day of this month');
+        } else {
+            // Mês vencido (padrão): vence no mês seguinte
+            $vencimentoMes->modify('first day of next month');
+        }
+
+        // Ajusta dia para o último dia válido do mês se necessário
+        $ultimoDia = (int) $vencimentoMes->format('t');
+        $vencDia = min($diaVencimento, $ultimoDia);
+
+        return $vencimentoMes->format('Y-m-') . str_pad($vencDia, 2, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -411,6 +449,47 @@ class Financeiro_model extends CI_Model
         $this->db->where('custo_fixo_id', $custoFixoId);
         $this->db->order_by('competencia', 'ASC');
         return $this->db->get('custos_fixos_competencias')->result();
+    }
+
+    /**
+     * Recalcula o vencimento das competências NÃO pagas de um custo fixo.
+     * Usado quando a regra de vencimento é alterada no cadastro.
+     * Competências já pagas NÃO são alteradas.
+     *
+     * @param int $custoFixoId
+     * @return int Quantidade de competências atualizadas
+     */
+    public function recalcularCompetenciasNaoPagas($custoFixoId): int
+    {
+        $custo = $this->getCustoFixoById($custoFixoId);
+        if (!$custo) {
+            return 0;
+        }
+
+        $regra = (string) ($custo->regra_vencimento ?? 'mes_vencido');
+        $diaVencimento = (int) $custo->dia_vencimento;
+        $atualizadas = 0;
+
+        $competencias = $this->db
+            ->where('custo_fixo_id', $custoFixoId)
+            ->where('pago', 0)
+            ->order_by('competencia', 'ASC')
+            ->get('custos_fixos_competencias')
+            ->result();
+
+        foreach ($competencias as $comp) {
+            $competenciaData = new DateTime($comp->competencia);
+            $novoVencimento = $this->calcularDataVencimento($competenciaData, $diaVencimento, $regra);
+
+            $this->db->where('idCompetencia', $comp->idCompetencia);
+            $this->db->update('custos_fixos_competencias', [
+                'data_vencimento' => $novoVencimento,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            $atualizadas++;
+        }
+
+        return $atualizadas;
     }
 
     /**
