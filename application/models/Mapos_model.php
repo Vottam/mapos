@@ -285,6 +285,13 @@ class Mapos_model extends CI_Model
                 date('Y-01-01'),
                 date('Y-m-t')
             );
+            // Totais de custos fixos pagos e a pagar
+            $totaisCf = $this->Financeiro_model->getTotaisCustosFixosCompetencia(
+                date('Y-01-01'),
+                date('Y-m-t')
+            );
+            $row->total_custos_fixos_pago = $totaisCf->pago;
+            $row->total_custos_fixos_a_pagar = $totaisCf->a_pagar;
             return $row;
         }
 
@@ -424,6 +431,8 @@ class Mapos_model extends CI_Model
 
         $custosFixos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
         $custoFixosMes = array_fill(1, 12, 0.0);
+        $custoFixosPagoMes = array_fill(1, 12, 0.0);
+        $custoFixosAPagarMes = array_fill(1, 12, 0.0);
         $mesAtual = (int) date('n');
         for ($mes = 1; $mes <= 12; $mes++) {
             if ($mes > $mesAtual) continue;
@@ -434,8 +443,22 @@ class Mapos_model extends CI_Model
             $mesFim->modify('last day of this month');
             foreach ($custosFixos as $custo) {
                 if ($this->custoFixoAtivoNoMesPainel($custo, $mesInicio, $mesFim)) {
-                    // Usa valor da competência se existir, senão usa valor padrão
-                    $custoFixosMes[$mes] += $this->Financeiro_model->getCustoFixoValorCompetencia($custo, $ano, $mes);
+                    $valor = $this->Financeiro_model->getCustoFixoValorCompetencia($custo, $ano, $mes);
+                    $custoFixosMes[$mes] += $valor;
+                    // Verificar se está pago
+                    if (!class_exists('Financeiro_model', false)) {
+                        $this->load->model('Financeiro_model');
+                    }
+                    $competencia = sprintf('%04d-%02d-01', $ano, $mes);
+                    $comp = $this->db->get_where('custos_fixos_competencias', [
+                        'custo_fixo_id' => $custo->idCustoFixo,
+                        'competencia' => $competencia,
+                    ])->row();
+                    if ($comp && $comp->pago) {
+                        $custoFixosPagoMes[$mes] += $valor;
+                    } else {
+                        $custoFixosAPagarMes[$mes] += $valor;
+                    }
                 }
             }
         }
@@ -447,6 +470,8 @@ class Mapos_model extends CI_Model
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_OS'} = $custoOs[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_VENDAS'} = $custoVendas[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_FIXOS'} = $custoFixosMes[$numero];
+            $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_FIXOS_PAGO'} = $custoFixosPagoMes[$numero];
+            $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_FIXOS_A_PAGAR'} = $custoFixosAPagarMes[$numero];
             $financeiroMes->{'VALOR_' . $sigla . '_CUSTO_TOTAL'} = $custoOs[$numero] + $custoVendas[$numero];
         }
 

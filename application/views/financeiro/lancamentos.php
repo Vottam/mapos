@@ -193,13 +193,25 @@ foreach ($results as $r) {
                             </td>
                         </tr>
                         <tr>
-                            <td colspan="6" style="text-align: right; color: #b30000"><strong>Custos Fixos:</strong></td>
+                            <td colspan="6" style="text-align: right; color: #6c757d"><strong>Custos Fixos pagos:</strong></td>
+                            <td colspan="6" style="text-align: left; color: #6c757d">
+                                <strong>R$ <?php echo number_format($custosFixosPago ?? 0, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: #dc3545"><strong>Custos Fixos a pagar:</strong></td>
+                            <td colspan="6" style="text-align: left; color: #dc3545">
+                                <strong>R$ <?php echo number_format($custosFixosAPagar ?? 0, 2, ',', '.') ?></strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="text-align: right; color: #b30000"><strong>Custos Fixos total:</strong></td>
                             <td colspan="6" style="text-align: left; color: #b30000">
                                 <strong>R$ <?php echo number_format($custosFixosPeriodo ?? 0, 2, ',', '.') ?></strong>
                             </td>
                         </tr>
                         <tr>
-                            <td colspan="6" style="text-align: right"><strong>Resultado após Custos Fixos:</strong></td>
+                            <td colspan="6" style="text-align: right"><strong>Resultado após Custos Fixos (total):</strong></td>
                             <td colspan="6" style="text-align: left;">
                                 <strong>R$ <?php echo number_format($resultadoAposCustosFixos ?? 0, 2, ',', '.') ?></strong>
                             </td>

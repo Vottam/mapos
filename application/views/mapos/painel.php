@@ -330,23 +330,42 @@
                 },
 
                 {
-                    label: 'Custos Fixos',
-                    data: [<?php echo($financeiro_mes->VALOR_JAN_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_FEV_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_MAR_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_ABR_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_MAI_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_JUN_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_JUL_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_AGO_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_SET_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_OUT_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_NOV_CUSTO_FIXOS); ?>,
-                        <?php echo($financeiro_mes->VALOR_DEZ_CUSTO_FIXOS); ?>
+                    label: 'Custos Fixos pagos',
+                    data: [<?php echo($financeiro_mes->VALOR_JAN_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_FEV_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_MAR_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_ABR_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_MAI_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_JUN_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_JUL_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_AGO_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_SET_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_OUT_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_NOV_CUSTO_FIXOS_PAGO); ?>,
+                        <?php echo($financeiro_mes->VALOR_DEZ_CUSTO_FIXOS_PAGO); ?>
                     ],
-
+                    backgroundColor: 'rgba(186, 140, 255, 0.65)',
+                    borderRadius: 15,
+                    stack: 'custosFixos',
+                },
+                {
+                    label: 'Custos Fixos a pagar',
+                    data: [<?php echo($financeiro_mes->VALOR_JAN_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_FEV_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_MAR_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_ABR_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_MAI_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_JUN_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_JUL_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_AGO_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_SET_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_OUT_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_NOV_CUSTO_FIXOS_A_PAGAR); ?>,
+                        <?php echo($financeiro_mes->VALOR_DEZ_CUSTO_FIXOS_A_PAGAR); ?>
+                    ],
                     backgroundColor: 'rgba(220, 53, 69, 0.55)',
                     borderRadius: 15,
+                    stack: 'custosFixos',
                 },
 
                 {
@@ -397,6 +416,8 @@
             locale: 'pt-BR',
             scales: {
                 y: {
+                    beginAtZero: true,
+                    stacked: true,
                     ticks: {
                         callback: (value, index, values) => {
                             return new Intl.NumberFormat('pt-BR', {
@@ -409,6 +430,7 @@
                 },
                 x: {
                     beginAtZero: true,
+                    stacked: true,
                     title: {
                         display: true,
                         text: 'Meses'
@@ -440,7 +462,7 @@
             labels: [
                 'Receita recebida', 'Receita a receber',
                 'Despesa paga', 'Despesa a pagar',
-                'Custos Fixos'
+                'Custos Fixos pagos', 'Custos Fixos a pagar'
             ],
             datasets: [{
                 label: 'Total',
@@ -449,7 +471,8 @@
                     <?php echo ($estatisticas_financeiro->total_receita_pendente != null) ?  $estatisticas_financeiro->total_receita_pendente : '0.00'; ?>,
                     <?php echo ($estatisticas_financeiro->total_despesa != null) ?  $estatisticas_financeiro->total_despesa : '0.00'; ?>,
                     <?php echo ($estatisticas_financeiro->total_despesa_pendente != null) ?  $estatisticas_financeiro->total_despesa_pendente : '0.00'; ?>,
-                    <?php echo ($estatisticas_financeiro->total_custos_fixos != null) ? $estatisticas_financeiro->total_custos_fixos : '0.00'; ?>
+                    <?php echo ($estatisticas_financeiro->total_custos_fixos_pago != null) ? $estatisticas_financeiro->total_custos_fixos_pago : '0.00'; ?>,
+                    <?php echo ($estatisticas_financeiro->total_custos_fixos_a_pagar != null) ? $estatisticas_financeiro->total_custos_fixos_a_pagar : '0.00'; ?>
                 ],
 
                 backgroundColor: [
@@ -457,7 +480,8 @@
                     'rgba(54, 162, 235, 0.55)',
                     'rgba(220, 53, 69, 0.55)',
                     'rgba(255, 159, 64, 0.55)',
-                    'rgba(180, 0, 40, 0.65)'
+                    'rgba(186, 140, 255, 0.65)',
+                    'rgba(220, 53, 69, 0.75)'
                 ],
                 borderWidth: 1
             }]

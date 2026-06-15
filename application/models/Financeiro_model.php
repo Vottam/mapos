@@ -413,6 +413,106 @@ class Financeiro_model extends CI_Model
         return $this->db->get('custos_fixos_competencias')->result();
     }
 
+    /**
+     * Marca uma competência como paga.
+     */
+    public function marcarCompetenciaPaga($idCompetencia, $dataPagamento = null, $observacoesPagamento = null)
+    {
+        $this->db->where('idCompetencia', $idCompetencia);
+        $dataPagamentoFormatada = null;
+        if ($dataPagamento) {
+            $date = DateTime::createFromFormat('d/m/Y', $dataPagamento);
+            if ($date) {
+                $dataPagamentoFormatada = $date->format('Y-m-d');
+            }
+        }
+        if (!$dataPagamentoFormatada) {
+            $dataPagamentoFormatada = date('Y-m-d');
+        }
+        $this->db->update('custos_fixos_competencias', [
+            'pago' => 1,
+            'data_pagamento' => $dataPagamentoFormatada,
+            'observacoes_pagamento' => $observacoesPagamento,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return true;
+    }
+
+    /**
+     * Marca uma competência como pendente (desmarca pago).
+     */
+    public function desmarcarCompetenciaPaga($idCompetencia)
+    {
+        $this->db->where('idCompetencia', $idCompetencia);
+        $this->db->update('custos_fixos_competencias', [
+            'pago' => 0,
+            'data_pagamento' => null,
+            'observacoes_pagamento' => null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return true;
+    }
+
+    /**
+     * Retorna totais de custos fixos pagos e a pagar para um período.
+     * Usa competências mensais.
+     */
+    public function getTotaisCustosFixosCompetencia($dataInicial, $dataFinal)
+    {
+        $inicio = $this->normalizarDataCustoFixo($dataInicial);
+        $fim = $this->normalizarDataCustoFixo($dataFinal);
+        if (!$inicio || !$fim) {
+            return (object) ['pago' => 0.0, 'a_pagar' => 0.0, 'total' => 0.0];
+        }
+
+        $inicioPeriodo = new DateTime($inicio);
+        $fimPeriodo = new DateTime($fim);
+        $inicioPeriodo->modify('first day of this month');
+        $fimPeriodo->modify('first day of this month');
+        $mesAtual = (int) date('n');
+        $anoAtual = (int) date('Y');
+
+        $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
+        $totalPago = 0.0;
+        $totalAPagar = 0.0;
+
+        $cursor = clone $inicioPeriodo;
+        while ($cursor <= $fimPeriodo) {
+            $ano = (int) $cursor->format('Y');
+            $mes = (int) $cursor->format('n');
+            if ($ano > $anoAtual || ($ano == $anoAtual && $mes > $mesAtual)) {
+                $cursor->modify('+1 month');
+                continue;
+            }
+            foreach ($custos as $custo) {
+                $mesFim = (clone $cursor)->modify('last day of this month');
+                if ($this->custoFixoAtivoNoMes($custo, clone $cursor, $mesFim)) {
+                    $valor = $this->getCustoFixoValorCompetencia($custo, $ano, $mes);
+                    if ($valor > 0) {
+                        // Verificar se está pago na competência
+                        $competencia = sprintf('%04d-%02d-01', $ano, $mes);
+                        $comp = $this->db->get_where('custos_fixos_competencias', [
+                            'custo_fixo_id' => $custo->idCustoFixo,
+                            'competencia' => $competencia,
+                        ])->row();
+                        if ($comp && $comp->pago) {
+                            $totalPago += $valor;
+                        } else {
+                            $totalAPagar += $valor;
+                        }
+                    }
+                }
+            }
+            $cursor->modify('+1 month');
+        }
+
+        return (object) [
+            'pago' => $totalPago,
+            'a_pagar' => $totalAPagar,
+            'total' => $totalPago + $totalAPagar,
+        ];
+    }
+
     public function getCustosFixosMensais($ano)
     {
         $numbersOnly = preg_replace('/[^0-9]/', '', (string) $ano);

@@ -96,6 +96,9 @@ class Financeiro extends MY_Controller
         $this->data['custoProdutosPeriodo'] = $custoProdutosPeriodo->custo_total;
         $this->data['resultadoLiquidoReal'] = $this->data['totals']['receitas'] - $this->data['totals']['despesas'] - $this->data['custoProdutosPeriodo'];
         $this->data['custosFixosPeriodo'] = $this->financeiro_model->getCustosFixosCompetenciaPeriodo($vencimento_de, $vencimento_ate);
+        $totaisCf = $this->financeiro_model->getTotaisCustosFixosCompetencia($vencimento_de, $vencimento_ate);
+        $this->data['custosFixosPago'] = $totaisCf->pago;
+        $this->data['custosFixosAPagar'] = $totaisCf->a_pagar;
         $this->data['resultadoAposCustosFixos'] = $this->data['resultadoLiquidoReal'] - $this->data['custosFixosPeriodo'];
 
         $this->data['estatisticas_financeiro'] = $this->financeiro_model->getEstatisticasFinanceiro2();
@@ -330,6 +333,32 @@ class Financeiro extends MY_Controller
         $this->data['view'] = 'financeiro/competenciasCustoFixo';
 
         return $this->layout();
+    }
+
+    public function togglePagamentoCompetencia()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eLancamento')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para alterar pagamento de competências.');
+            redirect(base_url());
+        }
+
+        $idCompetencia = (int) $this->input->post('idCompetencia');
+        $action = $this->input->post('action'); // 'pagar' ou 'despagar'
+        $dataPagamento = $this->input->post('data_pagamento') ?: null;
+        $obsPagamento = $this->input->post('observacoes_pagamento') ?: null;
+
+        if ($idCompetencia && in_array($action, ['pagar', 'despagar'])) {
+            if ($action === 'pagar') {
+                $this->financeiro_model->marcarCompetenciaPaga($idCompetencia, $dataPagamento, $obsPagamento);
+                $this->session->set_flashdata('success', 'Competência marcada como paga.');
+            } else {
+                $this->financeiro_model->desmarcarCompetenciaPaga($idCompetencia);
+                $this->session->set_flashdata('success', 'Competência marcada como pendente.');
+            }
+        }
+
+        $custoFixoId = (int) $this->input->post('custo_fixo_id');
+        redirect(site_url('financeiro/competenciasCustoFixo/' . ($custoFixoId ?: $this->uri->segment(3))));
     }
 
     public function alternarStatusCustoFixo()
