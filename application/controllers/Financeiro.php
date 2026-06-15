@@ -216,7 +216,7 @@ class Financeiro extends MY_Controller
         $this->form_validation->set_rules('titulo', 'Título', 'trim|required');
         $this->form_validation->set_rules('categoria', 'Categoria', 'trim|required');
         $this->form_validation->set_rules('valor', 'Valor', 'trim|required|callback_valorMonetario');
-        $this->form_validation->set_rules('periodicidade', 'Periodicidade', 'trim|required|in_list[mensal]');
+        $this->form_validation->set_rules('periodicidade', 'Periodicidade', 'trim|required|in_list[mensal,unico]');
         $this->form_validation->set_rules('dia_vencimento', 'Dia de vencimento', 'trim|required|integer|greater_than[0]|less_than[32]');
         $this->form_validation->set_rules('forma_pagamento', 'Forma de pagamento', 'trim|required');
         $this->form_validation->set_rules('ativo', 'Ativo', 'trim|required|in_list[0,1]');
@@ -226,6 +226,10 @@ class Financeiro extends MY_Controller
         } else {
             $data = $this->montarDadosCustoFixo();
             if ($this->financeiro_model->add('custos_fixos', $data) == true) {
+                $novoId = $this->financeiro_model->getInsertId();
+                if ($novoId) {
+                    $this->financeiro_model->gerarCompetencias($novoId);
+                }
                 $this->session->set_flashdata('success', 'Custo fixo cadastrado com sucesso!');
                 log_info('Adicionou um custo fixo.');
                 redirect(site_url('financeiro/custosFixos'));
@@ -261,7 +265,7 @@ class Financeiro extends MY_Controller
         $this->form_validation->set_rules('titulo', 'Título', 'trim|required');
         $this->form_validation->set_rules('categoria', 'Categoria', 'trim|required');
         $this->form_validation->set_rules('valor', 'Valor', 'trim|required|callback_valorMonetario');
-        $this->form_validation->set_rules('periodicidade', 'Periodicidade', 'trim|required|in_list[mensal]');
+        $this->form_validation->set_rules('periodicidade', 'Periodicidade', 'trim|required|in_list[mensal,unico]');
         $this->form_validation->set_rules('dia_vencimento', 'Dia de vencimento', 'trim|required|integer|greater_than[0]|less_than[32]');
         $this->form_validation->set_rules('forma_pagamento', 'Forma de pagamento', 'trim|required');
         $this->form_validation->set_rules('ativo', 'Ativo', 'trim|required|in_list[0,1]');

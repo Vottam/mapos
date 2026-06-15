@@ -280,53 +280,11 @@ class Mapos_model extends CI_Model
             if (!class_exists('Financeiro_model', false)) {
                 $this->load->model('Financeiro_model');
             }
-            // Calcular custos fixos apenas meses não futuros com movimento
-            $anoAtual = date('Y');
-            $mesAtual = (int) date('n');
-            $sqlMovimento = "
-                SELECT EXTRACT(MONTH FROM data_pagamento) AS mes, SUM(valor) AS total
-                FROM lancamentos
-                WHERE EXTRACT(YEAR FROM data_pagamento) = {$anoAtual}
-                AND baixado = 1 AND tipo = 'receita'
-                AND (descricao LIKE '%Fatura de OS%' OR descricao LIKE '%Fatura de Venda%')
-                AND " . $this->lancamentoRealWhere('lancamentos') . "
-                GROUP BY EXTRACT(MONTH FROM data_pagamento)
-            ";
-            $mesesComMovimento = [];
-            $queryMovimento = $this->db->query($sqlMovimento);
-            if ($queryMovimento) {
-                foreach ($queryMovimento->result() as $r) {
-                    $mesesComMovimento[(int) $r->mes] = true;
-                }
-            }
-            // Também verificar despesas como movimento
-            $sqlDespesasMov = "
-                SELECT EXTRACT(MONTH FROM data_pagamento) AS mes
-                FROM lancamentos
-                WHERE EXTRACT(YEAR FROM data_pagamento) = {$anoAtual}
-                AND baixado = 1 AND tipo = 'despesa'
-                GROUP BY EXTRACT(MONTH FROM data_pagamento)
-            ";
-            $queryDespMov = $this->db->query($sqlDespesasMov);
-            if ($queryDespMov) {
-                foreach ($queryDespMov->result() as $r) {
-                    $mesesComMovimento[(int) $r->mes] = true;
-                }
-            }
-            $totalCustosFixos = 0.0;
-            $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
-            foreach ($custos as $custo) {
-                for ($m = 1; $m <= $mesAtual; $m++) {
-                    if (!isset($mesesComMovimento[$m])) continue;
-                    $mInicio = new DateTime("{$anoAtual}-" . str_pad($m, 2, '0', STR_PAD_LEFT) . "-01");
-                    $mFim = clone $mInicio;
-                    $mFim->modify('last day of this month');
-                    if ($this->custoFixoAtivoNoMesPainel($custo, $mInicio, $mFim)) {
-                        $totalCustosFixos += (float) $custo->valor;
-                    }
-                }
-            }
-            $row->total_custos_fixos = $totalCustosFixos;
+            // Custos fixos por competência: meses não futuros com movimento e vigência ativa
+            $row->total_custos_fixos = $this->Financeiro_model->getCustosFixosCompetenciaPeriodo(
+                date('Y-01-01'),
+                date('Y-m-t')
+            );
             return $row;
         }
 
@@ -468,21 +426,16 @@ class Mapos_model extends CI_Model
         $custoFixosMes = array_fill(1, 12, 0.0);
         $mesAtual = (int) date('n');
         for ($mes = 1; $mes <= 12; $mes++) {
-            // Não projetar meses futuros
-            if ($mes > $mesAtual) {
-                continue;
-            }
-            // Só contar custo fixo se houver movimento financeiro no mês
+            if ($mes > $mesAtual) continue;
             $temMovimento = ($receitas[$mes] > 0) || ($despesas[$mes] > 0);
-            if (!$temMovimento) {
-                continue;
-            }
+            if (!$temMovimento) continue;
             $mesInicio = DateTime::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $ano, $mes));
             $mesFim = clone $mesInicio;
             $mesFim->modify('last day of this month');
             foreach ($custosFixos as $custo) {
                 if ($this->custoFixoAtivoNoMesPainel($custo, $mesInicio, $mesFim)) {
-                    $custoFixosMes[$mes] += (float) $custo->valor;
+                    // Usa valor da competência se existir, senão usa valor padrão
+                    $custoFixosMes[$mes] += $this->Financeiro_model->getCustoFixoValorCompetencia($custo, $ano, $mes);
                 }
             }
         }

@@ -35,6 +35,7 @@ $button_text = $button_text ?? 'Salvar';
                         <label>Periodicidade</label>
                         <select name="periodicidade" class="span12">
                             <option value="mensal" <?= set_value('periodicidade', $result->periodicidade ?? 'mensal') === 'mensal' ? 'selected' : '' ?>>Mensal</option>
+                            <option value="unico" <?= set_value('periodicidade', $result->periodicidade ?? '') === 'unico' ? 'selected' : '' ?>>Único</option>
                         </select>
                     </div>
                     <div class="span2">
