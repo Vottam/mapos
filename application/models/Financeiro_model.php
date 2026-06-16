@@ -649,8 +649,21 @@ class Financeiro_model extends CI_Model
      * Não inclui competências pagas de meses anteriores (só do mês corrente).
      * Retorna competências com dados do custo fixo principal (titulo, categoria).
      */
+    /**
+     * Retorna competências para o dashboard operacional de contas a pagar.
+     * Regra: mostra contas com data_vencimento no mês corrente (pagas + pendentes)
+     * e contas atrasadas (data_vencimento < início do mês corrente) apenas se pendentes.
+     * Não mostra contas futuras (data_vencimento > fim do mês corrente) nem pagas antigas.
+     *
+     * @param string $mesAtual Início do mês corrente (Y-m-01)
+     * @param string $mesFim   Fim do mês corrente (Y-m-t)
+     * @return array
+     */
     public function getCompetenciasDashboard($mesAtual, $mesFim)
     {
+        $inicioMes = new DateTime($mesAtual);
+        $fimMes = new DateTime($mesFim);
+
         // Buscar todos os custos fixos ativos
         $custos = $this->db->get_where('custos_fixos', ['ativo' => 1])->result();
         $result = [];
@@ -658,35 +671,28 @@ class Financeiro_model extends CI_Model
         foreach ($custos as $custo) {
             // Buscar competências deste custo fixo
             $this->db->where('custo_fixo_id', $custo->idCustoFixo);
-            $this->db->order_by('competencia', 'ASC');
+            $this->db->order_by('data_vencimento', 'ASC');
             $competencias = $this->db->get('custos_fixos_competencias')->result();
 
             foreach ($competencias as $comp) {
-                $competenciaDate = new DateTime($comp->competencia);
-                $mesAtualDate = new DateTime($mesAtual);
-
-                // Não mostrar competências futuras
-                if ($competenciaDate > $mesAtualDate && $competenciaDate->format('Ym') > $mesAtualDate->format('Ym')) {
-                    // Verificar se é mês futuro (mesmo ano, mês posterior)
-                    if ($competenciaDate->format('Y') > $mesAtualDate->format('Y') ||
-                        ($competenciaDate->format('Y') == $mesAtualDate->format('Y') && $competenciaDate->format('n') > $mesAtualDate->format('n'))) {
-                        continue;
-                    }
+                // Pular se não tem data_vencimento
+                if (empty($comp->data_vencimento) || $comp->data_vencimento === '0000-00-00') {
+                    continue;
                 }
 
-                $mesCompetencia = (int) $competenciaDate->format('n');
-                $anoCompetencia = (int) $competenciaDate->format('Y');
-                $mesAtualNum = (int) $mesAtualDate->format('n');
-                $anoAtualNum = (int) $mesAtualDate->format('Y');
+                $vencimento = new DateTime($comp->data_vencimento);
 
-                $ehMesCorrente = ($anoCompetencia == $anoAtualNum && $mesCompetencia == $mesAtualNum);
-                $ehAtrasado = ($anoCompetencia < $anoAtualNum) ||
-                              ($anoCompetencia == $anoAtualNum && $mesCompetencia < $mesAtualNum);
+                // Verificar se está no mês corrente
+                $ehMesCorrente = ($vencimento >= $inicioMes && $vencimento <= $fimMes);
+
+                // Verificar se é atrasado (vencimento anterior ao início do mês corrente)
+                $ehAtrasado = $vencimento < $inicioMes;
 
                 // Regras de exibição:
-                // 1. Mês corrente: mostra todas (pago ou pendente)
-                // 2. Atrasado: mostra apenas pendentes
-                // 3. Futuro: não mostra
+                // 1. Vencimento no mês corrente: mostra todas (pago ou pendente)
+                // 2. Vencimento atrasado: mostra apenas pendentes (pago = 0)
+                // 3. Vencimento futuro (após fim do mês): não mostra
+                // 4. Vencimento atrasado e pago: não mostra (sai do dashboard operacional)
                 if ($ehMesCorrente) {
                     // Mostra todas do mês corrente
                 } elseif ($ehAtrasado) {
@@ -695,7 +701,7 @@ class Financeiro_model extends CI_Model
                         continue;
                     }
                 } else {
-                    // Futuro - não mostra
+                    // Futuro (vencimento > fim do mês) - não mostra
                     continue;
                 }
 
@@ -707,9 +713,9 @@ class Financeiro_model extends CI_Model
             }
         }
 
-        // Ordenar por competência ascendente (mais antigo primeiro)
+        // Ordenar por data_vencimento ascendente (mais antigo primeiro)
         usort($result, function ($a, $b) {
-            return strcmp($a->competencia, $b->competencia);
+            return strcmp($a->data_vencimento, $b->data_vencimento);
         });
 
         return $result;

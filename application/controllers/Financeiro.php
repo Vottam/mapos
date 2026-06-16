@@ -187,8 +187,8 @@ class Financeiro extends MY_Controller
             redirect(base_url());
         }
 
-        // Buscar competências para o dashboard operacional
-        // Regra: mês corrente (todas) + meses anteriores pendentes
+        // Buscar competências para o dashboard operacional de contas a pagar
+        // Regra: data_vencimento no mês corrente (todas) + atrasados pendentes
         $mesAtual = date('Y-m-01');
         $mesFim = date('Y-m-t');
         $this->data['competencias'] = $this->financeiro_model->getCompetenciasDashboard($mesAtual, $mesFim);
