@@ -8,7 +8,7 @@
 <div class="new122">
     <!-- DASHBOARD OPERACIONAL DE CONTAS A PAGAR -->
     <div class="widget-title" style="margin:-15px -10px 0">
-        <h5>Contas a Pagar — Competências <?= $mesAtual ?></h5>
+        <h5>Contas a Pagar — Vencimentos <?= $mesAtual ?></h5>
     </div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 20px 0;">
