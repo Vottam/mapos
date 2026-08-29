@@ -1138,11 +1138,10 @@
         </div>
     </div>
 
-    <div class="AAA">
-        <div class="widget-box0 widbox-blak">
-            <div>
-                <h5 class="cardHeader">Produtos Com Estoque Mínimo</h5>
-            </div>
+    <div class="widget-box0 widbox-blak">
+        <div>
+            <h5 class="cardHeader">Produtos Com Estoque Mínimo</h5>
+        </div>
             <div class="widget-content">
                 <table class="table table-bordered">
                     <thead>
@@ -1194,8 +1193,7 @@
                 </table>
             </div>
         </div>
-    </div>
-                        
+
 </div>
 <!-- Fim Staus OS -->
 

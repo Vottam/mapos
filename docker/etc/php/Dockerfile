@@ -41,13 +41,10 @@ RUN apt update && apt upgrade -y \
     pdo_mysql \
     xsl \
     gd \
-    imap \
     intl \
     zip \
     sockets \
     xmlrpc \
-    memcached \
-    redis \
     imagick \
     && docker-php-source delete \
     && apt remove -y g++ wget \

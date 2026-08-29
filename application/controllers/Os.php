@@ -976,6 +976,11 @@ class Os extends MY_Controller
 
     public function adicionarProduto()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $this->load->library('form_validation');
 
         if ($this->form_validation->run('adicionar_produto_os') === false) {
@@ -1039,6 +1044,11 @@ class Os extends MY_Controller
 
     public function excluirProduto()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $id = $this->input->post('idProduto');
         $idOs = $this->input->post('idOs');
 
@@ -1074,6 +1084,11 @@ class Os extends MY_Controller
 
     public function adicionarServico()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $this->load->library('form_validation');
 
         if ($this->form_validation->run('adicionar_servico_os') === false) {
@@ -1116,6 +1131,11 @@ class Os extends MY_Controller
 
     public function excluirServico()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $ID = $this->input->post('idServico');
         $idOs = $this->input->post('idOs');
 
@@ -1134,6 +1154,11 @@ class Os extends MY_Controller
 
     public function anexar()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $this->load->library('upload');
         $this->load->library('image_lib');
 
@@ -1226,6 +1251,11 @@ class Os extends MY_Controller
 
     public function excluirAnexo($id = null)
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         if ($id == null || ! is_numeric($id)) {
             echo json_encode(['result' => false, 'mensagem' => 'Erro ao tentar excluir anexo.']);
         } else {
@@ -1250,6 +1280,11 @@ class Os extends MY_Controller
 
     public function downloadanexo($id = null)
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para visualizar O.S.');
+            redirect(base_url());
+        }
+
         if ($id != null && is_numeric($id)) {
             $this->db->where('idAnexos', $id);
             $file = $this->db->get('anexos', 1)->row();
@@ -1263,6 +1298,11 @@ class Os extends MY_Controller
 
     public function adicionarDesconto()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         if ($this->input->post('desconto') == '') {
             return $this->output
                 ->set_content_type('application/json')
@@ -1307,6 +1347,11 @@ class Os extends MY_Controller
 
     public function faturar()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $this->load->library('form_validation');
         $this->data['custom_error'] = '';
 
@@ -1488,6 +1533,11 @@ class Os extends MY_Controller
 
     public function adicionarAnotacao()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $this->load->library('form_validation');
         if ($this->form_validation->run('anotacoes_os') == false) {
             echo json_encode(validation_errors());
@@ -1509,6 +1559,11 @@ class Os extends MY_Controller
 
     public function excluirAnotacao()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar O.S.');
+            redirect(base_url());
+        }
+
         $id = $this->input->post('idAnotacao');
         $idOs = $this->input->post('idOs');
 
