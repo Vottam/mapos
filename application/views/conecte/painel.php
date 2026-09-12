@@ -52,6 +52,7 @@
             <h5>Últimas Ordens de Serviço</h5>
         </div>
         <div class="widget-content">
+            <div class="c-table-responsive">
             <table id="tabela" class="table table-bordered">
                 <thead>
                     <tr>
@@ -149,6 +150,7 @@
             ?>
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -158,6 +160,7 @@
             <h5>Últimas Compras</h5>
         </div>
         <div class="widget-content">
+            <div class="c-table-responsive">
             <table id="tabela" class="table table-bordered">
                 <thead>
                     <tr>
@@ -256,6 +259,7 @@
             ?>
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </div>
