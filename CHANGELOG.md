@@ -4,6 +4,22 @@ Todas as alterações serão documentadas neste arquivo
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 e [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.55.0] - 2026-09-25
+
+### Added
+- Adicionado política de segurança (`SECURITY.md`) e template de Pull Request. [Janei Araujo](https://github.com/jaaraujo)
+- Adicionado guia de contribuição (`CONTRIBUTING.md`). [Janei Araujo](https://github.com/jaaraujo)
+
+### Changed
+- Atualizado dependência `guzzlehttp/guzzle` para 7.15.2. [@dependabot[bot]](https://github.com/apps/dependabot)
+- Correção do gráfico de estrelas no README. [PingouinFerreux](https://github.com/PingouinFerreux)
+
+### Fixed
+- Correção na auditoria da área do cliente. [@cabralwms](https://github.com/cabralwms)
+- Evita reexecução de migrations em instalação nova. [Janei Araujo](https://github.com/jaaraujo)
+- Correção de exposição de dados, IDORs, falhas de autenticação, CSRF/Sessão e vistorias de segurança. [@Fesantt](https://github.com/Fesantt)
+- Prevenção de escrita arbitrária de arquivo em relatórios (`receitasBrutasRapid` e `receitasBrutasCustom`). [@Fesantt](https://github.com/Fesantt)
+
 ## [4.54.0] - 2026-07-22
 
 ### Changed
