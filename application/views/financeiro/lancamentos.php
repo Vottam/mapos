@@ -58,12 +58,12 @@ $periodo = $this->input->get('periodo');
 
             <div class="span2">
                 <label>Vencimento (de)</label>
-                <input id="vencimento_de" type="text" class="span12 datepicker" name="vencimento_de" value="<?= $this->input->get('vencimento_de') ? $this->input->get('vencimento_de') : date('01/m/Y') ?>">
+                <input id="vencimento_de" type="text" class="span12 datepicker" name="vencimento_de" value="<?= html_escape($this->input->get('vencimento_de') ? $this->input->get('vencimento_de') : date('01/m/Y')) ?>">
             </div>
 
             <div class="span2">
                 <label>Vencimento (até)</label>
-                <input id="vencimento_ate" type="text" class="span12 datepicker" name="vencimento_ate" value="<?= $this->input->get('vencimento_ate') ? $this->input->get('vencimento_ate') : date('t/m/Y') ?>">
+                <input id="vencimento_ate" type="text" class="span12 datepicker" name="vencimento_ate" value="<?= html_escape($this->input->get('vencimento_ate') ? $this->input->get('vencimento_ate') : date('t/m/Y')) ?>">
             </div>
 
             <div class="span2">
@@ -88,7 +88,7 @@ $periodo = $this->input->get('periodo');
 
             <div class="span2">
                 <label>Cliente/Fornecedor</label>
-                <input id="cliente_busca" type="text" class="span12" name="cliente" value="<?= $this->input->get('cliente') ?>">
+                <input id="cliente_busca" type="text" class="span12" name="cliente" value="<?= html_escape($this->input->get('cliente')) ?>">
             </div>
 
             <div class="span2 pull-right">

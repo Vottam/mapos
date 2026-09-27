@@ -417,7 +417,6 @@
             scales: {
                 y: {
                     beginAtZero: true,
-                    stacked: true,
                     ticks: {
                         callback: (value, index, values) => {
                             return new Intl.NumberFormat('pt-BR', {
@@ -430,7 +429,6 @@
                 },
                 x: {
                     beginAtZero: true,
-                    stacked: true,
                     title: {
                         display: true,
                         text: 'Meses'
