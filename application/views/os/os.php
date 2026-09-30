@@ -241,7 +241,7 @@ foreach ($results as $r) {
     echo '<td data-col="valor_total">R$ ' . number_format($r->totalProdutos + $r->totalServicos, 2, ',', '.') . '</td>';
     echo '<td data-col="desconto">R$ ' . number_format(floatval($r->desconto), 2, ',', '.') . '</td>';
     echo '<td data-col="valor_desconto">R$ ' . number_format(floatval($r->valor_desconto), 2, ',', '.') . '</td>';
-    echo '<td data-col="vt_faturado" class="ph4">R$ ' . number_format($r->faturado ? floatval($r->valor_desconto) : 0.00, 2, ',', '.') . '</td>';
+    echo '<td data-col="vt_faturado" class="ph4">R$ ' . number_format($r->faturado ? floatval($r->valor_faturado_real) : 0.00, 2, ',', '.') . '</td>';
     echo '<td data-col="status"><span class="badge" style="background-color: ' . $cor . '; border-color: ' . $cor . '">' . $r->status . '</span> </td>';
     echo '<td data-col="acoes">';
 

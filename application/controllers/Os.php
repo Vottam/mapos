@@ -236,7 +236,8 @@ class Os extends MY_Controller
             COALESCE((SELECT SUM(servicos_os.preco * servicos_os.quantidade ) FROM servicos_os WHERE servicos_os.os_id = os.idOs), 0) totalServicos,
             (SELECT equipamentos.equipamento FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_tipo,
             (SELECT equipamentos.modelo FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_modelo,
-            (SELECT marcas.marca FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id JOIN marcas ON marcas.idMarcas = equipamentos.marcas_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_marca',
+            (SELECT marcas.marca FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id JOIN marcas ON marcas.idMarcas = equipamentos.marcas_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_marca,
+            COALESCE((SELECT SUM(IF(l.valor_desconto = 0, l.valor, l.valor_desconto)) FROM lancamentos l WHERE l.tipo = \'receita\' AND l.descricao = CONCAT(\'Fatura de OS Nº: \', os.idOs)), 0) valor_faturado_real',
             $where_array,
             $this->data['configuration']['per_page'],
             $this->uri->segment(3)

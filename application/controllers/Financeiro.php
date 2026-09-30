@@ -886,12 +886,55 @@ class Financeiro extends MY_Controller
         print_r($data);
     }
 
+    /**
+     * Padrão exato da descrição criada por Os::faturar() para uma OS:
+     * 'Fatura de OS Nº: ' . $osId. O match é por igualdade, nunca por LIKE,
+     * para impedir que a OS 114 case com a fatura da OS 1145.
+     */
+    private function descricaoFaturaOs($osId)
+    {
+        return 'Fatura de OS Nº: ' . (int) $osId;
+    }
+
+    /**
+     * Classifica o lançamento como faturamento oficial de uma OS.
+     * Só retorna um idOs quando o lançamento corresponde exatamente ao padrão
+     * gravado por Os::faturar(), é do tipo receita e a OS existe.
+     * Qualquer outro lançamento (receita manual, despesa, Fatura de Venda)
+     * retorna null e mantém o comportamento anterior.
+     */
+    private function identificarFaturaOs($lancamento)
+    {
+        if (empty($lancamento) || $lancamento->tipo !== 'receita') {
+            return null;
+        }
+
+        if (! preg_match('/^Fatura de OS Nº: (\d+)$/', trim((string) $lancamento->descricao), $matches)) {
+            return null;
+        }
+
+        $osId = (int) $matches[1];
+
+        if ($osId <= 0) {
+            return null;
+        }
+
+        // Só trata como faturamento de OS se a OS realmente existir.
+        if (! $this->os_model->getById($osId)) {
+            return null;
+        }
+
+        return $osId;
+    }
+
     public function excluirLancamento()
     {
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'dLancamento')) {
             $this->session->set_flashdata('error', 'Você não tem permissão para excluir lançamentos.');
             redirect(base_url());
         }
+
+        $this->load->model('os_model');
 
         $id = $this->input->post('id');
 
@@ -900,6 +943,11 @@ class Financeiro extends MY_Controller
             echo json_encode($json);
             exit();
         }
+
+        // Carrega e classifica o lançamento ANTES da transação: se não for
+        // faturamento oficial de OS, o fluxo segue exatamente como antes.
+        $lancamento = $this->db->where('idLancamentos', $id)->get('lancamentos')->row();
+        $osIdFatura = $this->identificarFaturaOs($lancamento);
 
         // Começa a transação
         $this->db->trans_start();
@@ -914,22 +962,35 @@ class Financeiro extends MY_Controller
         // Exclui o lançamento
         $result = $this->financeiro_model->delete('lancamentos', 'idLancamentos', $id);
 
-        if ($result) {
+        // Se era a última fatura da OS, devolve a OS para o estado faturável.
+        // Não altera os.status nem os.valor_desconto: o status é campo do
+        // operador e o snapshot local não é consumidor da coluna V.T. (Faturado).
+        if ($result && $osIdFatura !== null) {
+            $outras = $this->db->where('tipo', 'receita')
+                ->where('descricao', $this->descricaoFaturaOs($osIdFatura))
+                ->count_all_results('lancamentos');
+
+            if ($outras === 0) {
+                $this->db->set('faturado', 0);
+                $this->db->where('idOs', $osIdFatura);
+                $this->db->update('os');
+            }
+        }
+
+        // A transação precisa ser avaliada ANTES de ser finalizada: o
+        // trans_complete() do CodeIgniter já decide entre commit e rollback,
+        // tornava o rollback posterior inalcançável e reportava falha parcial
+        // ao operador como sucesso.
+        if ($result && $this->db->trans_status() !== false) {
             $this->db->trans_complete();
 
-            if ($this->db->trans_status() === false) {
-                $this->db->trans_rollback();
-                $this->session->set_flashdata('error', 'Ocorreu um erro ao tentar excluir o lançamento.');
-                $json = ['result' => false, 'message' => 'Erro na transação'];
-            } else {
-                log_info('Excluiu um lançamento. ID: ' . $id);
-                $this->session->set_flashdata('success', 'Lançamento excluído com sucesso!');
-                $json = ['result' => true];
-            }
+            log_info('Excluiu um lançamento. ID: ' . $id);
+            $this->session->set_flashdata('success', 'Lançamento excluído com sucesso!');
+            $json = ['result' => true];
         } else {
             $this->db->trans_rollback();
             $this->session->set_flashdata('error', 'Ocorreu um erro ao tentar excluir o lançamento.');
-            $json = ['result' => false, 'message' => 'Erro ao excluir lançamento'];
+            $json = ['result' => false, 'message' => $result ? 'Erro na transação' : 'Erro ao excluir lançamento'];
         }
 
         echo json_encode($json);
