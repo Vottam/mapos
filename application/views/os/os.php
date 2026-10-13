@@ -116,6 +116,7 @@
                 <label><input type="checkbox" data-col="desconto"> Desconto</label>
                 <label><input type="checkbox" data-col="valor_desconto"> Valor com Desconto</label>
                 <label><input type="checkbox" data-col="vt_faturado" checked> V.T Faturado</label>
+                <label><input type="checkbox" data-col="valor_liquido" checked> Valor Líquido</label>
                 <label><input type="checkbox" data-col="status" checked> Status</label>
                 <label><input type="checkbox" data-col="acoes" checked> Ações</label>
                 <hr style="margin: 6px 0">
@@ -143,6 +144,7 @@
                             <th data-col="desconto">Desconto</th>
                             <th data-col="valor_desconto">Valor com Desconto</th>
                             <th data-col="vt_faturado" class="ph4">V.T (Faturado)</th>
+                            <th data-col="valor_liquido" class="ph4">Valor Líquido</th>
                             <th data-col="status">Status</th>
                             <th data-col="acoes">Ações</th>
                         </tr>
@@ -150,7 +152,7 @@
                     <tbody>
                         <?php if (!$results) {
                             echo '<tr>
-                            <td colspan="15">Nenhuma OS Cadastrada</td>
+                            <td colspan="16">Nenhuma OS Cadastrada</td>
                             </tr>';
                         }
 
@@ -241,7 +243,10 @@ foreach ($results as $r) {
     echo '<td data-col="valor_total">R$ ' . number_format($r->totalProdutos + $r->totalServicos, 2, ',', '.') . '</td>';
     echo '<td data-col="desconto">R$ ' . number_format(floatval($r->desconto), 2, ',', '.') . '</td>';
     echo '<td data-col="valor_desconto">R$ ' . number_format(floatval($r->valor_desconto), 2, ',', '.') . '</td>';
+    $liquidoTitulo = $r->faturado ? 'Valor líquido da OS faturada' : 'Valor líquido calculado; OS ainda não faturada';
+    $liquidoEstilo = $r->faturado ? '' : ' style="color: #777; font-style: italic"';
     echo '<td data-col="vt_faturado" class="ph4">R$ ' . number_format($r->faturado ? floatval($r->valor_faturado_real) : 0.00, 2, ',', '.') . '</td>';
+    echo '<td data-col="valor_liquido" class="ph4" title="' . $liquidoTitulo . '"><span' . $liquidoEstilo . '>R$ ' . number_format((float) ($r->valorLiquido ?? 0), 2, ',', '.') . '</span></td>';
     echo '<td data-col="status"><span class="badge" style="background-color: ' . $cor . '; border-color: ' . $cor . '">' . $r->status . '</span> </td>';
     echo '<td data-col="acoes">';
 
@@ -328,12 +333,27 @@ foreach ($results as $r) {
     // Seletor de colunas da listagem de OS
     (function() {
         var STORAGE_KEY = 'mapos_os_table_visible_columns';
-        var DEFAULT_VISIBLE = ['numero','cliente','tipo','marca','modelo','responsavel','data_inicial','data_final','valor_total','vt_faturado','status','acoes'];
+        var MIGRATION_KEY = 'mapos_os_table_visible_columns_net_migrated';
+        var DEFAULT_VISIBLE = ['numero','cliente','tipo','marca','modelo','responsavel','data_inicial','data_final','valor_total','vt_faturado','valor_liquido','status','acoes'];
 
         function loadVisible() {
             try {
                 var stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) return JSON.parse(stored);
+                if (stored) {
+                    var parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed)) {
+                        // Preferências antigas ganham a coluna uma única vez; depois,
+                        // ocultar/mostrar passa a ser respeitado normalmente.
+                        if (parsed.indexOf('valor_liquido') === -1 && localStorage.getItem(MIGRATION_KEY) !== '1') {
+                            parsed.push('valor_liquido');
+                            saveVisible(parsed);
+                            localStorage.setItem(MIGRATION_KEY, '1');
+                        }
+                        return parsed;
+                    }
+                } else {
+                    localStorage.setItem(MIGRATION_KEY, '1');
+                }
             } catch(e) {}
             return DEFAULT_VISIBLE.slice();
         }

@@ -234,6 +234,7 @@ class Os extends MY_Controller
             'os.*,
             COALESCE((SELECT SUM(produtos_os.preco * produtos_os.quantidade ) FROM produtos_os WHERE produtos_os.os_id = os.idOs), 0) totalProdutos,
             COALESCE((SELECT SUM(servicos_os.preco * servicos_os.quantidade ) FROM servicos_os WHERE servicos_os.os_id = os.idOs), 0) totalServicos,
+            COALESCE((SELECT SUM(CAST(produtos_os.custo_total AS DECIMAL(20,4))) FROM produtos_os WHERE produtos_os.os_id = os.idOs), 0) custo_componentes,
             (SELECT equipamentos.equipamento FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_tipo,
             (SELECT equipamentos.modelo FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_modelo,
             (SELECT marcas.marca FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id JOIN marcas ON marcas.idMarcas = equipamentos.marcas_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_marca,
@@ -242,6 +243,19 @@ class Os extends MY_Controller
             $this->data['configuration']['per_page'],
             $this->uri->segment(3)
         );
+
+        // Calcula em centavos para evitar erros binários de ponto flutuante.
+        $paraCentavos = static function ($valor) {
+            return (int) round((float) $valor * 100, 0, PHP_ROUND_HALF_UP);
+        };
+        foreach ($this->data['results'] as $resultado) {
+            $valorBrutoCentavos = $paraCentavos($resultado->totalProdutos) + $paraCentavos($resultado->totalServicos);
+            $valorFinalRegistradoCentavos = $paraCentavos($resultado->valor_desconto);
+            $descontoAplicadoCentavos = $paraCentavos($resultado->desconto);
+            $valorBaseCentavos = $descontoAplicadoCentavos > 0 ? $valorFinalRegistradoCentavos : $valorBrutoCentavos;
+            $custoComponentesCentavos = $paraCentavos($resultado->custo_componentes);
+            $resultado->valorLiquido = ($valorBaseCentavos - $custoComponentesCentavos) / 100;
+        }
 
         $this->data['texto_de_notificacao'] = $this->data['configuration']['notifica_whats'];
         $this->data['emitente'] = $this->mapos_model->getEmitente();
