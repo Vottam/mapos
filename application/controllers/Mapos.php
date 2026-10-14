@@ -506,7 +506,7 @@ class Mapos extends MY_Controller
                 'control_datatable' => $this->input->post('control_datatable'),
                 'pix_key' => $this->input->post('pix_key'),
                 'os_status_list' => json_encode($this->input->post('os_status_list')),
-                'os_status_email_notify_list' => json_encode($statusEmailNotifySelecionados),
+                'os_email_statuses' => json_encode($statusEmailNotifySelecionados),
                 'control_2vias' => $this->input->post('control_2vias'),
             ];
             if ($this->mapos_model->saveConfiguracao($data) == true) {

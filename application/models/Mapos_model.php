@@ -617,10 +617,41 @@ class Mapos_model extends CI_Model
     public function saveConfiguracao($data)
     {
         try {
+            if (array_key_exists('os_email_statuses', $data)) {
+                $configuration = $this->db
+                    ->select('config')
+                    ->where('config', 'os_email_statuses')
+                    ->limit(1)
+                    ->get('configuracoes')
+                    ->row();
+
+                if ($configuration === null) {
+                    return false;
+                }
+            }
+
             foreach ($data as $key => $valor) {
-                $this->db->set('valor', $valor);
-                $this->db->where('config', $key);
-                $this->db->update('configuracoes');
+                $updated = $this->db
+                    ->set('valor', $valor)
+                    ->where('config', $key)
+                    ->update('configuracoes');
+
+                if ($updated === false) {
+                    return false;
+                }
+
+                if ($key === 'os_email_statuses') {
+                    $persisted = $this->db
+                        ->select('valor')
+                        ->where('config', $key)
+                        ->limit(1)
+                        ->get('configuracoes')
+                        ->row();
+
+                    if ($persisted === null || (string) $persisted->valor !== (string) $valor) {
+                        return false;
+                    }
+                }
             }
         } catch (Exception $e) {
             return false;

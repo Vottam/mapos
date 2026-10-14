@@ -1485,7 +1485,9 @@ class Os extends MY_Controller
     private function obterListaStatusEmailAutomatico()
     {
         $fallback = ['Orçamento', 'Finalizado', 'Faturado'];
-        $config = $this->data['configuration']['os_status_email_notify_list'] ?? null;
+        $config = $this->data['configuration']['os_email_statuses']
+            ?? $this->data['configuration']['os_status_email_notify_list']
+            ?? null;
         $lista = is_array($config) ? $config : json_decode((string) $config, true);
 
         if (!is_array($lista)) {

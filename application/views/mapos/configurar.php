@@ -384,7 +384,8 @@
                             </div>
                             <?php
                             $osStatusEmailNotifyDefault = ['Orçamento', 'Finalizado', 'Faturado'];
-                            $osStatusEmailNotifyList = json_decode($configuration['os_status_email_notify_list'] ?? '', true);
+                            $osStatusEmailNotifyConfig = $configuration['os_email_statuses'] ?? ($configuration['os_status_email_notify_list'] ?? '');
+                            $osStatusEmailNotifyList = json_decode($osStatusEmailNotifyConfig, true);
                             if (!is_array($osStatusEmailNotifyList) || empty($osStatusEmailNotifyList)) {
                                 $osStatusEmailNotifyList = $osStatusEmailNotifyDefault;
                             }
