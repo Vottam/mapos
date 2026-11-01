@@ -14,10 +14,11 @@ class Relatorios extends MY_Controller
     {
         parent::__construct();
 
+        $this->load->helper('relatorios');
         $this->load->model('Relatorios_model');
+        $this->load->model('Financeiro_model');
         $this->load->model('Usuarios_model');
         $this->load->model('Mapos_model');
-        $this->load->model('Financeiro_model');
 
         $this->data['menuRelatorios'] = 'Relatórios';
     }
@@ -33,7 +34,8 @@ class Relatorios extends MY_Controller
             $this->session->set_flashdata('error', 'Você não tem permissão para gerar relatórios de clientes.');
             redirect(base_url());
         }
-        $this->data['view'] = 'relatorios/rel_clientes';
+        $this->data['relatorio'] = relatorioDefinicao('clientes');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
     }
@@ -44,7 +46,8 @@ class Relatorios extends MY_Controller
             $this->session->set_flashdata('error', 'Você não tem permissão para gerar relatórios de produtos.');
             redirect(base_url());
         }
-        $this->data['view'] = 'relatorios/rel_produtos';
+        $this->data['relatorio'] = relatorioDefinicao('produtos');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
     }
@@ -65,7 +68,6 @@ class Relatorios extends MY_Controller
         $data['clientes'] = $this->Relatorios_model->clientesCustom($dataInicial, $dataFinal, $this->input->get('tipocliente'));
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Clientes Customizado';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirClientes', $data, true);
@@ -118,7 +120,7 @@ class Relatorios extends MY_Controller
                 } else {
                     $cliente['pessoa_fisica'] = 'não';
                 }
-                $writer->writeSheetRow('Sheet1', $cliente);
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($cliente));
             }
 
             $arquivo = $writer->writeToString();
@@ -131,7 +133,6 @@ class Relatorios extends MY_Controller
         $data['clientes'] = $this->Relatorios_model->clientesRapid();
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Clientes';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
 
@@ -149,7 +150,6 @@ class Relatorios extends MY_Controller
         $data['produtos'] = $this->Relatorios_model->produtosRapid();
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Produtos';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirProdutos', $data, true);
@@ -166,7 +166,6 @@ class Relatorios extends MY_Controller
         $data['produtos'] = $this->Relatorios_model->produtosRapidMin();
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Produtos Com Estoque Mínimo';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirProdutos', $data, true);
@@ -180,15 +179,13 @@ class Relatorios extends MY_Controller
             redirect(base_url());
         }
 
-        $precoInicial = $this->input->get('precoInicial');
-        $precoFinal = $this->input->get('precoFinal');
-        $estoqueInicial = $this->input->get('estoqueInicial');
-        $estoqueFinal = $this->input->get('estoqueFinal');
+        // Preço em reais ("1.234,56") e estoque em unidades; cada limite vale sozinho.
+        [$precoInicial, $precoFinal] = relatorioFaixa($this->input->get('precoInicial'), $this->input->get('precoFinal'), true);
+        [$estoqueInicial, $estoqueFinal] = relatorioFaixa($this->input->get('estoqueInicial'), $this->input->get('estoqueFinal'), false);
 
         $data['produtos'] = $this->Relatorios_model->produtosCustom($precoInicial, $precoFinal, $estoqueInicial, $estoqueFinal);
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Produtos Customizado';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirProdutos', $data, true);
@@ -197,6 +194,11 @@ class Relatorios extends MY_Controller
 
     public function produtosEtiquetas()
     {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'rProduto')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para gerar etiquetas de produtos.');
+            redirect(base_url());
+        }
+
         $de = $this->input->get('de_id');
         $ate = $this->input->get('ate_id');
         try {
@@ -223,7 +225,8 @@ class Relatorios extends MY_Controller
             redirect(base_url());
         }
 
-        $this->data['view'] = 'relatorios/rel_sku';
+        $this->data['relatorio'] = relatorioDefinicao('sku');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
     }
@@ -258,7 +261,7 @@ class Relatorios extends MY_Controller
 
             $writer->writeSheetHeader('Sheet1', $cabecalho);
             foreach ($vendas as $venda) {
-                $writer->writeSheetRow('Sheet1', $venda);
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($venda));
             }
 
             $arquivo = $writer->writeToString();
@@ -271,7 +274,6 @@ class Relatorios extends MY_Controller
         $data['resultados'] = $this->Relatorios_model->skuRapid();
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório SKU';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirSKU', $data, true);
@@ -312,7 +314,7 @@ class Relatorios extends MY_Controller
 
             $writer->writeSheetHeader('Sheet1', $cabecalho);
             foreach ($vendas as $venda) {
-                $writer->writeSheetRow('Sheet1', $venda);
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($venda));
             }
 
             $arquivo = $writer->writeToString();
@@ -325,7 +327,6 @@ class Relatorios extends MY_Controller
         $data['resultados'] = $this->Relatorios_model->skuCustom($dataInicial, $dataFinal, $cliente, $origem);
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório SKU';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirSKU', $data, true);
@@ -338,7 +339,8 @@ class Relatorios extends MY_Controller
             $this->session->set_flashdata('error', 'Você não tem permissão para gerar relatórios de serviços.');
             redirect(base_url());
         }
-        $this->data['view'] = 'relatorios/rel_servicos';
+        $this->data['relatorio'] = relatorioDefinicao('servicos');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
     }
@@ -350,13 +352,11 @@ class Relatorios extends MY_Controller
             redirect(base_url());
         }
 
-        $precoInicial = $this->input->get('precoInicial');
-        $precoFinal = $this->input->get('precoFinal');
+        [$precoInicial, $precoFinal] = relatorioFaixa($this->input->get('precoInicial'), $this->input->get('precoFinal'), true);
 
         $data['servicos'] = $this->Relatorios_model->servicosCustom($precoInicial, $precoFinal);
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Serviços Customizado';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirServicos', $data, true);
@@ -373,7 +373,6 @@ class Relatorios extends MY_Controller
         $data['servicos'] = $this->Relatorios_model->servicosRapid();
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Serviços';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirServicos', $data, true);
@@ -386,9 +385,130 @@ class Relatorios extends MY_Controller
             $this->session->set_flashdata('error', 'Você não tem permissão para gerar relatórios de OS.');
             redirect(base_url());
         }
-        $this->data['view'] = 'relatorios/rel_os';
+        $this->data['relatorio'] = relatorioDefinicao('os');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
+    }
+
+    /** Consolida o contrato objeto/array do relatório de OS e seus indicadores. */
+    private function prepararRelatorioOs(array $os, bool $isXls): array
+    {
+        $campo = static function ($item, string $nome) use ($isXls) {
+            return $isXls ? ($item[$nome] ?? 0) : ($item->{$nome} ?? 0);
+        };
+        $totalProdutos = 0.0;
+        $totalServicos = 0.0;
+        $totalDesconto = 0.0;
+        $totalValorDesconto = 0.0;
+        $totalLiquido = 0.0;
+        $totalVtFaturado = 0.0;
+
+        foreach ($os as $item) {
+            $produto = (float) $campo($item, 'total_produto');
+            $servico = (float) $campo($item, 'total_servico');
+            $totalProdutos += $produto;
+            $totalServicos += $servico;
+            $totalDesconto += (float) $campo($item, 'desconto');
+            $totalValorDesconto += (float) $campo($item, 'valor_desconto') != 0
+                ? (float) $campo($item, 'valor_desconto')
+                : $produto + $servico;
+            $totalLiquido += (float) $campo($item, 'valorLiquido');
+            $totalVtFaturado += (float) $campo($item, 'vtFaturado');
+        }
+
+        $formatadas = array_map(static function ($item) use ($campo): array {
+            $produto = (float) $campo($item, 'total_produto');
+            $servico = (float) $campo($item, 'total_servico');
+            $subTotal = $produto + $servico;
+            $total = (float) $campo($item, 'valor_desconto') != 0
+                ? (float) $campo($item, 'valor_desconto')
+                : $subTotal;
+
+            return [
+                'idOs' => $campo($item, 'idOs'),
+                'nomeCliente' => $campo($item, 'nomeCliente'),
+                'status' => $campo($item, 'status'),
+                'dataFinal' => $campo($item, 'dataInicial'),
+                'descricaoProduto' => $campo($item, 'descricaoProduto'),
+                'total_produto' => $produto,
+                'total_servico' => $servico,
+                'valorSubTotal' => $subTotal,
+                'valorTotal' => $total,
+                'total_geral_desconto' => $campo($item, 'desconto') ?: 0,
+                'tipo_desconto' => $campo($item, 'tipo_desconto') ?: '-',
+                'valorLiquido' => (float) $campo($item, 'valorLiquido'),
+                'vtFaturado' => (float) $campo($item, 'vtFaturado'),
+            ];
+        }, $os);
+
+        return [
+            'formatadas' => $formatadas,
+            'total_produtos' => $totalProdutos,
+            'total_servicos' => $totalServicos,
+            'total_geral_desconto' => $totalDesconto,
+            'total_geral' => $totalValorDesconto,
+            'total_valor_liquido' => $totalLiquido,
+            'total_vt_faturado' => $totalVtFaturado,
+        ];
+    }
+
+    /**
+     * Calcula os indicadores do PDF financeiro sem reimplementar os KPIs de OS.
+     * O escopo operacional das OS usa dataInicial e dataFinal da OS; os
+     * indicadores gerenciais usam vencimento dos lançamentos e competência
+     * dos custos fixos, sempre em seções separadas.
+     */
+    private function indicadoresFinanceirosRelatorio($dataInicial = null, $dataFinal = null, $tipo = null, $situacao = null): array
+    {
+        $de = $this->dataRelatorioIso($dataInicial) ?: (new DateTimeImmutable('first day of this month'))->format('Y-m-d');
+        $ate = $this->dataRelatorioIso($dataFinal) ?: (new DateTimeImmutable('last day of this month'))->format('Y-m-d');
+        if ($de > $ate) {
+            [$de, $ate] = [$ate, $de];
+        }
+        $tipoFinanceiro = in_array((string) $tipo, ['receita', 'despesa'], true) ? (string) $tipo : '';
+        $statusFinanceiro = in_array((string) $situacao, ['pago', 'pendente', 'vencido'], true) ? (string) $situacao : '';
+        $filtros = [
+            'periodo' => 'personalizado',
+            'de' => $de,
+            'ate' => $ate,
+            'pesquisa' => '',
+            'tipo' => $tipoFinanceiro,
+            'status' => $statusFinanceiro,
+        ];
+        $gerenciais = $this->Financeiro_model->indicadoresGerenciais($filtros, $ate);
+
+        // Fonte única certificada C5B/C7B.2A para V.T. e Valor Líquido operacional.
+        $os = $this->Relatorios_model->osCustom($de, $ate, null, null, null, false);
+        $totaisOs = $this->prepararRelatorioOs($os, false);
+
+        return [
+            'gerenciais' => $gerenciais,
+            'os_operacionais' => [
+                'data_inicial' => $de,
+                'data_final' => $ate,
+                'quantidade_os' => count($os),
+                'vt_faturado' => (float) $totaisOs['total_vt_faturado'],
+                'valor_liquido' => (float) $totaisOs['total_valor_liquido'],
+            ],
+        ];
+    }
+
+    private function dataRelatorioIso($data): ?string
+    {
+        $data = trim((string) $data);
+        if ($data === '') {
+            return null;
+        }
+        foreach (['Y-m-d', 'd/m/Y'] as $formato) {
+            $dt = DateTime::createFromFormat($formato, $data);
+            $erros = DateTime::getLastErrors();
+            if ($dt instanceof DateTime && ($erros === false || ($erros['warning_count'] === 0 && $erros['error_count'] === 0)) && $dt->format($formato) === $data) {
+                return $dt->format('Y-m-d');
+            }
+        }
+
+        return null;
     }
 
     public function osRapid()
@@ -402,53 +522,9 @@ class Relatorios extends MY_Controller
 
         $isXls = $format === 'xls';
         $os = $this->Relatorios_model->osRapid($isXls);
-        $totalProdutos = 0;
-        $totalServicos = 0;
-        $totalDesconto = 0;
-        $totalValorDesconto = 0;
-        $valorTotal = 0;
-        foreach ($os as $o) {
-            $totalProdutos += $isXls
-                ? floatval($o['total_produto'])
-                : floatval($o->total_produto);
-            $totalServicos += $isXls
-                ? floatval($o['total_servico'])
-                : floatval($o->total_servico);
-            $totalDesconto += $isXls
-                ? floatval($o['desconto'])
-                : floatval($o->desconto);
-
-            $isXls
-                ?
-                $totalValorDesconto += $o['valor_desconto'] != 0
-                ? floatval($o['valor_desconto'])
-                : floatval($o['total_servico']) + floatval($o['total_produto'])
-                :
-                $totalValorDesconto += $o->valor_desconto != 0
-                ? floatval($o->valor_desconto)
-                : floatval($o->total_produto) + floatval($o->total_servico);
-        }
+        $totais = $this->prepararRelatorioOs($os, $isXls);
 
         if ($isXls) {
-            $osFormatadas = array_map(function ($item) {
-                $subTotal = floatval($item['total_servico']) + floatval($item['total_produto']);
-                $total = floatval($item['valor_desconto']) ?: floatval($item['total_servico']) + floatval($item['total_produto']);
-
-                return [
-                    'idOs' => $item['idOs'],
-                    'nomeCliente' => $item['nomeCliente'],
-                    'status' => $item['status'],
-                    'dataFinal' => $item['dataInicial'],
-                    'descricaoProduto' => $item['descricaoProduto'],
-                    'total_produto' => $item['total_produto'] ? $item['total_produto'] : 0,
-                    'total_servico' => $item['total_servico'] ? $item['total_servico'] : 0,
-                    'valorSubTotal' => $subTotal ? $subTotal : 0,
-                    'valorTotal' => $total ? $total : 0,
-                    'total_geral_desconto' => $item['desconto'] ?: 0,
-                    'tipo_desconto' => $item['tipo_desconto'] ?: '-',
-                ];
-            }, $os);
-
             $cabecalho = [
                 'ID OS' => 'integer',
                 'Cliente' => 'string',
@@ -461,13 +537,15 @@ class Relatorios extends MY_Controller
                 'Total Com Desconto' => 'price',
                 'Desconto' => 'number',
                 'Tipo Desconto' => 'string',
+                'Valor Líquido operacional' => 'price',
+                'V.T. Faturado' => 'price',
             ];
 
             $writer = new XLSXWriter();
 
             $writer->writeSheetHeader('Sheet1', $cabecalho);
-            foreach ($osFormatadas as $os) {
-                $writer->writeSheetRow('Sheet1', $os);
+            foreach ($totais['formatadas'] as $linha) {
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($linha));
             }
             $writer->writeSheetRow('Sheet1', []);
             $writer->writeSheetRow('Sheet1', [
@@ -476,10 +554,14 @@ class Relatorios extends MY_Controller
                 null,
                 null,
                 null,
-                $totalProdutos,
-                $totalServicos,
-                $totalProdutos + $totalServicos,
-                $totalValorDesconto + $valorTotal,
+                $totais['total_produtos'],
+                $totais['total_servicos'],
+                $totais['total_produtos'] + $totais['total_servicos'],
+                $totais['total_geral'],
+                null,
+                null,
+                $totais['total_valor_liquido'],
+                $totais['total_vt_faturado'],
             ]);
 
             $arquivo = $writer->writeToString();
@@ -490,13 +572,15 @@ class Relatorios extends MY_Controller
         }
 
         $data['os'] = $os;
-        $data['total_produtos'] = $totalProdutos;
-        $data['total_servicos'] = $totalServicos;
-        $data['total_geral_desconto'] = $totalDesconto;
-        $data['total_geral'] = $totalValorDesconto + $valorTotal;
+        $data['total_produtos'] = $totais['total_produtos'];
+        $data['total_servicos'] = $totais['total_servicos'];
+        $data['total_geral_desconto'] = $totais['total_geral_desconto'];
+        $data['total_geral'] = $totais['total_geral'];
+        $data['total_valor_liquido'] = $totais['total_valor_liquido'];
+        $data['total_vt_faturado'] = $totais['total_vt_faturado'];
+        $data['incluir_indicadores'] = $this->input->get('indicadores') === '1';
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de OS';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirOs', $data, true);
@@ -519,52 +603,9 @@ class Relatorios extends MY_Controller
 
         $isXls = $format === 'xls';
         $os = $this->Relatorios_model->osCustom($dataInicial, $dataFinal, $cliente, $responsavel, $status, $isXls);
-        $totalProdutos = 0;
-        $totalServicos = 0;
-        $totalDesconto = 0;
-        $totalValorDesconto = 0;
-        $valorTotal = 0;
-        foreach ($os as $o) {
-            $totalProdutos += $isXls
-                ? floatval($o['total_produto'])
-                : floatval($o->total_produto);
-            $totalServicos += $isXls
-                ? floatval($o['total_servico'])
-                : floatval($o->total_servico);
-            $totalDesconto += $isXls
-                ? floatval($o['desconto'])
-                : floatval($o->desconto);
-            $isXls
-                ?
-                $totalValorDesconto += $o['valor_desconto'] != 0
-                ? floatval($o['valor_desconto'])
-                : floatval($o['total_servico']) + floatval($o['total_produto'])
-                :
-                $totalValorDesconto += $o->valor_desconto != 0
-                ? floatval($o->valor_desconto)
-                : floatval($o->total_produto) + floatval($o->total_servico);
-        }
+        $totais = $this->prepararRelatorioOs($os, $isXls);
 
         if ($isXls) {
-            $osFormatadas = array_map(function ($item) {
-                $subTotal = floatval($item['total_servico']) + floatval($item['total_produto']);
-                $total = floatval($item['valor_desconto']) ?: floatval($item['total_servico']) + floatval($item['total_produto']);
-
-                return [
-                    'idOs' => $item['idOs'],
-                    'nomeCliente' => $item['nomeCliente'],
-                    'status' => $item['status'],
-                    'dataFinal' => $item['dataInicial'],
-                    'descricaoProduto' => $item['descricaoProduto'],
-                    'total_produto' => $item['total_produto'] ? $item['total_produto'] : 0,
-                    'total_servico' => $item['total_servico'] ? $item['total_servico'] : 0,
-                    'valorSubTotal' => $subTotal ? $subTotal : 0,
-                    'valorTotal' => $total ? $total : 0,
-                    'total_geral_desconto' => $item['desconto'] ?: 0,
-                    'tipo_desconto' => $item['tipo_desconto'] ?: '-',
-                ];
-            }, $os);
-
             $cabecalho = [
                 'ID OS' => 'integer',
                 'Cliente' => 'string',
@@ -577,13 +618,15 @@ class Relatorios extends MY_Controller
                 'Total Com Desconto' => 'price',
                 'Desconto' => 'number',
                 'Tipo Desconto' => 'string',
+                'Valor Líquido operacional' => 'price',
+                'V.T. Faturado' => 'price',
             ];
 
             $writer = new XLSXWriter();
 
             $writer->writeSheetHeader('Sheet1', $cabecalho);
-            foreach ($osFormatadas as $os) {
-                $writer->writeSheetRow('Sheet1', $os);
+            foreach ($totais['formatadas'] as $linha) {
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($linha));
             }
             $writer->writeSheetRow('Sheet1', []);
             $writer->writeSheetRow('Sheet1', [
@@ -592,10 +635,14 @@ class Relatorios extends MY_Controller
                 null,
                 null,
                 null,
-                $totalProdutos,
-                $totalServicos,
-                $totalProdutos + $totalServicos,
-                $totalValorDesconto + $valorTotal,
+                $totais['total_produtos'],
+                $totais['total_servicos'],
+                $totais['total_produtos'] + $totais['total_servicos'],
+                $totais['total_geral'],
+                null,
+                null,
+                $totais['total_valor_liquido'],
+                $totais['total_vt_faturado'],
             ]);
 
             $arquivo = $writer->writeToString();
@@ -615,16 +662,18 @@ class Relatorios extends MY_Controller
 
         $data['title'] = 'Relatório de OS - ' . $title;
         $data['os'] = $os;
-        $data['total_produtos'] = $totalProdutos;
-        $data['total_servicos'] = $totalServicos;
-        $data['total_geral_desconto'] = $totalDesconto;
-        $data['total_geral'] = $totalValorDesconto + $valorTotal;
+        $data['total_produtos'] = $totais['total_produtos'];
+        $data['total_servicos'] = $totais['total_servicos'];
+        $data['total_geral_desconto'] = $totais['total_geral_desconto'];
+        $data['total_geral'] = $totais['total_geral'];
+        $data['total_valor_liquido'] = $totais['total_valor_liquido'];
+        $data['total_vt_faturado'] = $totais['total_vt_faturado'];
+        $data['incluir_indicadores'] = $this->input->get('indicadores') === '1';
         $data['res_nome'] = $usuario;
 
         $data['dataInicial'] = $dataInicial != null ? date('d-m-Y', strtotime($dataInicial)) : 'indefinida';
         $data['dataFinal'] = $dataFinal != null ? date('d-m-Y', strtotime($dataFinal)) : 'indefinida';
         $data['emitente'] = $this->Mapos_model->getEmitente();
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $html = $this->load->view('relatorios/imprimir/imprimirOs', $data, true);
         pdf_create($html, 'relatorio_os' . date('d/m/y'), true, true);
@@ -637,7 +686,8 @@ class Relatorios extends MY_Controller
             redirect(base_url());
         }
 
-        $this->data['view'] = 'relatorios/rel_financeiro';
+        $this->data['relatorio'] = relatorioDefinicao('financeiro');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
     }
@@ -690,7 +740,7 @@ class Relatorios extends MY_Controller
 
             $writer->writeSheetHeader('Sheet1', $cabecalho);
             foreach ($lancamentosFormatados as $lancamento) {
-                $writer->writeSheetRow('Sheet1', $lancamento);
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($lancamento));
             }
 
             $arquivo = $writer->writeToString();
@@ -701,10 +751,12 @@ class Relatorios extends MY_Controller
         }
 
         $data['lancamentos'] = $this->Relatorios_model->financeiroRapid();
-        $data['custosFixosPeriodo'] = $this->Financeiro_model->getCustosFixosPeriodo(date('d/m/Y', strtotime('first day of this month')), date('d/m/Y', strtotime('last day of this month')));
+        $data['indicadores_financeiros'] = $this->indicadoresFinanceirosRelatorio(
+            (new DateTimeImmutable('first day of this month'))->format('Y-m-d'),
+            (new DateTimeImmutable('last day of this month'))->format('Y-m-d')
+        );
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório Financeiro';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirFinanceiro', $data, true);
@@ -763,7 +815,7 @@ class Relatorios extends MY_Controller
 
             $writer->writeSheetHeader('Sheet1', $cabecalho);
             foreach ($lancamentosFormatados as $lancamento) {
-                $writer->writeSheetRow('Sheet1', $lancamento);
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($lancamento));
             }
 
             $arquivo = $writer->writeToString();
@@ -774,10 +826,9 @@ class Relatorios extends MY_Controller
         }
 
         $data['lancamentos'] = $this->Relatorios_model->financeiroCustom($dataInicial, $dataFinal, $tipo, $situacao);
-        $data['custosFixosPeriodo'] = $this->Financeiro_model->getCustosFixosPeriodo($dataInicial, $dataFinal);
+        $data['indicadores_financeiros'] = $this->indicadoresFinanceirosRelatorio($dataInicial, $dataFinal, $tipo, $situacao);
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório Financeiro Customizado';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirFinanceiro', $data, true);
@@ -791,7 +842,8 @@ class Relatorios extends MY_Controller
             redirect(base_url());
         }
 
-        $this->data['view'] = 'relatorios/rel_vendas';
+        $this->data['relatorio'] = relatorioDefinicao('vendas');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
     }
@@ -853,7 +905,7 @@ class Relatorios extends MY_Controller
             $writer->writeSheetRow(null, []);
             $writer->writeSheetHeader('Sheet1', $cabecalho);
             foreach ($vendasFormatadas as $venda) {
-                $writer->writeSheetRow('Sheet1', $venda);
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($venda));
             }
             $writer->writeSheetRow(null, []);
             $writer->writeSheetRow(null, []);
@@ -881,7 +933,6 @@ class Relatorios extends MY_Controller
         $data['total_geral'] = $totalValorDesconto;
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Vendas Rápido';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirVendas', $data, true);
@@ -947,7 +998,7 @@ class Relatorios extends MY_Controller
             $writer = new XLSXWriter();
             $writer->writeSheetHeader('Sheet1', $cabecalho);
             foreach ($vendasFormatadas as $venda) {
-                $writer->writeSheetRow('Sheet1', $venda);
+                $writer->writeSheetRow('Sheet1', planilhaCelulasSeguras($venda));
             }
             $writer->writeSheetRow(null, []);
             $writer->writeSheetRow(null, []);
@@ -973,7 +1024,6 @@ class Relatorios extends MY_Controller
         $data['total_vendas'] = $totalVendas;
         $data['emitente'] = $this->Mapos_model->getEmitente();
         $data['title'] = 'Relatório de Vendas Customizado';
-        $data['topo'] = $this->load->view('relatorios/imprimir/imprimirTopo', $data, true);
 
         $this->load->helper('mpdf');
         $html = $this->load->view('relatorios/imprimir/imprimirVendas', $data, true);
@@ -987,7 +1037,8 @@ class Relatorios extends MY_Controller
             redirect(base_url());
         }
 
-        $this->data['view'] = 'relatorios/rel_receitas_brutas_mei';
+        $this->data['relatorio'] = relatorioDefinicao('receitasBrutasMei');
+        $this->data['view'] = 'relatorios/relatorio';
 
         return $this->layout();
     }
@@ -1017,8 +1068,8 @@ class Relatorios extends MY_Controller
             return redirect('/relatorios/receitasBrutasMei');
         }
 
-        $tempFilePath = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'relatorios' . DIRECTORY_SEPARATOR . 'temp.docx';
-        $generatedFilePath = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'relatorios' . DIRECTORY_SEPARATOR . "RELATORIO_MENSAL_DAS_RECEITAS_BRUTAS_MEI_GERADO.$format";
+        $tempFilePath = $this->arquivoTemporario('docx');
+        $generatedFilePath = $this->arquivoTemporario($format);
 
         $templateProcessor = new TemplateProcessor($templatePath);
         $data = $this->Relatorios_model->receitasBrutasRapid();
@@ -1081,8 +1132,14 @@ class Relatorios extends MY_Controller
             return redirect('/relatorios/receitasBrutasMei');
         }
 
-        $tempFilePath = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'relatorios' . DIRECTORY_SEPARATOR . 'temp.docx';
-        $generatedFilePath = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'relatorios' . DIRECTORY_SEPARATOR . "RELATORIO_MENSAL_DAS_RECEITAS_BRUTAS_MEI_GERADO.$format";
+        $nomeArquivo = sprintf(
+            "relatorio_receitas_brutas_mei_custom_%s_até_%s.$format",
+            preg_replace('/[^0-9\-]/', '', (string) $dataInicial),
+            preg_replace('/[^0-9\-]/', '', (string) $dataFinal)
+        );
+
+        $tempFilePath = $this->arquivoTemporario('docx');
+        $generatedFilePath = $this->arquivoTemporario($format);
 
         $templateProcessor = new TemplateProcessor($templatePath);
         $data = $this->Relatorios_model->receitasBrutasCustom($dataInicial, $dataFinal);
@@ -1094,14 +1151,7 @@ class Relatorios extends MY_Controller
             $fileContents = file_get_contents($generatedFilePath);
             unlink($generatedFilePath);
 
-            return force_download(
-                sprintf(
-                    "relatorio_receitas_brutas_mei_custom_%s_até_%s.$format",
-                    preg_replace('/[^0-9\-]/', '', (string) $dataInicial),
-                    preg_replace('/[^0-9\-]/', '', (string) $dataFinal)
-                ),
-                $fileContents
-            );
+            return force_download($nomeArquivo, $fileContents);
         } else {
             Settings::setPdfRendererName(Settings::PDF_RENDERER_MPDF);
             Settings::setPdfRendererPath('.');
@@ -1116,11 +1166,27 @@ class Relatorios extends MY_Controller
             unlink($generatedFilePath);
 
             return $this->output
-                ->set_header('Content-disposition: inline;filename=' . "relatorio_receitas_brutas_mei_custom_%s_até_%s.$format")
+                ->set_header('Content-disposition: inline;filename=' . $nomeArquivo)
                 ->set_content_type(get_mime_by_extension($generatedFilePath))
                 ->set_status_header(200)
                 ->set_output($fileContents)
                 ->_display();
         }
+    }
+
+    /**
+     * Caminho único fora do webroot, apagado ao fim da requisição mesmo se a
+     * geração falhar: o nome fixo em assets/ ficava público e podia sobrar.
+     */
+    private function arquivoTemporario(string $extensao): string
+    {
+        $base = tempnam(sys_get_temp_dir(), 'mapos_mei_');
+        $caminho = $base . '.' . $extensao;
+        register_shutdown_function(static function () use ($base, $caminho) {
+            @unlink($base);
+            @unlink($caminho);
+        });
+
+        return $caminho;
     }
 }

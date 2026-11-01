@@ -2,10 +2,12 @@
 
 defined('BASEPATH') or exit('No direct script access allowed');
 
+require_once __DIR__ . '/../helpers/cookie_seguro_helper.php';
+
 /**
  * App current version
  */
-$config['app_version'] = '4.55.0';
+$config['app_version'] = '5.2.2';
 
 /**
  * Nome do sistema
@@ -401,11 +403,48 @@ $config['encryption_key'] = $_ENV['APP_ENCRYPTION_KEY'];
 */
 $config['sess_driver'] = $_ENV['APP_SESS_DRIVER'] ?? 'database';
 $config['sess_cookie_name'] = $_ENV['APP_SESS_COOKIE_NAME'] ?? 'app_session';
-$config['sess_expiration'] = $_ENV['APP_SESS_EXPIRATION'] ?? 7200;
 $config['sess_save_path'] = $_ENV['APP_SESS_SAVE_PATH'] ?? 'ci_sessions';
+
+/* --------------------------------------------------------------------------
+   Política de expiração por inatividade (Configurações > Segurança e sessões).
+   A escolha do administrador fica em configuracoes e é espelhada em
+   application/cache/sessao-idle-policy.json para estar disponível aqui,
+   antes da Session e da Security iniciarem. Quando não há escolha, mantém o
+   comportamento anterior (7200s).
+*/
+$cacheDePolitica = __DIR__ . '/../cache/sessao-idle-policy.json';
+$politicaSessao = null;
+if (is_file($cacheDePolitica)) {
+    $dadosPolitica = json_decode((string) file_get_contents($cacheDePolitica), true);
+    if (is_array($dadosPolitica) && isset($dadosPolitica['modo']) && in_array($dadosPolitica['modo'], ['never', 'timed'], true)) {
+        $politicaSessao = $dadosPolitica;
+    }
+}
+
+$tempoPadrao = (int) ($_ENV['APP_SESS_EXPIRATION'] ?? 7200);
+$config['sess_expiration'] = $tempoPadrao;
+$config['csrf_expire'] = (int) ($_ENV['APP_CSRF_EXPIRE'] ?? 7200);
+
+if ($politicaSessao !== null) {
+    $tempoPolitica = ($politicaSessao['modo'] === 'never') ? 0 : ((int) ($politicaSessao['tempo'] ?? $tempoPadrao));
+    if ($politicaSessao['modo'] === 'never') {
+        // Cookie de sessão sem Expiração/Max-Age: dura enquanto a sessão do
+        // navegador estiver aberta (inclusive restauração de aba/janela).
+        $config['sess_expiration'] = 0;
+        $config['csrf_expire'] = 0;
+        // O garbage collector só remove sessões realmente abandonadas (30 dias
+        // sem atividade); não encerra a sessão ativa por inatividade.
+        ini_set('session.gc_maxlifetime', '2592000');
+    } elseif ($tempoPolitica > 0) {
+        $config['sess_expiration'] = $tempoPolitica;
+        $config['csrf_expire'] = $tempoPolitica;
+    }
+}
 $config['sess_match_ip'] = isset($_ENV['APP_SESS_MATCH_IP']) ? filter_var($_ENV['APP_SESS_MATCH_IP'], FILTER_VALIDATE_BOOLEAN) : false;
 $config['sess_time_to_update'] = $_ENV['APP_SESS_TIME_TO_UPDATE'] ?? 300;
-$config['sess_regenerate_destroy'] = isset($_ENV['APP_SESS_REGENERATE_DESTROY']) ? filter_var($_ENV['APP_SESS_REGENERATE_DESTROY'], FILTER_VALIDATE_BOOLEAN) : false;
+// Ao regenerar o ID, o anterior é apagado na hora: um ID vazado deixa de
+// valer na próxima regeneração, em vez de esperar o garbage collector.
+$config['sess_regenerate_destroy'] = cookieEnvFlag($_ENV['APP_SESS_REGENERATE_DESTROY'] ?? null, true);
 
 /*
 |--------------------------------------------------------------------------
@@ -417,6 +456,7 @@ $config['sess_regenerate_destroy'] = isset($_ENV['APP_SESS_REGENERATE_DESTROY'])
 | 'cookie_path'     = Typically will be a forward slash
 | 'cookie_secure'   = Cookie will only be set if a secure HTTPS connection exists.
 | 'cookie_httponly' = Cookie will only be accessible via HTTP(S) (no javascript)
+| 'cookie_samesite' = Cookie's samesite attribute (Lax, Strict or None)
 |
 | Note: These settings (with the exception of 'cookie_prefix' and
 |       'cookie_httponly') will also affect sessions.
@@ -425,8 +465,18 @@ $config['sess_regenerate_destroy'] = isset($_ENV['APP_SESS_REGENERATE_DESTROY'])
 $config['cookie_prefix'] = $_ENV['APP_COOKIE_PREFIX'] ?? '';
 $config['cookie_domain'] = $_ENV['APP_COOKIE_DOMAIN'] ?? '';
 $config['cookie_path'] = $_ENV['APP_COOKIE_PATH'] ?? '/';
-$config['cookie_secure'] = isset($_ENV['APP_COOKIE_SECURE']) ? filter_var($_ENV['APP_COOKIE_SECURE'], FILTER_VALIDATE_BOOLEAN) : false;
-$config['cookie_httponly'] = isset($_ENV['APP_COOKIE_HTTPONLY']) ? filter_var($_ENV['APP_COOKIE_HTTPONLY'], FILTER_VALIDATE_BOOLEAN) : false;
+// Os padrões ficam em cookie_seguro_helper.php. Resumo, com a variável ausente
+// do .env:
+// - cookie_secure: Secure só quando a requisição chega por HTTPS
+//   (APP_COOKIE_SECURE=auto). X-Forwarded-Proto só vale vindo de APP_PROXY_IPS.
+// - cookie_httponly: ligado. O cookie do CSRF é a exceção, porque o
+//   assets/js/csrf.js precisa lê-lo (ver MY_Security).
+// - cookie_samesite / sess_samesite: Lax.
+// Valores explícitos no .env são respeitados. Ver docs/cookies-e-sessao.md.
+$config['cookie_secure'] = cookieSecure($_ENV['APP_COOKIE_SECURE'] ?? null, $_SERVER, $_ENV['APP_PROXY_IPS'] ?? '');
+$config['cookie_httponly'] = cookieEnvFlag($_ENV['APP_COOKIE_HTTPONLY'] ?? null, true);
+$config['cookie_samesite'] = cookieSameSite($_ENV['APP_COOKIE_SAMESITE'] ?? 'Lax', $config['cookie_secure']);
+$config['sess_samesite'] = $config['cookie_samesite'];
 
 /*
 |--------------------------------------------------------------------------
@@ -445,9 +495,11 @@ $config['cookie_httponly'] = isset($_ENV['APP_COOKIE_HTTPONLY']) ? filter_var($_
 $config['csrf_protection'] = isset($_ENV['APP_CSRF_PROTECTION']) ? filter_var($_ENV['APP_CSRF_PROTECTION'], FILTER_VALIDATE_BOOLEAN) : true;
 $config['csrf_token_name'] = $_ENV['APP_CSRF_TOKEN_NAME'] ?? 'MAPOS_TOKEN';
 $config['csrf_cookie_name'] = $_ENV['APP_CSRF_COOKIE_NAME'] ?? 'MAPOS_COOKIE';
-$config['csrf_expire'] = $_ENV['APP_CSRF_EXPIRE'] ?? 7200;
+// csrf_expire já foi definido acima pela política de sessão (ou mantém o
+// padrão do .env quando não há escolha do administrador).
 $config['csrf_regenerate'] = isset($_ENV['APP_CSRF_REGENERATE']) ? filter_var($_ENV['APP_CSRF_REGENERATE'], FILTER_VALIDATE_BOOLEAN) : true;
-$config['csrf_exclude_uris'] = ['api.*+'];
+// csp/report recebe os relatórios de CSP que o navegador envia sozinho, sem token.
+$config['csrf_exclude_uris'] = ['api.*+', 'csp/report'];
 
 /*
 |--------------------------------------------------------------------------
@@ -514,7 +566,10 @@ $config['proxy_ips'] = $_ENV['APP_PROXY_IPS'] ?? '';
 |          for backwards compatibility purposes!
 |
 */
-$config['global_xss_filtering'] = $_ENV['GLOBAL_XSS_FILTERING'] ? filter_var($_ENV['GLOBAL_XSS_FILTERING'], FILTER_VALIDATE_BOOLEAN) : true;
+// Desligado na v5 (#2873): o filtro alterava os dados de entrada; as views
+// escapam a saída com e() (scripts/check-escape.php) e o HTML confiável passa
+// pelo HTMLPurifier (printSafeHtml()).
+$config['global_xss_filtering'] = false;
 
 /*
 |--------------------------------------------------------------------------

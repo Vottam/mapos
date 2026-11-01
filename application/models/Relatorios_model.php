@@ -5,6 +5,7 @@ class Relatorios_model extends CI_Model
     public function __construct()
     {
         parent::__construct();
+        $this->load->model('Os_model');
     }
 
     public function get($table, $fields, $where = '', $perpage = 0, $start = 0, $one = false, $array = 'array')
@@ -61,24 +62,32 @@ class Relatorios_model extends CI_Model
         return $this->db->count_all($table);
     }
 
-    public function clientesCustom($dataInicial = null, $dataFinal = null, $tipo = null)
+    public function clientesCustom($dataInicial = null, $dataFinal = null, $tipo = null, $pesquisa = null)
     {
-        $whereData = '';
-        if ($dataInicial != null) {
-            $whereData .= 'AND dataCadastro >= ' . $this->db->escape($dataInicial);
+        $this->db->select('idClientes, nomeCliente, sexo, pessoa_fisica, documento, telefone, celular, contato, email, fornecedor, dataCadastro, rua, numero, complemento, bairro, cidade, estado, cep');
+        $this->db->from('clientes');
+        if ($dataInicial !== null && $dataInicial !== '') {
+            $this->db->where('dataCadastro >=', $dataInicial);
         }
-        if ($dataFinal != null) {
-            $whereData .= 'AND dataCadastro <= ' . $this->db->escape($dataFinal);
+        if ($dataFinal !== null && $dataFinal !== '') {
+            $this->db->where('dataCadastro <=', $dataFinal);
         }
-        if ($tipo != null) {
-            $whereData .= 'AND fornecedor = ' . $this->db->escape($tipo);
+        if ($tipo !== null && $tipo !== '') {
+            $this->db->where('fornecedor', $tipo);
         }
-        $query = "SELECT idClientes, nomeCliente, sexo, pessoa_fisica,
-        documento, telefone, celular, contato, email, fornecedor,
-        dataCadastro, rua, numero, complemento, bairro, cidade, estado,
-        cep FROM clientes WHERE dataCadastro $whereData ORDER BY nomeCliente";
+        $pesquisa = is_scalar($pesquisa) ? trim((string) $pesquisa) : '';
+        if ($pesquisa !== '') {
+            $this->db->group_start()
+                ->like('nomeCliente', $pesquisa)
+                ->or_like('documento', $pesquisa)
+                ->or_like('telefone', $pesquisa)
+                ->or_like('celular', $pesquisa)
+                ->or_like('contato', $pesquisa)
+                ->or_like('email', $pesquisa)
+                ->group_end();
+        }
 
-        return $this->db->query($query, [$dataInicial, $dataFinal])->result();
+        return $this->db->order_by('nomeCliente')->get()->result();
     }
 
     public function clientesRapid($array = false)
@@ -132,27 +141,49 @@ class Relatorios_model extends CI_Model
         return $this->db->query($query)->result();
     }
 
-    public function produtosCustom($precoInicial = null, $precoFinal = null, $estoqueInicial = null, $estoqueFinal = null)
+    /**
+     * Produtos filtrados por faixa de preço de venda e de estoque. Cada limite
+     * vale sozinho (só "de" ou só "até"); null não filtra.
+     */
+    public function produtosCustom($precoInicial = null, $precoFinal = null, $estoqueInicial = null, $estoqueFinal = null, $pesquisa = null)
     {
-        $wherePreco = '';
-        $whereEstoque = '';
-        if ($precoInicial != null) {
-            $wherePreco = 'AND precoVenda BETWEEN ' . $this->db->escape($precoInicial) . ' AND ' . $this->db->escape($precoFinal);
+        $this->db->select('produtos.*');
+        $this->db->select('SUM(produtos.estoque * produtos.precoVenda) as valorEstoque', false);
+        $this->db->select('SUM(produtos.estoque * produtos.precoCompra) as valorEstoqueR', false);
+        $this->db->from('produtos');
+        $this->db->where('estoque >=', 0);
+        if ($precoInicial !== null && $precoInicial !== '') {
+            $this->db->where('precoVenda >=', $precoInicial);
         }
-        if ($estoqueInicial != null) {
-            $whereEstoque = 'AND estoque BETWEEN ' . $this->db->escape($estoqueInicial) . ' AND ' . $this->db->escape($estoqueFinal);
+        if ($precoFinal !== null && $precoFinal !== '') {
+            $this->db->where('precoVenda <=', $precoFinal);
         }
-        $query = "
-            SELECT produtos.*,
-            SUM(produtos.estoque * produtos.precoVenda) as valorEstoque,
-            SUM(produtos.estoque * produtos.precoCompra) as valorEstoqueR
-            FROM produtos
-            WHERE estoque >= 0 $wherePreco $whereEstoque
-            GROUP BY produtos.idProdutos
-            ORDER BY descricao
-        ";
+        if ($estoqueInicial !== null && $estoqueInicial !== '') {
+            $this->db->where('estoque >=', $estoqueInicial);
+        }
+        if ($estoqueFinal !== null && $estoqueFinal !== '') {
+            $this->db->where('estoque <=', $estoqueFinal);
+        }
+        $pesquisa = is_scalar($pesquisa) ? trim((string) $pesquisa) : '';
+        if ($pesquisa !== '') {
+            $this->db->group_start()->like('descricao', $pesquisa)->or_like('codDeBarra', $pesquisa)->group_end();
+        }
 
-        return $this->db->query($query)->result();
+        return $this->db->group_by('produtos.idProdutos')->order_by('descricao')->get()->result();
+    }
+
+    /** Trecho "AND coluna >= x AND coluna <= y" com os limites informados, ou "". */
+    private function faixa(string $coluna, $minimo, $maximo): string
+    {
+        $sql = '';
+        if ($minimo !== null && $minimo !== '') {
+            $sql .= " AND {$coluna} >= " . $this->db->escape($minimo);
+        }
+        if ($maximo !== null && $maximo !== '') {
+            $sql .= " AND {$coluna} <= " . $this->db->escape($maximo);
+        }
+
+        return $sql;
     }
 
     public function produtosEtiquetas($de, $ate)
@@ -247,15 +278,62 @@ class Relatorios_model extends CI_Model
         return $this->db->get('servicos')->result();
     }
 
-    public function servicosCustom($precoInicial = null, $precoFinal = null)
+    public function servicosCustom($precoInicial = null, $precoFinal = null, $pesquisa = null, $cliente = null)
     {
-        $query = 'SELECT * FROM servicos WHERE preco BETWEEN ? AND ? ORDER BY nome';
+        $pesquisa = is_scalar($pesquisa) ? trim((string) $pesquisa) : '';
+        $cliente = is_scalar($cliente) ? trim((string) $cliente) : '';
 
-        return $this->db->query($query, [$precoInicial, $precoFinal])->result();
+        if ($cliente !== '') {
+            $preco = 'COALESCE(NULLIF(servicos_os.preco, 0), servicos.preco)';
+            $this->db->select("servicos.*, {$preco} AS preco, servicos_os.quantidade, servicos_os.subTotal, os.idOs, clientes.nomeCliente", false)
+                ->from('servicos_os')
+                ->join('servicos', 'servicos.idServicos = servicos_os.servicos_id')
+                ->join('os', 'os.idOs = servicos_os.os_id')
+                ->join('clientes', 'clientes.idClientes = os.clientes_id')
+                ->group_start()
+                ->like('clientes.nomeCliente', $cliente)
+                ->or_like('clientes.documento', $cliente)
+                ->or_like('clientes.telefone', $cliente)
+                ->or_like('clientes.celular', $cliente)
+                ->group_end();
+            if ($precoInicial !== null && $precoInicial !== '') {
+                $this->db->where("{$preco} >=", $precoInicial, false);
+            }
+            if ($precoFinal !== null && $precoFinal !== '') {
+                $this->db->where("{$preco} <=", $precoFinal, false);
+            }
+
+            return $this->db->order_by('servicos.nome')->get()->result();
+        }
+
+        $this->db->from('servicos');
+        if ($precoInicial !== null && $precoInicial !== '') {
+            $this->db->where('preco >=', $precoInicial);
+        }
+        if ($precoFinal !== null && $precoFinal !== '') {
+            $this->db->where('preco <=', $precoFinal);
+        }
+        if ($pesquisa !== '') {
+            $this->db->like('nome', $pesquisa);
+        }
+
+        return $this->db->order_by('nome')->get()->result();
+    }
+
+    /** Mantém o contrato legado e acrescenta os indicadores C5B do Os_model. */
+    private function finalizarOsRelatorio(array $linhas, bool $array): array
+    {
+        $linhas = $this->Os_model->aplicarIndicadoresFinanceiros($linhas);
+        if ($array) {
+            return array_map(static fn ($linha): array => (array) $linha, $linhas);
+        }
+
+        return $linhas;
     }
 
     public function osRapid($array = false)
     {
+        $indicadores = $this->Os_model->indicadoresFinanceirosSql();
         $query = 'CREATE TEMPORARY TABLE IF NOT EXISTS total_produtos SELECT SUM(subTotal) as total_produto, os_id FROM produtos_os GROUP BY os_id; ';
         $this->db->query($query);
 
@@ -263,18 +341,18 @@ class Relatorios_model extends CI_Model
         $this->db->query($query);
 
         $this->db->select('os.*,clientes.nomeCliente, total_servicos.total_servico, total_produtos.total_produto');
+        $this->db->select($indicadores['totalProdutos'] . ' AS totalProdutos', false);
+        $this->db->select($indicadores['totalServicos'] . ' AS totalServicos', false);
+        $this->db->select($indicadores['brutoFinanceiro'] . ' AS bruto_financeiro', false);
+        $this->db->select($indicadores['custoComponentes'] . ' AS custo_componentes', false);
+        $this->db->select($indicadores['vtFaturado'] . ' AS vt_faturado', false);
         $this->db->from('os');
         $this->db->join('clientes', 'clientes.idClientes = os.clientes_id');
-        $this->db->join('total_produtos', 'total_produtos.os_id = os.idOs', 'left');
         $this->db->join('total_servicos', 'total_servicos.os_id = os.idOs', 'left');
+        $this->db->join('total_produtos', 'total_produtos.os_id = os.idOs', 'left');
         $this->db->order_by('os.dataInicial', 'DESC');
 
-        $result = $this->db->get();
-        if ($array) {
-            return $result->result_array();
-        }
-
-        return $result->result();
+        return $this->finalizarOsRelatorio($this->db->get()->result(), (bool) $array);
     }
 
     public function osCustom($dataInicial = null, $dataFinal = null, $cliente = null, $responsavel = null, $status = null, $array = false)
@@ -298,25 +376,27 @@ class Relatorios_model extends CI_Model
         if ($status != null) {
             $whereStatus = 'AND status = ' . $this->db->escape($status);
         }
+        $indicadores = $this->Os_model->indicadoresFinanceirosSql();
         $query = 'CREATE TEMPORARY TABLE IF NOT EXISTS total_produtos SELECT SUM(subTotal) as total_produto, os_id FROM produtos_os GROUP BY os_id; ';
         $this->db->query($query);
 
         $query = 'CREATE TEMPORARY TABLE IF NOT EXISTS total_servicos SELECT SUM(subTotal) as total_servico, os_id FROM servicos_os GROUP BY os_id; ';
         $this->db->query($query);
 
-        $query = "SELECT os.*,clientes.nomeCliente, total_servicos.total_servico, total_produtos.total_produto FROM os
+        $query = "SELECT os.*,clientes.nomeCliente, total_servicos.total_servico, total_produtos.total_produto,
+                   {$indicadores['totalProdutos']} AS totalProdutos,
+                   {$indicadores['totalServicos']} AS totalServicos,
+                   {$indicadores['brutoFinanceiro']} AS bruto_financeiro,
+                   {$indicadores['custoComponentes']} AS custo_componentes,
+                   {$indicadores['vtFaturado']} AS vt_faturado
+                   FROM os
                    LEFT JOIN total_produtos ON total_produtos.os_id = os.idOs
                    LEFT JOIN total_servicos ON total_servicos.os_id = os.idOs
                    LEFT JOIN clientes ON os.clientes_id = clientes.idClientes
                    WHERE idOs != 0 $whereData $whereCliente $whereResponsavel $whereStatus
                    ORDER BY os.dataInicial";
 
-        $result = $this->db->query($query);
-        if ($array) {
-            return $result->result_array();
-        }
-
-        return $result->result();
+        return $this->finalizarOsRelatorio($this->db->query($query)->result(), (bool) $array);
     }
 
     public function financeiroRapid($array = false)
@@ -335,8 +415,14 @@ class Relatorios_model extends CI_Model
         return $result->result();
     }
 
-    public function financeiroCustom($dataInicial = null, $dataFinal = null, $tipo = null, $situacao = null, $array = false)
+    public function financeiroCustom($dataInicial = null, $dataFinal = null, $tipo = null, $situacao = null, $formaPgto = null, $array = false)
     {
+        // Compatibilidade com o contrato legado: o quinto argumento booleano
+        // continua sendo o pedido por array; a v5 também aceita forma de pagamento.
+        if (is_bool($formaPgto) && $array === false) {
+            $array = $formaPgto;
+            $formaPgto = null;
+        }
         if ($dataInicial) {
             $this->db->where('data_vencimento >=', $dataInicial);
         }
@@ -356,6 +442,10 @@ class Relatorios_model extends CI_Model
             if ($situacao === 'pago') {
                 $this->db->where('baixado', 1);
             }
+        }
+
+        if (is_scalar($formaPgto) && trim((string) $formaPgto) !== '' && $formaPgto !== 'todos') {
+            $this->db->where('forma_pgto', trim((string) $formaPgto));
         }
 
         $this->db->order_by('data_vencimento', 'asc');
@@ -449,7 +539,7 @@ class Relatorios_model extends CI_Model
         $servicosTotalComNf = 0;
         $servicosTotal = $servicosTotalSemNf + $servicosTotalComNf;
 
-        $totalMes = $mercadoriasTotal + $industriaTotal = $servicosTotal;
+        $totalMes = $mercadoriasTotal + $industriaTotal + $servicosTotal;
 
         $periodo = sprintf('%s à %s', $inicio->format('d/m/Y'), $fim->format('d/m/Y'));
 
@@ -505,7 +595,7 @@ class Relatorios_model extends CI_Model
         $servicosTotalComNf = 0;
         $servicosTotal = $servicosTotalSemNf + $servicosTotalComNf;
 
-        $totalMes = $mercadoriasTotal + $industriaTotal = $servicosTotal;
+        $totalMes = $mercadoriasTotal + $industriaTotal + $servicosTotal;
 
         $periodo = sprintf('%s à %s', $inicio->format('d/m/Y'), $fim->format('d/m/Y'));
 

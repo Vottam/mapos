@@ -73,17 +73,11 @@ class ApiController extends REST_Controller
                 case 'Cancelado':
                     $cor = '#CD0000';
                     break;
-                case 'Sem Conserto':
-                    $cor = '#f78da7';
-                    break;
                 case 'Finalizado':
                     $cor = '#256';
                     break;
                 case 'Faturado':
                     $cor = '#B266FF';
-                    break;
-                case 'Entregue':
-                    $cor = '#17a2b8';
                     break;
                 case 'Aguardando Peças':
                     $cor = '#FF7F00';
@@ -100,14 +94,14 @@ class ApiController extends REST_Controller
                 'color' => $cor,
                 'extendedProps' => [
                     'id' => $os->idOs,
-                    'cliente' => '<b>Cliente:</b> ' . $os->nomeCliente,
+                    'cliente' => '<b>Cliente:</b> ' . html_escape($os->nomeCliente),
                     'dataInicial' => '<b>Data Inicial:</b> ' . date('d/m/Y', strtotime($os->dataInicial)),
                     'dataFinal' => '<b>Data Final:</b> ' . date('d/m/Y', strtotime($os->dataFinal)),
-                    'garantia' => '<b>Garantia:</b> ' . $os->garantia . ' dias',
-                    'status' => '<b>Status da OS:</b> ' . $os->status,
-                    'description' => '<b>Descrição/Produto:</b> ' . strip_tags(html_entity_decode($os->descricaoProduto)),
-                    'defeito' => '<b>Defeito:</b> ' . strip_tags(html_entity_decode($os->defeito)),
-                    'observacoes' => '<b>Observações:</b> ' . strip_tags(html_entity_decode($os->observacoes)),
+                    'garantia' => '<b>Garantia:</b> ' . html_escape($os->garantia) . ' dias',
+                    'status' => '<b>Status da OS:</b> ' . html_escape($os->status),
+                    'description' => '<b>Descrição/Produto:</b> ' . html_escape(strip_tags(html_entity_decode($os->descricaoProduto))),
+                    'defeito' => '<b>Defeito:</b> ' . html_escape(strip_tags(html_entity_decode($os->defeito))),
+                    'observacoes' => '<b>Observações:</b> ' . html_escape(strip_tags(html_entity_decode($os->observacoes))),
                     'total' => '<b>Valor Total:</b> R$ ' . number_format($os->totalProdutos + $os->totalServicos, 2, ',', '.'),
                     'desconto' => '<b>Desconto: </b>R$ ' . number_format($this->desconto(floatval($os->valorTotal), floatval($os->desconto), strval($os->tipo_desconto)), 2, ',', '.'),
                     'valorFaturado' => '<b>Valor Faturado:</b> ' . ($os->faturado ? 'R$ ' . number_format($os->valorTotal - $this->desconto(floatval($os->valorTotal), floatval($os->desconto), strval($os->tipo_desconto)), 2, ',', '.') : 'PENDENTE'),

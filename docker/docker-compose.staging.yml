@@ -1,0 +1,68 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: mapos_staging_nginx
+    volumes:
+      - "./etc/nginx/default.conf:/etc/nginx/conf.d/default.conf"
+      - "../:/var/www/html"
+      - "./etc/nginx/default.template.conf:/etc/nginx/conf.d/default.template"
+    env_file:
+      - ".env.staging"
+    command: /bin/sh -c "envsubst '$$NGINX_HOST $$NGINX_PORT' < /etc/nginx/conf.d/default.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+    restart: always
+    depends_on:
+      - php-fpm
+      - mysql
+
+  php-fpm:
+    image: docker-php-fpm
+    container_name: mapos_staging_php-fpm
+    restart: always
+    # STAGING: no automatic e-mail worker; the image contains baked-in cron jobs.
+    command: ["/bin/sh", "-c", "crontab -r 2>/dev/null || true; exec /usr/bin/supervisord"]
+    environment:
+      - APP_BASEURL=http://72.61.133.138:8095/
+      - APP_ENVIRONMENT=development
+      - STORAGE_PATH=/var/mapos-storage
+    volumes:
+      - "./etc/php/php.ini:/usr/local/etc/php/conf.d/php.ini"
+      - "./etc/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini"
+      - "./etc/php/supervisord.staging.conf:/etc/supervisor/conf.d/supervisord.conf:ro"
+      - "/opt/mapos-staging-storage:/var/mapos-storage"
+      - "../:/var/www/html"
+    networks:
+      - staging_app
+      - staging_db
+
+  composer:
+    container_name: mapos_staging_composer
+    build:
+      context: ./etc/composer
+      dockerfile: Dockerfile
+    volumes:
+      - "../:/app"
+    command: install --ignore-platform-reqs --no-scripts
+
+  mysql:
+    image: mysql:${MYSQL_MAPOS_VERSION}
+    container_name: mapos_staging_mysql
+    restart: always
+    env_file:
+      - ".env.staging"
+    environment:
+      - MYSQL_DATABASE=${MYSQL_MAPOS_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_MAPOS_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_MAPOS_USER}
+      - MYSQL_PASSWORD=${MYSQL_MAPOS_PASSWORD}
+    volumes:
+      - "./data-staging/db/mysql:/var/lib/mysql"
+      - "../banco.sql:/docker-entrypoint-initdb.d/01-banco.sql:ro"
+
+networks:
+  staging_app:
+    external: true
+    name: mapos_staging_app
+  staging_db:
+    external: true
+    name: mapos_staging_db
+

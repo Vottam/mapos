@@ -1,57 +1,39 @@
-<!DOCTYPE html>
-<html>
-
-<head>
-    <title>MAPOS</title>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/bootstrap-responsive.min.css" />
-    <link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/fullcalendar.css" />
-    <link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/main.css" />
-    <link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/blue.css" class="skin-color" />
-</head>
-
-<body style="background-color: transparent">
-    <div class="container-fluid">
-        <div class="row-fluid">
-            <div class="span12">
-                <div class="widget-box">
-                    <?= $topo ?>
-                    <div class="widget-title">
-                        <h4 style="text-align: center; font-size: 1.1em; padding: 5px;">
-                            <?= ucfirst($title) ?>
-                        </h4>
-                    </div>
-                    <div class="widget_content nopadding">
-                    <table width="100%" class="table table-bordered">
-                            <thead>
-                                <tr>
-                                    <th width="350" style="font-size: 15px">Nome</th>
-                                    <th width="650" style="font-size: 15px">Descrição</th>
-                                    <th width="140" style="font-size: 15px">Preço</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                    foreach ($servicos as $s) {
-                                        echo '<tr>';
-                                        echo '<td>' . $s->nome . '</td>';
-                                        echo '<td>' . $s->descricao . '</td>';
-                                        echo '<td align="center">R$: ' . $s->preco . '</td>';
-                                        echo '</tr>';
-                                    }
-    ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <h5 style="text-align: right; font-size: 0.8em; padding: 5px;">Data do Relatório: <?php echo date('d/m/Y'); ?>
-                </h5>
-            </div>
-        </div>
-    </div>
-</body>
-
-</html>
+<?php
+$porCliente = isset($porCliente) && $porCliente;
+$this->load->view('relatorios/imprimir/partes/inicio', ['tituloDoc' => ucfirst($title)]);
+?>
+    <table class="rel-tabela">
+        <thead>
+            <tr>
+                <?php if ($porCliente) : ?>
+                    <th class="rel-th">N. da OS</th>
+                    <th class="rel-th">Cliente</th>
+                <?php endif; ?>
+                <th class="rel-th">Nome</th>
+                <th class="rel-th">Descrição</th>
+                <th class="rel-th">Preço</th>
+                <?php if ($porCliente) : ?>
+                    <th class="rel-th">Qtd.</th>
+                    <th class="rel-th">Subtotal</th>
+                <?php endif; ?>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($servicos as $s) : ?>
+                <tr>
+                    <?php if ($porCliente) : ?>
+                        <td class="rel-td text-center"><?= e($s->idOs) ?></td>
+                        <td class="rel-td"><?= e($s->nomeCliente) ?></td>
+                    <?php endif; ?>
+                    <td class="rel-td"><?= e($s->nome) ?></td>
+                    <td class="rel-td"><?= e($s->descricao) ?></td>
+                    <td class="rel-td text-center">R$: <?= e($s->preco) ?></td>
+                    <?php if ($porCliente) : ?>
+                        <td class="rel-td text-center"><?= e($s->quantidade) ?></td>
+                        <td class="rel-td text-center">R$: <?= e($s->subTotal) ?></td>
+                    <?php endif; ?>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php $this->load->view('relatorios/imprimir/partes/fim'); ?>

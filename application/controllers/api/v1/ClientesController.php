@@ -11,7 +11,7 @@ class ClientesController extends REST_Controller
         parent::__construct();
 
         $this->load->model('clientes_model');
-        $this->load->helper('validation_helper');
+        $this->load->helper(['validation_helper', 'api']);
     }
 
     public function index_get($id = '')
@@ -25,20 +25,19 @@ class ClientesController extends REST_Controller
         }
 
         if (! $id) {
-            $search = trim($this->get('search', true));
-            $where = $search ? "nomeCliente LIKE '%{$search}%' OR documento LIKE '%{$search}%' OR telefone LIKE '%{$search}%' OR celular LIKE '%{$search}%' OR email LIKE '%{$search}%' OR contato LIKE '%{$search}%'" : '';
+            $search = trim((string) $this->get('search', true));
 
             $perPage = $this->get('perPage', true) ?: 20;
             $page = $this->get('page', true) ?: 0;
             $start = $page ? ($perPage * $page) : 0;
 
-            $clientes = $this->clientes_model->get('clientes', '*', $where, $perPage, $start);
+            $clientes = $this->clientes_model->get('clientes', '*', $search, $perPage, $start);
 
             if ($clientes) {
                 $this->response([
                     'status' => true,
                     'message' => 'Lista de Clientes',
-                    'result' => $clientes,
+                    'result' => apiSemSenha($clientes),
                 ], REST_Controller::HTTP_OK);
             }
         }
@@ -51,7 +50,7 @@ class ClientesController extends REST_Controller
                 $this->response([
                     'status' => true,
                     'message' => 'Detalhes do Cliente',
-                    'result' => $cliente,
+                    'result' => apiSemSenha($cliente),
                 ], REST_Controller::HTTP_OK);
             }
 
@@ -114,14 +113,36 @@ class ClientesController extends REST_Controller
             'fornecedor' => $this->post('fornecedor', true) == true ? 1 : 0,
         ];
 
-        if ($this->clientes_model->add('clientes', $data) == true) {
+        $documentoNormalizado = preg_replace('/\D+/', '', (string) ($data['documento'] ?? ''));
+        $bloqueioDocumento = null;
+        if (in_array(strlen($documentoNormalizado), [11, 14], true)) {
+            $bloqueioDocumento = $this->adquirirBloqueioDocumento($documentoNormalizado);
+            if ($bloqueioDocumento === false) {
+                $this->response([
+                    'status' => false,
+                    'message' => 'Outro cadastro deste documento está em andamento. Tente novamente.',
+                ], REST_Controller::HTTP_LOCKED);
+            }
+        }
+        if ($documentoNormalizado !== '' && in_array(strlen($documentoNormalizado), [11, 14], true) && $this->clientes_model->getByDocumentoNormalizado($documentoNormalizado) !== []) {
+            $this->liberarBloqueioDocumento($bloqueioDocumento);
+            $this->response([
+                'status' => false,
+                'message' => 'Este CPF/CNPJ já está cadastrado.',
+                'duplicate' => true,
+            ], REST_Controller::HTTP_CONFLICT);
+        }
+
+        if ($idCliente = $this->clientes_model->add('clientes', $data)) {
+            $this->liberarBloqueioDocumento($bloqueioDocumento);
             $this->response([
                 'status' => true,
                 'message' => 'Cliente adicionado com sucesso!',
-                'result' => $this->clientes_model->get('clientes', '*', "telefone = '{$data['telefone']}'", 1, 0, true),
+                'result' => apiSemSenha($this->clientes_model->getById($idCliente)),
             ], REST_Controller::HTTP_CREATED);
         }
 
+        $this->liberarBloqueioDocumento($bloqueioDocumento);
         $this->response([
             'status' => false,
             'message' => 'Não foi possível adicionar o Cliente.',
@@ -166,14 +187,36 @@ class ClientesController extends REST_Controller
             $data['senha'] = password_hash($this->put('senha', true), PASSWORD_DEFAULT);
         }
 
+        $documentoNormalizado = preg_replace('/\D+/', '', (string) ($data['documento'] ?? ''));
+        $bloqueioDocumento = null;
+        if (in_array(strlen($documentoNormalizado), [11, 14], true)) {
+            $bloqueioDocumento = $this->adquirirBloqueioDocumento($documentoNormalizado);
+            if ($bloqueioDocumento === false) {
+                $this->response([
+                    'status' => false,
+                    'message' => 'Outro cadastro deste documento está em andamento. Tente novamente.',
+                ], REST_Controller::HTTP_LOCKED);
+            }
+        }
+        if (in_array(strlen($documentoNormalizado), [11, 14], true) && $this->clientes_model->getByDocumentoNormalizado($documentoNormalizado, (int) $id) !== []) {
+            $this->liberarBloqueioDocumento($bloqueioDocumento);
+            $this->response([
+                'status' => false,
+                'message' => 'Este CPF/CNPJ já está cadastrado em outro cliente.',
+                'duplicate' => true,
+            ], REST_Controller::HTTP_CONFLICT);
+        }
+
         if ($this->clientes_model->edit('clientes', $data, 'idClientes', $id) == true) {
+            $this->liberarBloqueioDocumento($bloqueioDocumento);
             $this->response([
                 'status' => true,
                 'message' => 'Cliente editado com sucesso!',
-                'result' => $this->clientes_model->getById($id),
+                'result' => apiSemSenha($this->clientes_model->getById($id)),
             ], REST_Controller::HTTP_OK);
         }
 
+        $this->liberarBloqueioDocumento($bloqueioDocumento);
         $this->response([
             'status' => false,
             'message' => 'Não foi possível editar o Cliente.',
@@ -219,5 +262,20 @@ class ClientesController extends REST_Controller
             'status' => false,
             'message' => 'Não foi possível excluir o Cliente.',
         ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR);
+    }
+
+    private function adquirirBloqueioDocumento(string $documento): string|false
+    {
+        $nome = 'mapos-c61-' . substr(hash('sha256', $documento), 0, 48);
+        $bloqueado = $this->db->query('SELECT GET_LOCK(?, 5) AS bloqueado', [$nome])->row();
+
+        return $bloqueado && (int) $bloqueado->bloqueado === 1 ? $nome : false;
+    }
+
+    private function liberarBloqueioDocumento(?string $nome): void
+    {
+        if ($nome !== null) {
+            $this->db->query('SELECT RELEASE_LOCK(?)', [$nome]);
+        }
     }
 }

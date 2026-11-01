@@ -4,65 +4,18 @@ use Piggly\Pix\StaticPayload;
 
 class Os_model extends CI_Model
 {
+    /** Cache de historicoDisponivel(). */
+    private ?bool $historicoDisponivel = null;
+
+    /** Cache de descontoPorItemDisponivel(). */
+    private ?bool $descontoPorItemDisponivel = null;
+
     public function __construct()
     {
         parent::__construct();
-    }
 
-    public function normalizarEquipamentoDados(array $dados)
-    {
-        $tipo = trim((string) ($dados['equipamento'] ?? ''));
-        $marca = trim((string) ($dados['marca'] ?? ''));
-        $modelo = trim((string) ($dados['modelo'] ?? ''));
-        $serie = trim((string) ($dados['num_serie'] ?? ''));
-
-        return [
-            'equipamento' => $tipo !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $tipo), 'UTF-8')) : 'Não informado',
-            'marca' => $marca !== '' ? ucwords(mb_strtolower(preg_replace('/\s+/', ' ', $marca), 'UTF-8')) : null,
-            'modelo' => $modelo !== '' ? preg_replace('/\s+/', ' ', $modelo) : null,
-            'num_serie' => $serie !== '' ? $serie : null,
-        ];
-    }
-
-    public function normalizeSerial($serial)
-    {
-        return trim((string) $serial);
-    }
-
-    public function buildInternalSerial($idOs)
-    {
-        return 'SN' . str_pad((int) $idOs, 6, '0', STR_PAD_LEFT);
-    }
-
-    public function getProximoSerialInternoEstimado()
-    {
-        $query = $this->db->query("SELECT AUTO_INCREMENT AS proximo_id FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'os' LIMIT 1");
-        $row = $query->row();
-        $proximoId = (int) ($row->proximo_id ?? 1);
-
-        if ($proximoId < 1) {
-            $proximoId = 1;
-        }
-
-        return $this->buildInternalSerial($proximoId);
-    }
-
-    public function getEquipamentoBySerial($serial)
-    {
-        $serial = $this->normalizeSerial($serial);
-
-        if ($serial === '') {
-            return null;
-        }
-
-        $this->db->select('equipamentos.*, marcas.marca as marca_nome');
-        $this->db->from('equipamentos');
-        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
-        $this->db->where('equipamentos.num_serie', $serial);
-        $this->db->order_by('equipamentos.idEquipamentos', 'desc');
-        $this->db->limit(1);
-
-        return $this->db->get()->row();
+        // valorTotalOS() e totais() usam as regras de valores da OS.
+        $this->load->helper('os');
     }
 
     public function get($table, $fields, $where = '', $perpage = 0, $start = 0, $one = false, $array = 'array')
@@ -85,7 +38,20 @@ class Os_model extends CI_Model
 
     public function getOs($table, $fields, $where = [], $perpage = 0, $start = 0, $one = false, $array = 'array')
     {
-        $pesquisa = trim((string) ($where['pesquisa'] ?? ''));
+        $lista_clientes = [];
+        if ($where) {
+            if (array_key_exists('pesquisa', $where)) {
+                $this->db->select('idClientes');
+                $this->db->like('nomeCliente', $where['pesquisa']);
+                $this->db->or_like('documento', $where['pesquisa']);
+                $this->db->limit(25);
+                $clientes = $this->db->get('clientes')->result();
+
+                foreach ($clientes as $c) {
+                    array_push($lista_clientes, $c->idClientes);
+                }
+            }
+        }
 
         $this->db->select($fields . ',clientes.idClientes, clientes.nomeCliente, clientes.celular as celular_cliente, usuarios.nome, garantias.*');
         $this->db->from($table);
@@ -94,30 +60,26 @@ class Os_model extends CI_Model
         $this->db->join('garantias', 'garantias.idGarantias = os.garantias_id', 'left');
         $this->db->join('produtos_os', 'produtos_os.os_id = os.idOs', 'left');
         $this->db->join('servicos_os', 'servicos_os.os_id = os.idOs', 'left');
-        $this->db->join('equipamentos_os', 'equipamentos_os.os_id = os.idOs', 'left');
-        $this->db->join('equipamentos', 'equipamentos.idEquipamentos = equipamentos_os.equipamentos_id', 'left');
-        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
 
+        // condicionais da pesquisa
+
+        // condicional de status
         if (array_key_exists('status', $where)) {
             $this->db->where_in('status', $where['status']);
         }
 
-        if ($pesquisa !== '') {
-            $this->db->group_start();
-            $this->db->like('clientes.nomeCliente', $pesquisa);
-            $this->db->or_like('clientes.documento', $pesquisa);
-            $this->db->or_like('os.idOs', $pesquisa);
-            $this->db->or_like('os.status', $pesquisa);
-            $this->db->or_like('equipamentos.num_serie', $pesquisa);
-            $this->db->or_like('equipamentos.modelo', $pesquisa);
-            $this->db->or_like('equipamentos.equipamento', $pesquisa);
-            $this->db->or_like('marcas.marca', $pesquisa);
-            $this->db->group_end();
+        // condicional de clientes
+        if (array_key_exists('pesquisa', $where)) {
+            if ($lista_clientes != null) {
+                $this->db->where_in('os.clientes_id', $lista_clientes);
+            }
         }
 
+        // condicional data inicial
         if (array_key_exists('de', $where)) {
             $this->db->where('dataInicial >=', $where['de']);
         }
+        // condicional data final
         if (array_key_exists('ate', $where)) {
             $this->db->where('dataFinal <=', $where['ate']);
         }
@@ -133,48 +95,194 @@ class Os_model extends CI_Model
         return $result;
     }
 
-    public function countOs(array $where = [])
+    /**
+     * Listagem de OS da v5 (#2842), no padrão das listagens (#2852): os mesmos
+     * filtros em listar() e contar(), para a paginação contar só o que a busca
+     * encontra.
+     *
+     * Cada linha traz os dados da OS, o cliente, o responsável e o total
+     * (produtos + serviços, ou o valor com desconto quando houver), calculado
+     * no SQL para não consultar a OS de novo por linha.
+     *
+     * @param  array<string, string>  $filtros          pesquisa, status, de, ate (já validados)
+     * @param  list<string>|null      $statusVisiveis   Restringe os status quando não há pesquisa nem status
+     */
+    public function listar(array $filtros, int $limite, int $offset, ?array $statusVisiveis = null): array
     {
-        $pesquisa = trim((string) ($where['pesquisa'] ?? ''));
+        $indicadores = $this->indicadoresFinanceirosSql();
 
-        $this->db->select('COUNT(DISTINCT os.idOs) as total', false);
-        $this->db->from('os');
-        $this->db->join('clientes', 'clientes.idClientes = os.clientes_id');
-        $this->db->join('usuarios', 'usuarios.idUsuarios = os.usuarios_id');
-        $this->db->join('garantias', 'garantias.idGarantias = os.garantias_id', 'left');
-        $this->db->join('produtos_os', 'produtos_os.os_id = os.idOs', 'left');
-        $this->db->join('servicos_os', 'servicos_os.os_id = os.idOs', 'left');
-        $this->db->join('equipamentos_os', 'equipamentos_os.os_id = os.idOs', 'left');
-        $this->db->join('equipamentos', 'equipamentos.idEquipamentos = equipamentos_os.equipamentos_id', 'left');
-        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
+        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.garantia, os.descricaoProduto, os.status, os.faturado, os.desconto, os.valor_desconto, os.lancamento, os.clientes_id, os.usuarios_id');
+        $this->db->select('clientes.nomeCliente, usuarios.nome AS responsavel');
+        $this->db->select("(SELECT e.equipamento FROM equipamentos_os eo LEFT JOIN equipamentos e ON e.idEquipamentos = eo.equipamentos_id WHERE eo.os_id = os.idOs ORDER BY eo.idEquipamentos_os ASC LIMIT 1) AS equipamento_tipo", false);
+        $this->db->select("(SELECT m.marca FROM equipamentos_os eo LEFT JOIN equipamentos e ON e.idEquipamentos = eo.equipamentos_id LEFT JOIN marcas m ON m.idMarcas = e.marcas_id WHERE eo.os_id = os.idOs ORDER BY eo.idEquipamentos_os ASC LIMIT 1) AS equipamento_marca", false);
+        $this->db->select("(SELECT e.modelo FROM equipamentos_os eo LEFT JOIN equipamentos e ON e.idEquipamentos = eo.equipamentos_id WHERE eo.os_id = os.idOs ORDER BY eo.idEquipamentos_os ASC LIMIT 1) AS equipamento_modelo", false);
+        $this->db->select($indicadores['totalProdutos'] . ' AS totalProdutos', false);
+        $this->db->select($indicadores['totalServicos'] . ' AS totalServicos', false);
+        $this->db->select($indicadores['brutoFinanceiro'] . ' AS bruto_financeiro', false);
+        $this->db->select($indicadores['custoComponentes'] . ' AS custo_componentes', false);
+        $this->db->select($indicadores['vtFaturado'] . ' AS vt_faturado', false);
 
-        if (array_key_exists('status', $where)) {
-            $this->db->where_in('status', $where['status']);
+        $this->aplicarFiltros($filtros, $statusVisiveis);
+
+        return $this->aplicarIndicadoresFinanceiros($this->db
+            ->order_by('os.idOs', 'desc')
+            ->limit($limite, max(0, $offset))
+            ->get()
+            ->result());
+    }
+
+    /**
+     * Expressões únicas dos indicadores financeiros operacionais da OS.
+     * Relatórios e listagem usam este mesmo conjunto para impedir divergência.
+     *
+     * @return array<string, string>
+     */
+    public function indicadoresFinanceirosSql(): array
+    {
+        // Mesma regra de valorTotalOS(): serviço sem preço usa o do cadastro, e
+        // sem quantidade conta 1.
+        $totalProdutos = '(SELECT COALESCE(SUM(produtos_os.subTotal), 0) FROM produtos_os WHERE produtos_os.os_id = os.idOs)';
+        $valorServico = 'COALESCE(NULLIF(servicos_os.preco, 0), servicos.preco, 0) * COALESCE(NULLIF(servicos_os.quantidade, 0), 1)';
+        if ($this->descontoPorItemDisponivel()) {
+            // Serviço com desconto individual (#2880) vale o subTotal gravado.
+            $valorServico = "CASE WHEN servicos_os.desconto > 0 THEN servicos_os.subTotal ELSE {$valorServico} END";
+        }
+        $totalServicos = "(SELECT COALESCE(SUM({$valorServico}), 0)"
+            . ' FROM servicos_os LEFT JOIN servicos ON servicos.idServicos = servicos_os.servicos_id WHERE servicos_os.os_id = os.idOs)';
+
+        // Indicadores financeiros: preço x quantidade, custo histórico dos
+        // componentes e faturamento por FK ou fallback textual legado exato.
+        $brutoProdutosFinanceiro = '(SELECT COALESCE(SUM(COALESCE(produtos_os.preco, 0) * COALESCE(produtos_os.quantidade, 0)), 0) FROM produtos_os WHERE produtos_os.os_id = os.idOs)';
+        $brutoServicosFinanceiro = '(SELECT COALESCE(SUM(COALESCE(servicos_os.preco, 0) * COALESCE(servicos_os.quantidade, 0)), 0) FROM servicos_os WHERE servicos_os.os_id = os.idOs)';
+        $custoComponentes = $this->db->dbdriver === 'sqlite3'
+            ? '(SELECT COALESCE(SUM(CAST(produtos_os.custo_total AS REAL)), 0) FROM produtos_os WHERE produtos_os.os_id = os.idOs)'
+            : '(SELECT COALESCE(SUM(CAST(produtos_os.custo_total AS DECIMAL(20, 4))), 0) FROM produtos_os WHERE produtos_os.os_id = os.idOs)';
+        $valorLancamento = "CASE WHEN COALESCE(l.valor_desconto, 0) = 0 THEN COALESCE(l.valor, 0) ELSE COALESCE(l.valor_desconto, 0) END";
+        $lancamentoVinculadoValido = "EXISTS (SELECT 1 FROM lancamentos l_valid WHERE l_valid.idLancamentos = os.lancamento AND l_valid.tipo = 'receita')";
+        $faturaTexto = $this->db->dbdriver === 'sqlite3'
+            ? "('Fatura de OS Nº: ' || os.idOs)"
+            : "CONCAT('Fatura de OS Nº: ', os.idOs)";
+        $vtFaturado = "(CASE WHEN {$lancamentoVinculadoValido} THEN (SELECT COALESCE(SUM({$valorLancamento}), 0) FROM lancamentos l WHERE l.idLancamentos = os.lancamento AND l.tipo = 'receita') ELSE (SELECT COALESCE(SUM({$valorLancamento}), 0) FROM lancamentos l WHERE l.tipo = 'receita' AND l.descricao = {$faturaTexto}) END)";
+
+        return [
+            'totalProdutos' => $totalProdutos,
+            'totalServicos' => $totalServicos,
+            'brutoFinanceiro' => $brutoProdutosFinanceiro . ' + ' . $brutoServicosFinanceiro,
+            'custoComponentes' => $custoComponentes,
+            'vtFaturado' => $vtFaturado,
+        ];
+    }
+
+    /** Valor líquido C5B em centavos, com negativos permitidos. */
+    public static function valorLiquidoOperacional($brutoFinanceiro, $desconto, $valorDesconto, $custoComponentes): float
+    {
+        $paraCentavos = static fn ($valor): int => (int) round((float) $valor * 100, 0, PHP_ROUND_HALF_UP);
+        $brutoCentavos = $paraCentavos($brutoFinanceiro);
+        $baseCentavos = (float) $desconto > 0 ? $paraCentavos($valorDesconto) : $brutoCentavos;
+
+        return ($baseCentavos - $paraCentavos($custoComponentes)) / 100;
+    }
+
+    /** Aplica os indicadores C5B a linhas de listagem/relatório em memória. */
+    public function aplicarIndicadoresFinanceiros(array $linhas): array
+    {
+        foreach ($linhas as $linha) {
+            $bruto = (float) ($linha->totalProdutos ?? 0) + (float) ($linha->totalServicos ?? 0);
+            $linha->total = (float) ($linha->valor_desconto ?? 0) > 0 ? (float) $linha->valor_desconto : $bruto;
+            $linha->valorLiquido = self::valorLiquidoOperacional(
+                $linha->bruto_financeiro ?? 0,
+                $linha->desconto ?? 0,
+                $linha->valor_desconto ?? 0,
+                $linha->custo_componentes ?? 0
+            );
+            $linha->vtFaturado = (float) ($linha->vt_faturado ?? 0);
         }
 
+        return $linhas;
+    }
+
+    /** Total da listagem com os mesmos filtros de listar(). */
+    public function contar(array $filtros, ?array $statusVisiveis = null): int
+    {
+        $this->aplicarFiltros($filtros, $statusVisiveis);
+
+        return (int) $this->db->count_all_results();
+    }
+
+    /**
+     * pesquisa procura no nome e documento do cliente, na descrição do
+     * equipamento e, se for número, no Nº da OS (o OR fica entre parênteses
+     * para não anular os outros filtros); status é um só; de e ate limitam a
+     * data inicial e a final.
+     *
+     * Sem pesquisa e sem status, a listagem mostra só os status marcados em
+     * Configurações (os_status_list), como na v4, mas agora no SQL: antes as
+     * linhas eram escondidas na view e a paginação contava as escondidas.
+     */
+    private function aplicarFiltros(array $filtros, ?array $statusVisiveis): void
+    {
+        $this->db->from('os');
+        $this->db->join('clientes', 'clientes.idClientes = os.clientes_id', 'left');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = os.usuarios_id', 'left');
+
+        $pesquisa = $filtros['pesquisa'] ?? '';
         if ($pesquisa !== '') {
-            $this->db->group_start();
-            $this->db->like('clientes.nomeCliente', $pesquisa);
-            $this->db->or_like('clientes.documento', $pesquisa);
-            $this->db->or_like('os.idOs', $pesquisa);
-            $this->db->or_like('os.status', $pesquisa);
-            $this->db->or_like('equipamentos.num_serie', $pesquisa);
-            $this->db->or_like('equipamentos.modelo', $pesquisa);
-            $this->db->or_like('equipamentos.equipamento', $pesquisa);
-            $this->db->or_like('marcas.marca', $pesquisa);
+            $this->db->group_start()
+                ->like('clientes.nomeCliente', $pesquisa)
+                ->or_like('clientes.documento', $pesquisa)
+                ->or_like('os.descricaoProduto', $pesquisa);
+            if (ctype_digit($pesquisa)) {
+                $this->db->or_where('os.idOs', (int) $pesquisa);
+            }
+            $escaped = $this->db->escape('%' . $this->db->escape_like_str($pesquisa) . '%');
+            $this->db->or_where("EXISTS (SELECT 1 FROM equipamentos_os eqo LEFT JOIN equipamentos eq ON eq.idEquipamentos = eqo.equipamentos_id LEFT JOIN marcas em ON em.idMarcas = eq.marcas_id WHERE eqo.os_id = os.idOs AND (eq.equipamento LIKE {$escaped} OR eq.num_serie LIKE {$escaped} OR eq.modelo LIKE {$escaped} OR em.marca LIKE {$escaped}))", null, false);
             $this->db->group_end();
         }
 
-        if (array_key_exists('de', $where)) {
-            $this->db->where('dataInicial >=', $where['de']);
-        }
-        if (array_key_exists('ate', $where)) {
-            $this->db->where('dataFinal <=', $where['ate']);
+        if (($filtros['status'] ?? '') !== '') {
+            $this->db->where('os.status', $filtros['status']);
+        } elseif ($pesquisa === '' && $statusVisiveis !== null) {
+            $this->db->where_in('os.status', $statusVisiveis);
         }
 
-        $row = $this->db->get()->row();
+        if (($filtros['de'] ?? '') !== '') {
+            $this->db->where('os.dataInicial >=', $filtros['de']);
+        }
+        if (($filtros['ate'] ?? '') !== '') {
+            $this->db->where('os.dataFinal <=', $filtros['ate']);
+        }
+    }
 
-        return (int) ($row->total ?? 0);
+    /**
+     * Apaga o lançamento da fatura de uma OS excluída: pelo vínculo os.lancamento
+     * quando existir, e pelas descrições que o faturar grava (ver
+     * osDescricoesDaFatura()).
+     */
+    /**
+     * Lançamentos já baixados (dinheiro recebido) da fatura da OS: a OS faturada
+     * com baixa não pode ser excluída sem estornar antes.
+     */
+    public function faturaBaixada(int $idOs, ?int $idLancamento): bool
+    {
+        $this->db->from('lancamentos')->where('baixado', 1)->group_start();
+        if ($idLancamento) {
+            $this->db->where('idLancamentos', $idLancamento)->or_where_in('descricao', osDescricoesDaFatura($idOs));
+        } else {
+            $this->db->where_in('descricao', osDescricoesDaFatura($idOs));
+        }
+
+        return $this->db->group_end()->count_all_results() > 0;
+    }
+
+    public function excluirFatura(int $idOs, ?int $idLancamento): void
+    {
+        if ($idLancamento) {
+            $this->db->where('idLancamentos', $idLancamento)->where('COALESCE(baixado, 0) = 0', null, false)->delete('lancamentos');
+        }
+
+        // Pela descrição só saem lançamentos em aberto: um lançamento baixado com
+        // texto igual (de outra origem) não pode sumir junto.
+        $this->db->where_in('descricao', osDescricoesDaFatura($idOs))->where('COALESCE(baixado, 0) = 0', null, false)->delete('lancamentos');
     }
 
     public function getById($id)
@@ -188,308 +296,6 @@ class Os_model extends CI_Model
         $this->db->limit(1);
 
         return $this->db->get()->row();
-    }
-
-    public function getEquipamentoOs($osId)
-    {
-        $this->db->select('equipamentos.*, marcas.marca as marca_nome, equipamentos_os.idEquipamentos_os');
-        $this->db->from('equipamentos_os');
-        $this->db->join('equipamentos', 'equipamentos.idEquipamentos = equipamentos_os.equipamentos_id');
-        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
-        $this->db->where('equipamentos_os.os_id', $osId);
-        $this->db->order_by('equipamentos_os.idEquipamentos_os', 'asc');
-        $this->db->limit(1);
-
-        return $this->db->get()->row();
-    }
-
-    public function getEquipamentoByIdAndCliente($equipamentoId, $clienteId)
-    {
-        $this->db->select('equipamentos.*, marcas.marca as marca_nome');
-        $this->db->from('equipamentos');
-        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
-        $this->db->where('equipamentos.idEquipamentos', (int) $equipamentoId);
-        $this->db->where('equipamentos.clientes_id', (int) $clienteId);
-
-        return $this->db->get()->row();
-    }
-
-    public function getEquipamentosCliente($clienteId)
-    {
-        $this->db->select('equipamentos.idEquipamentos, equipamentos.equipamento, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie');
-        $this->db->from('equipamentos');
-        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
-        $this->db->where('equipamentos.clientes_id', (int) $clienteId);
-        $this->db->order_by('equipamentos.equipamento', 'asc');
-        $this->db->order_by('equipamentos.modelo', 'asc');
-        $this->db->order_by('equipamentos.num_serie', 'asc');
-
-        return $this->db->get()->result();
-    }
-
-    public function salvarEquipamentoOs($osId, $clienteId, array $dados, $equipamentoAtual = null, $serialInternoSugerido = false)
-    {
-        $dados = $this->normalizarEquipamentoDados($dados);
-        $tipo = trim((string) ($dados['equipamento'] ?? ''));
-        $marca = trim((string) ($dados['marca'] ?? ''));
-        $modelo = trim((string) ($dados['modelo'] ?? ''));
-        $serie = trim((string) ($dados['num_serie'] ?? ''));
-        $clienteId = (int) $clienteId;
-        $equipamentoAtual = $equipamentoAtual ?: null;
-        $equipamentoAtualId = $equipamentoAtual ? (int) ($equipamentoAtual->idEquipamentos ?? 0) : null;
-
-        if ($serialInternoSugerido) {
-            $serie = $this->buildInternalSerial($osId);
-        }
-
-        if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '' && ! $equipamentoAtualId) {
-            $serie = $this->buildInternalSerial($osId);
-        }
-
-        if ($tipo === '' && $marca === '' && $modelo === '' && $serie === '' && $equipamentoAtualId) {
-            return null;
-        }
-
-        $this->db->trans_start();
-
-        $marcaId = null;
-        if ($marca !== null && $marca !== '') {
-            $marcaExistente = $this->db->get_where('marcas', ['marca' => $marca], 1)->row();
-            if ($marcaExistente) {
-                $marcaId = $marcaExistente->idMarcas;
-            } else {
-                $this->db->insert('marcas', [
-                    'marca' => $marca,
-                    'cadastro' => date('Y-m-d'),
-                    'situacao' => 1,
-                ]);
-                $marcaId = $this->db->insert_id();
-            }
-        }
-
-        $equipamentoPorSerial = null;
-        if ($serie !== '') {
-            $equipamentoPorSerial = $this->getEquipamentoBySerial($serie);
-        }
-
-        if ($equipamentoPorSerial) {
-            $equipamentoData = [
-                'equipamento' => ($equipamentoPorSerial->equipamento === 'Não informado' && $tipo !== '') ? $tipo : $equipamentoPorSerial->equipamento,
-                'num_serie' => $equipamentoPorSerial->num_serie,
-                'modelo' => !empty($equipamentoPorSerial->modelo) ? $equipamentoPorSerial->modelo : $modelo,
-                'marcas_id' => !empty($equipamentoPorSerial->marcas_id) ? $equipamentoPorSerial->marcas_id : $marcaId,
-                'clientes_id' => !empty($equipamentoPorSerial->clientes_id) ? $equipamentoPorSerial->clientes_id : $clienteId,
-            ];
-
-            $this->db->where('idEquipamentos', (int) $equipamentoPorSerial->idEquipamentos);
-            $this->db->update('equipamentos', $equipamentoData);
-            $equipamentoId = (int) $equipamentoPorSerial->idEquipamentos;
-        } elseif ($equipamentoAtualId) {
-            $equipamentoData = [
-                'equipamento' => $tipo !== '' ? $tipo : $equipamentoAtual->equipamento,
-                'num_serie' => $serie !== '' ? $serie : (!empty($equipamentoAtual->num_serie) ? $equipamentoAtual->num_serie : $this->buildInternalSerial($osId)),
-                'modelo' => $modelo !== '' ? $modelo : $equipamentoAtual->modelo,
-                'marcas_id' => $marcaId !== null ? $marcaId : $equipamentoAtual->marcas_id,
-                'clientes_id' => $clienteId,
-            ];
-
-            $this->db->where('idEquipamentos', $equipamentoAtualId);
-            $this->db->update('equipamentos', $equipamentoData);
-            $equipamentoId = $equipamentoAtualId;
-        } else {
-            if ($serie === '') {
-                $serie = $this->buildInternalSerial($osId);
-            }
-
-            $equipamentoData = [
-                'equipamento' => $tipo !== '' ? $tipo : 'Não informado',
-                'num_serie' => $serie,
-                'modelo' => $modelo !== '' ? $modelo : null,
-                'marcas_id' => $marcaId,
-                'clientes_id' => $clienteId,
-            ];
-
-            $this->db->insert('equipamentos', $equipamentoData);
-            $equipamentoId = $this->db->insert_id();
-        }
-
-        $this->db->where('os_id', $osId);
-        $this->db->delete('equipamentos_os');
-
-        $this->db->insert('equipamentos_os', [
-            'equipamentos_id' => $equipamentoId,
-            'os_id' => $osId,
-        ]);
-
-        $this->db->trans_complete();
-
-        if ($this->db->trans_status() === false) {
-            return false;
-        }
-
-        return $equipamentoId;
-    }
-
-    public function getHistoricoPorSerial($serial, $osAtualId = null, $limit = 5)
-    {
-        $serial = $this->normalizeSerial($serial);
-
-        if ($serial === '') {
-            return [];
-        }
-
-        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, clientes.nomeCliente as cliente, equipamentos.idEquipamentos, equipamentos.equipamento as tipo, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie');
-        $this->db->from('equipamentos');
-        $this->db->join('equipamentos_os', 'equipamentos_os.equipamentos_id = equipamentos.idEquipamentos');
-        $this->db->join('os', 'os.idOs = equipamentos_os.os_id');
-        $this->db->join('clientes', 'clientes.idClientes = os.clientes_id');
-        $this->db->join('marcas', 'marcas.idMarcas = equipamentos.marcas_id', 'left');
-        $this->db->where('equipamentos.num_serie', $serial);
-
-        if ($osAtualId !== null) {
-            $this->db->where('os.idOs !=', (int) $osAtualId);
-        }
-
-        $this->db->order_by('os.dataFinal', 'desc');
-        $this->db->order_by('os.idOs', 'desc');
-        $this->db->limit((int) $limit);
-
-        $rows = $this->db->get()->result();
-        $hoje = strtotime(date('Y-m-d'));
-
-        foreach ($rows as $row) {
-            $row->vencimento_garantia = null;
-            $row->situacao_garantia = 'Indefinido';
-
-            if (!empty($row->dataFinal) && is_numeric($row->garantia) && (int) $row->garantia > 0) {
-                $vencimento = strtotime('+' . (int) $row->garantia . ' days', strtotime($row->dataFinal));
-                $row->vencimento_garantia = date('d/m/Y', $vencimento);
-                $row->situacao_garantia = $hoje <= $vencimento ? 'Em garantia' : 'Fora de garantia';
-            }
-        }
-
-        return $rows;
-    }
-
-    public function calcularCriticaGarantiaSerial($row)
-    {
-        if (! $row) {
-            return null;
-        }
-
-        $baseOsId = (int) ($row->idOs ?? 0);
-        $garantiaDias = is_numeric($row->garantia ?? null) ? (int) $row->garantia : 0;
-        $dataBaseRaw = trim((string) ($row->dataFinal ?? ''));
-
-        $dataBase = $this->parseDataBanco($dataBaseRaw);
-        if (! $dataBase) {
-            return [
-                'baseOsId' => $baseOsId,
-                'status' => 'indefinida',
-                'titulo' => 'Não foi possível calcular a garantia',
-                'contador' => 'Data final da OS anterior ausente ou inválida',
-                'dias_restantes' => 0,
-                'dias_vencidos' => 0,
-                'data_base' => $dataBaseRaw,
-                'data_base_formatada' => '',
-                'garantia_dias' => $garantiaDias,
-                'data_final_garantia' => '',
-                'data_final_garantia_formatada' => '',
-                'texto' => 'Verifique manualmente a OS anterior antes de decidir.',
-            ];
-        }
-
-        if ($garantiaDias <= 0) {
-            return [
-                'baseOsId' => $baseOsId,
-                'status' => 'sem_garantia_registrada',
-                'titulo' => 'Sem garantia registrada para a última OS',
-                'contador' => '0 dias de garantia registrados',
-                'dias_restantes' => 0,
-                'dias_vencidos' => 0,
-                'data_base' => $dataBase->format('Y-m-d'),
-                'data_base_formatada' => $dataBase->format('d/m/Y'),
-                'garantia_dias' => 0,
-                'data_final_garantia' => '',
-                'data_final_garantia_formatada' => '',
-                'texto' => 'A última OS deste equipamento não possui prazo de garantia registrado.',
-            ];
-        }
-
-        $dataFinalGarantia = $dataBase->modify('+' . $garantiaDias . ' days');
-        $hoje = new DateTimeImmutable('today');
-        $diasRestantes = (int) $hoje->diff($dataFinalGarantia)->format('%r%a');
-
-        if ($diasRestantes >= 0) {
-            return [
-                'baseOsId' => $baseOsId,
-                'status' => 'em_garantia',
-                'titulo' => '⚠️ Possível garantia de mão de obra',
-                'contador' => 'Restam ' . $diasRestantes . ' dias de garantia',
-                'dias_restantes' => $diasRestantes,
-                'dias_vencidos' => 0,
-                'data_base' => $dataBase->format('Y-m-d'),
-                'data_base_formatada' => $dataBase->format('d/m/Y'),
-                'garantia_dias' => $garantiaDias,
-                'data_final_garantia' => $dataFinalGarantia->format('Y-m-d'),
-                'data_final_garantia_formatada' => $dataFinalGarantia->format('d/m/Y'),
-                'texto' => 'A última OS deste equipamento ainda está dentro do prazo de garantia. Verifique se o defeito atual tem relação com o serviço anterior antes de confirmar atendimento em garantia.',
-            ];
-        }
-
-        $diasVencidos = abs($diasRestantes);
-
-        return [
-            'baseOsId' => $baseOsId,
-            'status' => 'vencida',
-            'titulo' => '❌ Fora do prazo de garantia',
-            'contador' => 'Garantia vencida há ' . $diasVencidos . ' dias',
-            'dias_restantes' => 0,
-            'dias_vencidos' => $diasVencidos,
-            'data_base' => $dataBase->format('Y-m-d'),
-            'data_base_formatada' => $dataBase->format('d/m/Y'),
-            'garantia_dias' => $garantiaDias,
-            'data_final_garantia' => $dataFinalGarantia->format('Y-m-d'),
-            'data_final_garantia_formatada' => $dataFinalGarantia->format('d/m/Y'),
-            'texto' => 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.',
-        ];
-    }
-
-    private function parseDataBanco($value)
-    {
-        $value = trim((string) $value);
-        if ($value === '' || $value === '0000-00-00') {
-            return null;
-        }
-
-        try {
-            $data = new DateTimeImmutable($value);
-            return $data->format('Y-m-d') === substr($value, 0, 10) ? $data : null;
-        } catch (Exception $e) {
-            return null;
-        }
-    }
-
-    public function vincularEquipamentoOsExistente($osId, $equipamentoId)
-    {
-        $this->db->trans_start();
-        $this->db->where('os_id', (int) $osId);
-        $this->db->delete('equipamentos_os');
-
-        $this->db->insert('equipamentos_os', [
-            'equipamentos_id' => (int) $equipamentoId,
-            'os_id' => (int) $osId,
-        ]);
-
-        $this->db->trans_complete();
-
-        return $this->db->trans_status() !== false;
-    }
-
-    public function removerEquipamentoOs($osId)
-    {
-        $this->db->where('os_id', (int) $osId);
-        return $this->db->delete('equipamentos_os');
     }
 
     public function getByIdCobrancas($id)
@@ -568,95 +374,136 @@ class Os_model extends CI_Model
         return $this->db->count_all($table);
     }
 
+    // Autocompletes: devolvem a lista (vazia quando nada casa) e o controller
+    // responde em JSON. Cada item mantém label e id, que as telas legadas
+    // (jQuery UI) usam, e traz valor (o texto que fica no campo ao escolher) e
+    // detalhe (a linha secundária da lista) para o combobox da v5
+    // (assets/js/lib/autocomplete.js).
+
     public function autoCompleteProduto($q)
     {
-        $this->db->select('*');
-        $this->db->limit(25);
-        $this->db->like('codDeBarra', $q);
-        $this->db->or_like('descricao', $q);
-        $query = $this->db->get('produtos');
-        if ($query->num_rows() > 0) {
-            foreach ($query->result_array() as $row) {
-                $row_set[] = ['label' => $row['descricao'] . ' | Preço: R$ ' . $row['precoVenda'] . ' | Estoque: ' . $row['estoque'], 'estoque' => $row['estoque'], 'id' => $row['idProdutos'], 'preco' => $row['precoVenda']];
-            }
-            echo json_encode($row_set);
-        }
+        return $this->produtosParaAutocomplete($q, false);
     }
 
     public function autoCompleteProdutoSaida($q)
     {
-        $this->db->select('*');
+        return $this->produtosParaAutocomplete($q, true);
+    }
+
+    private function produtosParaAutocomplete($q, bool $saida): array
+    {
+        $this->db->select('idProdutos, descricao, precoVenda, estoque');
         $this->db->limit(25);
-        $this->db->like('codDeBarra', $q);
-        $this->db->or_like('descricao', $q);
-        $this->db->where('saida', 1);
-        $query = $this->db->get('produtos');
-        if ($query->num_rows() > 0) {
-            foreach ($query->result_array() as $row) {
-                $row_set[] = ['label' => $row['descricao'] . ' | Preço: R$ ' . $row['precoVenda'] . ' | Estoque: ' . $row['estoque'], 'estoque' => $row['estoque'], 'id' => $row['idProdutos'], 'preco' => $row['precoVenda']];
-            }
-            echo json_encode($row_set);
+        // O OR entre parênteses, para não anular o filtro de saída.
+        $this->db->group_start()->like('codDeBarra', $q)->or_like('descricao', $q)->group_end();
+        if ($saida) {
+            $this->db->where('saida', 1);
         }
+
+        $itens = [];
+        foreach ($this->db->get('produtos')->result_array() as $row) {
+            $itens[] = [
+                'label' => $row['descricao'] . ' | Preço: R$ ' . $row['precoVenda'] . ' | Estoque: ' . $row['estoque'],
+                'valor' => $row['descricao'],
+                'detalhe' => 'Preço: R$ ' . $row['precoVenda'] . ' · Estoque: ' . $row['estoque'],
+                'estoque' => $row['estoque'],
+                'id' => $row['idProdutos'],
+                'preco' => $row['precoVenda'],
+            ];
+        }
+
+        return $itens;
     }
 
     public function autoCompleteCliente($q)
     {
-        $this->db->select('*');
+        $this->db->select('idClientes, nomeCliente, telefone, celular, documento');
         $this->db->limit(25);
         $this->db->like('nomeCliente', $q);
         $this->db->or_like('telefone', $q);
         $this->db->or_like('celular', $q);
         $this->db->or_like('documento', $q);
-        $query = $this->db->get('clientes');
-        if ($query->num_rows() > 0) {
-            foreach ($query->result_array() as $row) {
-                $row_set[] = ['label' => $row['nomeCliente'] . ' | Telefone: ' . $row['telefone'] . ' | Celular: ' . $row['celular'] . ' | Documento: ' . $row['documento'], 'id' => $row['idClientes']];
-            }
-            echo json_encode($row_set);
+
+        $itens = [];
+        foreach ($this->db->get('clientes')->result_array() as $row) {
+            $detalhe = array_filter([$row['documento'], $row['celular'] ?: $row['telefone']], static fn ($v) => (string) $v !== '');
+            $itens[] = [
+                'label' => $row['nomeCliente'] . ' | Telefone: ' . $row['telefone'] . ' | Celular: ' . $row['celular'] . ' | Documento: ' . $row['documento'],
+                'valor' => $row['nomeCliente'],
+                'detalhe' => implode(' · ', $detalhe),
+                'id' => $row['idClientes'],
+            ];
         }
+
+        return $itens;
     }
 
     public function autoCompleteUsuario($q)
     {
-        $this->db->select('*');
+        $this->db->select('idUsuarios, nome, telefone');
         $this->db->limit(25);
         $this->db->like('nome', $q);
         $this->db->where('situacao', 1);
-        $query = $this->db->get('usuarios');
-        if ($query->num_rows() > 0) {
-            foreach ($query->result_array() as $row) {
-                $row_set[] = ['label' => $row['nome'] . ' | Telefone: ' . $row['telefone'], 'id' => $row['idUsuarios']];
-            }
-            echo json_encode($row_set);
+
+        $itens = [];
+        foreach ($this->db->get('usuarios')->result_array() as $row) {
+            $itens[] = [
+                'label' => $row['nome'] . ' | Telefone: ' . $row['telefone'],
+                'valor' => $row['nome'],
+                'detalhe' => (string) $row['telefone'],
+                'id' => $row['idUsuarios'],
+            ];
         }
+
+        return $itens;
     }
 
     public function autoCompleteTermoGarantia($q)
     {
-        $this->db->select('*');
+        $this->db->select('idGarantias, refGarantia');
         $this->db->limit(25);
         $this->db->like('LOWER(refGarantia)', $q);
-        $query = $this->db->get('garantias');
-        if ($query->num_rows() > 0) {
-            foreach ($query->result_array() as $row) {
-                $row_set[] = ['label' => $row['refGarantia'], 'id' => $row['idGarantias']];
-            }
-            echo json_encode($row_set);
+
+        $itens = [];
+        foreach ($this->db->get('garantias')->result_array() as $row) {
+            $itens[] = ['label' => $row['refGarantia'], 'valor' => $row['refGarantia'], 'detalhe' => '', 'id' => $row['idGarantias']];
         }
+
+        return $itens;
     }
 
     public function autoCompleteServico($q)
     {
-        $this->db->select('*');
+        $this->db->select('idServicos, nome, preco');
         $this->db->limit(25);
         $this->db->like('nome', $q);
-        $query = $this->db->get('servicos');
-        if ($query->num_rows() > 0) {
-            foreach ($query->result_array() as $row) {
-                $row_set[] = ['label' => $row['nome'] . ' | Preço: R$ ' . $row['preco'], 'id' => $row['idServicos'], 'preco' => $row['preco']];
-            }
-            echo json_encode($row_set);
+
+        $itens = [];
+        foreach ($this->db->get('servicos')->result_array() as $row) {
+            $itens[] = [
+                'label' => $row['nome'] . ' | Preço: R$ ' . $row['preco'],
+                'valor' => $row['nome'],
+                'detalhe' => 'Preço: R$ ' . $row['preco'],
+                'id' => $row['idServicos'],
+                'preco' => $row['preco'],
+            ];
         }
+
+        return $itens;
+    }
+
+    /**
+     * Diz se existe o registro com o id, para conferir os ids escolhidos nos
+     * autocompletes antes de gravar a OS. Com $ativo, só usuários ativos.
+     */
+    public function existe(string $tabela, string $chave, int $id, bool $ativo = false): bool
+    {
+        $this->db->where($chave, $id);
+        if ($ativo) {
+            $this->db->where('situacao', 1);
+        }
+
+        return $this->db->count_all_results($tabela) > 0;
     }
 
     public function anexar($os, $anexo, $url, $thumb, $path)
@@ -694,37 +541,31 @@ class Os_model extends CI_Model
         return $this->db->get()->result();
     }
 
-    public function criarTextoWhats($textoBase, $troca)
-    {
-        $procura = ['{CLIENTE_NOME}', '{NUMERO_OS}', '{STATUS_OS}', '{VALOR_OS}', '{DESCRI_PRODUTOS}', '{EMITENTE}', '{TELEFONE_EMITENTE}', '{OBS_OS}', '{DEFEITO_OS}', '{LAUDO_OS}', '{DATA_FINAL}', '{DATA_INICIAL}', '{DATA_GARANTIA}'];
-        $textoBase = str_replace($procura, $troca, $textoBase);
-        $textoBase = strip_tags($textoBase);
-        $textoBase = htmlentities(urlencode($textoBase));
-
-        return $textoBase;
-    }
-
     public function valorTotalOS($id = null)
     {
         $totalServico = 0;
         $totalProdutos = 0;
         $valorDesconto = 0;
+        $descontoItens = 0;
         if ($servicos = $this->getServicos($id)) {
             foreach ($servicos as $s) {
-                $preco = $s->preco ?: $s->precoVenda;
-                $totalServico = $totalServico + ($preco * ($s->quantidade ?: 1));
+                $totalServico = $totalServico + osValorDoItem($s);
             }
+            $descontoItens += osDescontoDosItens($servicos);
         }
         if ($produtos = $this->getProdutos($id)) {
             foreach ($produtos as $p) {
                 $totalProdutos = $totalProdutos + $p->subTotal;
             }
+            $descontoItens += osDescontoDosItens($produtos);
         }
         if ($valorDescontoBD = $this->getById($id)) {
             $valorDesconto = $valorDescontoBD->valor_desconto;
         }
 
-        return ['totalServico' => $totalServico, 'totalProdutos' => $totalProdutos, 'valor_desconto' => $valorDesconto];
+        // totalServico e totalProdutos já saem com o desconto individual dos
+        // itens (#2880); descontoItens é a soma desses descontos.
+        return ['totalServico' => $totalServico, 'totalProdutos' => $totalProdutos, 'valor_desconto' => $valorDesconto, 'descontoItens' => $descontoItens];
     }
 
     public function isEditable($id = null)
@@ -733,7 +574,7 @@ class Os_model extends CI_Model
             return false;
         }
         if ($os = $this->getById($id)) {
-            $osT = (int) ($os->status === 'Faturado' || $os->status === 'Entregue' || $os->status === 'Cancelado' || $os->status === 'Sem Conserto' || $os->faturado == 1);
+            $osT = (int) ($os->status === 'Faturado' || $os->status === 'Cancelado' || $os->faturado == 1);
             if ($osT) {
                 return $this->data['configuration']['control_editos'] == '1';
             }
@@ -744,18 +585,38 @@ class Os_model extends CI_Model
 
     public function getQrCode($id, $pixKey, $emitente)
     {
+        return $this->pix($id, $pixKey, $emitente)?->getQRCode();
+    }
+
+    /**
+     * Código PIX "copia e cola" (BR Code) da OS, o mesmo que o QR Code de
+     * getQrCode() carrega. Na v4 a tela decodificava a imagem do QR no
+     * navegador (jsQR, do rawgit) para obter este texto.
+     */
+    public function getPixPayload($id, $pixKey, $emitente): ?string
+    {
+        return $this->pix($id, $pixKey, $emitente)?->getPixCode();
+    }
+
+    /**
+     * PIX estático com o total da OS (com o desconto, quando houver); null sem
+     * chave, sem emitente ou com total zerado.
+     */
+    private function pix($id, $pixKey, $emitente): ?StaticPayload
+    {
         if (empty($id) || empty($pixKey) || empty($emitente)) {
-            return;
+            return null;
         }
 
         $result = $this->valorTotalOS($id);
         $amount = $result['valor_desconto'] != 0 ? round(floatval($result['valor_desconto']), 2) : round(floatval($result['totalServico'] + $result['totalProdutos']), 2);
 
         if ($amount <= 0) {
-            return;
+            return null;
         }
 
-        $pix = (new StaticPayload())
+        $pix = new StaticPayload();
+        $pix
             ->setAmount($amount)
             ->setTid($id)
             ->setDescription(sprintf('%s OS %s', substr($emitente->nome, 0, 18), $id), true)
@@ -763,6 +624,119 @@ class Os_model extends CI_Model
             ->setMerchantName($emitente->nome)
             ->setMerchantCity($emitente->cidade);
 
-        return $pix->getQRCode();
+        return $pix;
+    }
+
+    /**
+     * Totais da OS para a tela (osTotais()): produtos, serviços, desconto e
+     * total, com a mesma regra de valorTotalOS().
+     */
+    public function totais(object $os): array
+    {
+        $soma = $this->valorTotalOS((int) $os->idOs);
+
+        return osTotais((float) $soma['totalProdutos'], (float) $soma['totalServico'], $os->valor_desconto ?? 0, $os->tipo_desconto ?? null, $os->desconto ?? 0, (float) $soma['descontoItens']);
+    }
+
+    /**
+     * Diz se as colunas do desconto por item (#2880) existem. Uma instalação
+     * que ainda não rodou as migrations (Configurações > Atualizar banco)
+     * continua funcionando, só sem esse desconto.
+     */
+    public function descontoPorItemDisponivel(): bool
+    {
+        return $this->descontoPorItemDisponivel ??= $this->db->field_exists('desconto', 'servicos_os') && $this->db->field_exists('desconto', 'produtos_os');
+    }
+
+    /** Linha de produtos_os que pertence à OS, ou null. */
+    public function getProdutoDaOs(int $idOs, int $idItem): ?object
+    {
+        return $this->db->where('idProdutos_os', $idItem)->where('os_id', $idOs)->get('produtos_os', 1)->row() ?: null;
+    }
+
+    /** Linha de servicos_os que pertence à OS, ou null. */
+    public function getServicoDaOs(int $idOs, int $idItem): ?object
+    {
+        return $this->db->where('idServicos_os', $idItem)->where('os_id', $idOs)->get('servicos_os', 1)->row() ?: null;
+    }
+
+    /** Anexo que pertence à OS, ou null. */
+    public function getAnexoDaOs(int $idOs, int $idAnexo): ?object
+    {
+        return $this->db->where('idAnexos', $idAnexo)->where('os_id', $idOs)->get('anexos', 1)->row() ?: null;
+    }
+
+    /** Anotação que pertence à OS, ou null. */
+    public function getAnotacaoDaOs(int $idOs, int $idAnotacao): ?object
+    {
+        return $this->db->where('idAnotacoes', $idAnotacao)->where('os_id', $idOs)->get('anotacoes_os', 1)->row() ?: null;
+    }
+
+    /** Produto do cadastro (para conferir o id escolhido e o estoque), ou null. */
+    public function getProdutoCadastro(int $id): ?object
+    {
+        return $this->db->select('idProdutos, descricao, precoVenda, precoCompra, estoque')->where('idProdutos', $id)->get('produtos', 1)->row() ?: null;
+    }
+
+    /** Serviço do cadastro, ou null. */
+    public function getServicoCadastro(int $id): ?object
+    {
+        return $this->db->select('idServicos, nome, preco')->where('idServicos', $id)->get('servicos', 1)->row() ?: null;
+    }
+
+    /**
+     * Tira o desconto da OS. Mudar os itens muda o total, e o desconto antigo
+     * (calculado sobre o total anterior) deixaria de bater, como na v4.
+     */
+    public function zerarDesconto(int $idOs): void
+    {
+        $this->db->set('desconto', 0)->set('valor_desconto', 0)->set('tipo_desconto', null)->where('idOs', $idOs)->update('os');
+    }
+
+    /**
+     * Diz se a tabela do histórico existe. Uma instalação que ainda não rodou
+     * as migrations (Configurações > Atualizar banco) continua funcionando,
+     * só sem histórico.
+     */
+    public function historicoDisponivel(): bool
+    {
+        return $this->historicoDisponivel ??= $this->db->table_exists('os_historico');
+    }
+
+    /**
+     * Registra uma mudança de status da OS. $usuario null = a OS foi aberta
+     * pelo cliente na área do cliente. Status igual ao anterior não registra.
+     */
+    public function registrarStatus(int $idOs, ?string $anterior, string $novo, ?int $usuario): void
+    {
+        if ($anterior === $novo || ! $this->historicoDisponivel()) {
+            return;
+        }
+
+        $this->db->insert('os_historico', [
+            'os_id' => $idOs,
+            'status_anterior' => $anterior,
+            'status_novo' => $novo,
+            'usuarios_id' => $usuario ?: null,
+            'data_hora' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /** Histórico de status da OS, do mais recente ao mais antigo, com o nome de quem mudou. */
+    public function getHistorico(int $idOs): array
+    {
+        if (! $this->historicoDisponivel()) {
+            return [];
+        }
+
+        return $this->db
+            ->select('os_historico.*, usuarios.nome AS autor')
+            ->from('os_historico')
+            ->join('usuarios', 'usuarios.idUsuarios = os_historico.usuarios_id', 'left')
+            ->where('os_historico.os_id', $idOs)
+            ->order_by('os_historico.data_hora', 'desc')
+            ->order_by('os_historico.idHistorico', 'desc')
+            ->get()
+            ->result();
     }
 }

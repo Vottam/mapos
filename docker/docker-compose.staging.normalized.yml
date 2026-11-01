@@ -1,0 +1,75 @@
+services:
+  mapos_staging_mysql:
+    image: mysql:8.4
+    container_name: mapos_staging_mysql
+    restart: always
+    env_file:
+      - ".env.staging"
+    environment:
+      MYSQL_DATABASE: mapos_staging
+      MYSQL_ROOT_PASSWORD: staging_root_2026
+      MYSQL_USER: mapos_staging
+      MYSQL_PASSWORD: staging_mapos_2026
+    volumes:
+      - "./data-staging/db/mysql:/var/lib/mysql"
+      - "../banco.sql:/docker-entrypoint-initdb.d/01-banco.sql:ro"
+    networks:
+      - mapos_staging_db
+
+  mapos_staging_php-fpm:
+    image: docker-php-fpm
+    container_name: mapos_staging_php-fpm
+    restart: always
+    depends_on:
+      - mapos_staging_mysql
+    environment:
+      DB_HOSTNAME: mapos_staging_mysql
+      DB_USERNAME: mapos_staging
+      DB_PASSWORD: staging_mapos_2026
+      DB_DATABASE: mapos_staging
+      DB_DRIVER: mysqli
+      APP_BASEURL: /
+      APP_ENVIRONMENT: development
+      STORAGE_PATH: /var/mapos-storage
+    volumes:
+      - "./etc/php/php.ini:/usr/local/etc/php/conf.d/php.ini"
+      - "./etc/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini"
+      - "../:/var/www/html"
+      - "/opt/mapos-staging-storage:/var/mapos-storage:rw"
+    tmpfs:
+      - "/tmp:mode=1777,uid=0,gid=0"
+    networks:
+      - mapos_staging_app
+      - mapos_staging_db
+
+  mapos_staging_nginx:
+    image: nginx:alpine
+    container_name: mapos_staging_nginx
+    restart: always
+    depends_on:
+      - mapos_staging_php-fpm
+      - mapos_staging_mysql
+    env_file:
+      - ".env.staging"
+    ports:
+      - "0.0.0.0:8095:80"
+    volumes:
+      - "./etc/nginx/default.normalized.template.conf:/etc/nginx/conf.d/default.template:ro"
+      - "../:/var/www/html"
+    command: /bin/sh -c "envsubst '$$NGINX_HOST' < /etc/nginx/conf.d/default.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+    networks:
+      - mapos_staging_front
+      - mapos_staging_app
+
+networks:
+  mapos_staging_front:
+    name: mapos_staging_front
+    driver: bridge
+  mapos_staging_app:
+    name: mapos_staging_app
+    driver: bridge
+    internal: true
+  mapos_staging_db:
+    name: mapos_staging_db
+    driver: bridge
+    internal: true

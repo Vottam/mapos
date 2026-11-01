@@ -1,0 +1,345 @@
+/*
+ * Fonte reproduzível do layout da listagem de OS (FIX01E).
+ *
+ * A tabela padrão tem 13 colunas visíveis e mantém Status/Ações dentro da
+ * borda do painel. A grade de ações é deliberadamente 2x3; não usar escala
+ * global nem esconder clipping com overflow.
+ */
+.os-listagem {
+  min-width: 0;
+}
+
+.os-colunas-barra {
+  min-height: 2.5rem;
+}
+
+.os-colunas > [data-os-colunas-toggle] {
+  min-height: 2.25rem;
+}
+
+.os-colunas-painel {
+  z-index: 20;
+  max-height: min(38rem, calc(100vh - 8rem));
+  overflow-y: auto;
+}
+
+.os-colunas-painel[hidden] {
+  display: none !important;
+}
+
+.os-listagem-tabela {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.os-listagem-tabela > table {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+
+.os-listagem-tabela :is(th, td) {
+  padding: 0.2rem 0.25rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.2 !important;
+  box-sizing: border-box;
+}
+
+.os-listagem-tabela thead th {
+  padding-block: 0.25rem !important;
+  font-size: 0.625rem !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.015em !important;
+  white-space: normal !important;
+}
+
+.os-listagem-tabela :is(th, td)[hidden] {
+  display: none !important;
+}
+
+/* Larguras compactas da ordem canônica: Nº, Cliente, Tipo, Marca, Modelo,
+ * Responsável, Datas, Garantia, financeiros, Status e Ações. */
+.os-listagem-tabela :is(th, td):nth-child(1) {
+  width: 2.125rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(2) {
+  width: 5rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(3),
+.os-listagem-tabela :is(th, td):nth-child(4) {
+  width: 2.75rem;
+}
+
+@media (min-width: 640px) {
+  .os-listagem-tabela :is(th, td):nth-child(3) {
+    width: 5rem;
+  }
+}
+
+.os-listagem-tabela :is(th, td):nth-child(5) {
+  width: 3.25rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(6) {
+  width: 5rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(7),
+.os-listagem-tabela :is(th, td):nth-child(8) {
+  width: 3.875rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(9) {
+  width: 5.95rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(10) {
+  width: 4.125rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(11),
+.os-listagem-tabela :is(th, td):nth-child(12) {
+  width: 4.5rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(13) {
+  width: 7.5rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(14) {
+  width: 4.5rem;
+}
+
+.os-listagem-tabela :is(th, td):nth-child(15) {
+  width: 7.875rem;
+}
+
+.os-listagem-tabela :is(th, td):last-child,
+.os-listagem-tabela .os-acoes-cell {
+  width: 15rem !important;
+  min-width: 15rem !important;
+}
+
+.os-listagem-tabela td.os-col-tipo,
+.os-listagem-tabela td.os-col-marca,
+.os-listagem-tabela td.os-col-modelo {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.os-listagem-tabela td.os-col-cliente,
+.os-listagem-tabela td.os-col-responsavel {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.os-listagem-tabela td.os-col-cliente > a,
+.os-listagem-tabela td.os-col-tipo > span,
+.os-listagem-tabela td.os-col-marca > span,
+.os-listagem-tabela td.os-col-modelo > span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.os-listagem-tabela td.os-col-status {
+  white-space: nowrap !important;
+  overflow: visible;
+}
+
+.os-listagem-tabela :is(th, td).os-col-data,
+.os-listagem-tabela :is(th, td).os-col-garantia,
+.os-listagem-tabela :is(th, td).os-col-financeiro {
+  white-space: nowrap !important;
+  font-size: 0.75rem !important;
+}
+
+.os-listagem-tabela th:last-child,
+.os-listagem-tabela td.os-acoes-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background-color: var(--color-surface) !important;
+  box-shadow: -0.35rem 0 0.65rem -0.65rem var(--color-text);
+}
+
+.os-listagem-tabela th:last-child {
+  z-index: 3;
+  background-color: var(--color-surface-subtle) !important;
+}
+
+/* Uma OS = uma linha visual: seis ações em linha única, sem empilhamento.
+ * Container equivalente a flex row, nowrap, alinhado ao centro, gap 2mm (~7,6 px). */
+.os-listagem-tabela .os-acoes-cell > span {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2mm !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin-inline-start: 0 !important;
+}
+
+.os-listagem-tabela .os-acoes-cell > span > :is(a, button) {
+  display: inline-flex !important;
+  width: 2.25rem !important;
+  min-width: 2.25rem !important;
+  height: 2.25rem !important;
+  min-height: 2.25rem !important;
+  padding: 0 !important;
+}
+
+.os-listagem-tabela .os-acoes-cell > span > :is(a, button) > .sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Colunas opcionais podem rolar de forma controlada; o padrão não rola. */
+.os-listagem.os-listagem--overflow .os-listagem-tabela > table {
+  width: max-content !important;
+  min-width: 100% !important;
+  table-layout: auto !important;
+}
+
+.os-listagem.os-listagem--overflow .os-listagem-tabela :is(th, td):not([hidden]) {
+  min-width: 5.5rem;
+}
+
+@media (max-width: 639px) {
+  .os-listagem-tabela > table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto !important;
+  }
+
+  .os-listagem-tabela :is(th, td) {
+    padding-inline: 0.45rem !important;
+  }
+
+  .os-listagem-tabela th:last-child,
+  .os-listagem-tabela td.os-acoes-cell {
+    position: static;
+    width: auto !important;
+    min-width: 0 !important;
+    box-shadow: none;
+  }
+
+  .os-listagem-tabela .os-acoes-cell > span {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2mm !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .os-listagem-tabela .os-acoes-cell > span > :is(a, button) {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+    height: 2.75rem !important;
+    min-height: 2.75rem !important;
+  }
+
+  .os-colunas-painel {
+    right: auto;
+    left: 0;
+  }
+}
+
+/*
+ * Paleta da listagem de OS: os fundos seguem os hexadecimais do LIVE 4.55.0;
+ * o texto escolhe tinta clara/escura para manter leitura no pill moderno.
+ * Cada status tem uma classe própria, mesmo quando o LIVE compartilhava apenas
+ * a linguagem visual, evitando que estados diferentes caiam no mesmo verde.
+ */
+.os-listagem-tabela :is(.os-status-pill--orcamento,
+.os-status-pill--negociacao,
+.os-status-pill--aberto,
+.os-status-pill--aprovado,
+.os-status-pill--em-andamento,
+.os-status-pill--aguardando-pecas,
+.os-status-pill--finalizado,
+.os-status-pill--faturado,
+.os-status-pill--cancelado,
+.os-status-pill--entregue,
+.os-status-pill--sem-conserto,
+.os-financial-pill) {
+  padding-inline: 0.25rem !important;
+  padding-block: 0.125rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.2 !important;
+}
+
+.os-listagem-tabela .os-status-pill--orcamento {
+  background-color: #CDB380 !important;
+  color: #1f1633 !important;
+}
+
+.os-listagem-tabela .os-status-pill--negociacao {
+  background-color: #AEB404 !important;
+  color: #1f1633 !important;
+}
+
+.os-listagem-tabela .os-status-pill--aberto {
+  background-color: #00cd00 !important;
+  color: #1f1633 !important;
+}
+
+.os-listagem-tabela .os-status-pill--aprovado {
+  background-color: #808080 !important;
+  color: #000000 !important;
+}
+
+.os-listagem-tabela .os-status-pill--em-andamento {
+  background-color: #436eee !important;
+  color: #000000 !important;
+}
+
+.os-listagem-tabela .os-status-pill--aguardando-pecas {
+  background-color: #FF7F00 !important;
+  color: #1f1633 !important;
+}
+
+.os-listagem-tabela .os-status-pill--finalizado {
+  background-color: #256 !important;
+  color: #ffffff !important;
+}
+
+.os-listagem-tabela .os-status-pill--faturado {
+  background-color: #B266FF !important;
+  color: #1f1633 !important;
+}
+
+.os-listagem-tabela .os-status-pill--cancelado {
+  background-color: #CD0000 !important;
+  color: #ffffff !important;
+}
+
+.os-listagem-tabela .os-status-pill--entregue {
+  background-color: #17a2b8 !important;
+  color: #1f1633 !important;
+}
+
+.os-listagem-tabela .os-status-pill--sem-conserto {
+  background-color: #f78da7 !important;
+  color: #1f1633 !important;
+}
+

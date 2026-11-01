@@ -1,205 +1,142 @@
-<style>
-.badge-pago { background:#28a745; color:#fff; padding:2px 8px; border-radius:3px; font-size:11px; }
-.badge-pendente { background:#dc3545; color:#fff; padding:2px 8px; border-radius:3px; font-size:11px; }
-.badge-ativo { background:#00cd00; color:#fff; padding:2px 8px; border-radius:3px; font-size:11px; }
-.badge-inativo { background:#ff0000; color:#fff; padding:2px 8px; border-radius:3px; font-size:11px; }
-</style>
+<?php
+/**
+ * Custos fixos: contratos e contas a pagar por vencimento.
+ * A consulta só lê competências; geração e alterações são ações POST explícitas.
+ * @var list<object> $results
+ * @var list<object> $competencias
+ * @var array $podeCustos
+ */
+$caixa = 'rounded-xl border border-border bg-surface p-4 sm:p-6';
+$filtros = $filtrosCustos ?? ['categoria' => '', 'status' => ''];
+$podeCustos += ['adicionar' => false, 'editar' => false, 'status' => false, 'excluir' => false];
+$csrfNome = $this->security->get_csrf_token_name();
+$csrfHash = $this->security->get_csrf_hash();
+$periodoRotulo = $periodoDe === $periodoAte
+    ? dataBr($periodoDe)
+    : dataBr($periodoDe) . ' a ' . dataBr($periodoAte);
+$mostrarData = static function ($data): string {
+    $data = (string) ($data ?? '');
+    return $data !== '' && $data !== '0000-00-00' ? dataBr($data) : '—';
+};
 
-<div class="new122">
-    <!-- DASHBOARD OPERACIONAL DE CONTAS A PAGAR -->
-    <div class="widget-title" style="margin:-15px -10px 0">
-        <h5>Contas a Pagar — Vencimentos <?= $mesAtual ?></h5>
+$contratoColunas = [
+    ['label' => 'Título', 'class' => 'min-w-44', 'render' => fn ($c) => (string) $c->titulo],
+    ['label' => 'Categoria', 'hide_until' => 'lg', 'render' => fn ($c) => (string) $c->categoria],
+    ['label' => 'Valor padrão', 'align' => 'right', 'nowrap' => true, 'render' => fn ($c) => dinheiro((float) $c->valor)],
+    ['label' => 'Periodicidade', 'nowrap' => true, 'hide_until' => 'xl', 'render' => fn ($c) => ucfirst((string) $c->periodicidade)],
+    ['label' => 'Vencimento', 'align' => 'right', 'nowrap' => true, 'hide_until' => 'xl', 'render' => fn ($c) => (int) $c->dia_vencimento . ' · ' . ((string) ($c->regra_vencimento ?? 'mes_vencido') === 'mes_corrente' ? 'mês corrente' : 'mês vencido')],
+    ['label' => 'Status', 'nowrap' => true, 'render' => fn ($c) => component('pill-status', (int) $c->ativo === 1 ? ['label' => 'Ativo', 'variant' => 'success'] : ['label' => 'Inativo', 'variant' => 'neutral'])],
+    ['label' => 'Ações', 'align' => 'right', 'nowrap' => true, 'render' => function ($c) use ($podeCustos) {
+        $acoes = [component('button', ['label' => 'Abrir competências de ' . $c->titulo, 'icon' => 'calendar-days', 'icon_only' => true, 'variant' => 'ghost', 'size' => 'sm', 'href' => site_url('financeiro/competenciasCustoFixo/' . (int) $c->idCustoFixo)])];
+        if ($podeCustos['editar']) {
+            $acoes[] = component('button', ['label' => 'Editar ' . $c->titulo, 'icon' => 'pencil', 'icon_only' => true, 'variant' => 'ghost', 'size' => 'sm', 'href' => site_url('financeiro/editarCustoFixo/' . (int) $c->idCustoFixo)]);
+        }
+        if ($podeCustos['status']) {
+            $ativo = (int) $c->ativo === 1;
+            $acoes[] = component('button', ['label' => ($ativo ? 'Inativar ' : 'Ativar ') . $c->titulo, 'icon' => $ativo ? 'toggle-left' : 'toggle-right', 'icon_only' => true, 'variant' => 'ghost', 'size' => 'sm', 'class' => $ativo ? 'text-danger-ink' : 'text-success-ink', 'attrs' => ['data-modal-abrir' => 'alternar-custo', 'data-valor-id' => (string) $c->idCustoFixo, 'data-valor-titulo' => (string) $c->titulo, 'data-valor-acao' => $ativo ? 'inativado' : 'ativado']]);
+        }
+        if ($podeCustos['excluir']) {
+            $acoes[] = component('button', ['label' => 'Excluir ' . $c->titulo, 'icon' => 'trash-2', 'icon_only' => true, 'variant' => 'ghost', 'size' => 'sm', 'class' => 'hover:text-danger-ink', 'attrs' => ['data-modal-abrir' => 'excluir-custo', 'data-valor-id' => (string) $c->idCustoFixo, 'data-valor-titulo' => (string) $c->titulo]]);
+        }
+
+        return $acoes;
+    }],
+];
+
+$competenciaColunas = [
+    ['label' => 'Competência', 'nowrap' => true, 'render' => fn ($c) => dataBr($c->competencia)],
+    ['label' => 'Título', 'class' => 'min-w-44', 'render' => fn ($c) => (string) $c->titulo_custo],
+    ['label' => 'Categoria', 'hide_until' => 'lg', 'render' => fn ($c) => (string) $c->categoria_custo],
+    ['label' => 'Valor', 'align' => 'right', 'nowrap' => true, 'render' => fn ($c) => dinheiro((float) $c->valor)],
+    ['label' => 'Vencimento', 'nowrap' => true, 'render' => fn ($c) => $mostrarData($c->data_vencimento)],
+    ['label' => 'Status', 'nowrap' => true, 'render' => fn ($c) => component('pill-status', (int) $c->pago === 1 ? ['label' => 'Paga', 'variant' => 'success'] : ['label' => 'Pendente', 'variant' => 'danger'])],
+    ['label' => 'Data pagamento', 'nowrap' => true, 'hide_until' => 'lg', 'render' => fn ($c) => $mostrarData($c->data_pagamento)],
+    ['label' => 'Ações', 'align' => 'right', 'nowrap' => true, 'render' => function ($c) use ($podeCustos, $csrfNome, $csrfHash) {
+        if (! $podeCustos['editar']) {
+            return component('button', ['label' => 'Ver competências de ' . $c->titulo_custo, 'icon' => 'calendar-days', 'icon_only' => true, 'variant' => 'ghost', 'size' => 'sm', 'href' => site_url('financeiro/competenciasCustoFixo/' . (int) $c->idCustoFixo)]);
+        }
+        $acao = (int) $c->pago === 1 ? 'despagar' : 'pagar';
+        $rotulo = $acao === 'pagar' ? 'Marcar paga' : 'Marcar pendente';
+        $classe = $acao === 'pagar' ? 'text-success-ink' : 'text-danger-ink';
+        $iconePagamento = $acao === 'pagar'
+            ? (string) icon('check', ['class' => 'size-4'])
+            : (string) icon('history', ['class' => 'size-4']);
+        $html = '<div class="inline-flex flex-wrap items-center justify-end gap-1">';
+        $html .= '<form method="post" action="' . e(site_url('financeiro/togglePagamentoCompetencia')) . '" class="inline-flex">';
+        $html .= '<input type="hidden" name="' . e($csrfNome) . '" value="' . e($csrfHash) . '">';
+        $html .= '<input type="hidden" name="idCompetencia" value="' . e((string) $c->idCompetencia) . '">';
+        $html .= '<input type="hidden" name="action" value="' . e($acao) . '">';
+        $html .= '<input type="hidden" name="custo_fixo_id" value="' . e((string) $c->idCustoFixo) . '">';
+        if ($acao === 'pagar') {
+            $html .= '<input type="hidden" name="data_pagamento" value="' . e(date('d/m/Y')) . '">';
+        }
+        $html .= '<button type="submit" class="inline-flex size-9 items-center justify-center rounded-md border border-border text-xs font-semibold hover:bg-surface-subtle max-sm:size-11 ' . e($classe) . '" title="' . e($rotulo) . '" aria-label="' . e($rotulo) . '">' . $iconePagamento . '</button></form>';
+        $html .= '<a href="' . e(site_url('financeiro/competenciasCustoFixo/' . (int) $c->idCustoFixo)) . '" class="inline-flex size-9 items-center justify-center rounded-md border border-border text-text hover:bg-surface-subtle max-sm:size-11" title="Ver competências" aria-label="Ver competências">' . (string) icon('calendar-days', ['class' => 'size-4']) . '</a>';
+        $html .= '<a href="' . e(site_url('financeiro/editarCustoFixo/' . (int) $c->idCustoFixo)) . '" class="inline-flex size-9 items-center justify-center rounded-md border border-border text-text hover:bg-surface-subtle max-sm:size-11" title="Editar cadastro" aria-label="Editar cadastro">' . (string) icon('pencil', ['class' => 'size-4']) . '</a>';
+        $html .= '</div>';
+
+        return new HtmlSeguro($html);
+    }],
+];
+?>
+<div class="flex flex-col gap-4 pt-2 pb-8">
+    <header class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h1 class="font-display text-heading-xl text-text">Contas a pagar — Vencimentos <?= e($periodoRotulo) ?></h1>
+            <p class="text-caption text-muted">Mostra vencimentos do período e contas anteriores ainda pendentes. Competência e vencimento permanecem separados.</p>
+        </div>
+        <?php if ($podeCustos['adicionar']) { ?>
+            <?= component('button', ['label' => 'Novo custo fixo', 'icon' => 'plus', 'href' => site_url('financeiro/adicionarCustoFixo')]) ?>
+        <?php } ?>
+    </header>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <?= component('kpi-card', ['label' => 'Pago', 'value' => dinheiro($totalPago), 'icon' => 'circle-check', 'accent' => 'success', 'class' => 'border-l-2', 'attrs' => ['style' => 'border-left-color:#28a745'], 'caption' => 'Contas pagas exibidas']) ?>
+        <?= component('kpi-card', ['label' => 'A pagar', 'value' => dinheiro($totalAPagar), 'icon' => 'banknote', 'accent' => 'warning', 'class' => 'border-l-2 border-danger', 'caption' => 'Pendentes e vencidas']) ?>
+        <?= component('kpi-card', ['label' => 'Total', 'value' => dinheiro($totalGeral), 'icon' => 'chart-column', 'class' => 'border-l-2', 'caption' => 'Consolidado da visão operacional']) ?>
     </div>
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 20px 0;">
-        <a href="<?= site_url('financeiro/adicionarCustoFixo') ?>" class="button btn btn-success" style="max-width:180px">
-            <span class="button__icon"><i class='bx bx-plus-circle'></i></span><span class="button__text2">Novo Custo Fixo</span>
-        </a>
-        <a href="<?= site_url('financeiro/lancamentos') ?>" class="button btn btn-primary" style="max-width:180px">
-            <span class="button__icon"><i class='bx bx-arrow-back'></i></span><span class="button__text2">Voltar a Lançamentos</span>
-        </a>
-    </div>
+    <form method="get" action="<?= e(site_url('financeiro/custosFixos')) ?>" class="grid items-end gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_12rem_10rem_10rem_auto]">
+        <?= component('input', ['name' => 'categoria', 'label' => 'Categoria', 'type' => 'search', 'value' => $filtros['categoria'], 'placeholder' => 'Ex.: aluguel']) ?>
+        <?= component('select', ['name' => 'status', 'label' => 'Situação do contrato', 'placeholder' => 'Todas', 'options' => ['1' => 'Ativos', '0' => 'Inativos'], 'selected' => $filtros['status']]) ?>
+        <?= component('input', ['name' => 'de', 'label' => 'Vencimento de', 'type' => 'date', 'value' => $periodoDe]) ?>
+        <?= component('input', ['name' => 'ate', 'label' => 'Vencimento até', 'type' => 'date', 'value' => $periodoAte]) ?>
+        <?= component('button', ['label' => 'Filtrar', 'icon' => 'search', 'variant' => 'outline', 'type' => 'submit']) ?>
+    </form>
 
-    <!-- Cards resumo -->
-    <div style="display:flex;gap:15px;margin-bottom:20px;flex-wrap:wrap;">
-        <div style="background:#f8f9fa;padding:15px 20px;border-radius:5px;border-left:4px solid #28a745;min-width:150px;">
-            <small style="color:#666;">Pago (mês corrente)</small><br>
-            <strong style="color:#28a745;font-size:20px;">R$ <?= number_format($totalPago, 2, ',', '.') ?></strong>
-        </div>
-        <div style="background:#f8f9fa;padding:15px 20px;border-radius:5px;border-left:4px solid #dc3545;min-width:150px;">
-            <small style="color:#666;">A pagar (mês + atrasados)</small><br>
-            <strong style="color:#dc3545;font-size:20px;">R$ <?= number_format($totalAPagar, 2, ',', '.') ?></strong>
-        </div>
-        <div style="background:#f8f9fa;padding:15px 20px;border-radius:5px;border-left:4px solid #6c757d;min-width:150px;">
-            <small style="color:#666;">Total</small><br>
-            <strong style="font-size:20px;">R$ <?= number_format($totalGeral, 2, ',', '.') ?></strong>
-        </div>
-    </div>
-
-    <!-- Tabela de competências -->
-    <div class="widget-box">
-        <div class="widget-content nopadding tab-content">
-            <table class="table table-bordered" id="tabela-competencias">
-                <thead>
-                    <tr>
-                        <th>Competência</th>
-                        <th>Título</th>
-                        <th>Categoria</th>
-                        <th>Valor</th>
-                        <th>Vencimento</th>
-                        <th>Status</th>
-                        <th>Data pagamento</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($competencias)): ?>
-                        <tr>
-                            <td colspan="8" style="text-align:center;color:#888;">Nenhuma competência pendente ou do mês corrente.</td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($competencias as $comp): ?>
-                        <tr>
-                            <td><?= date('m/Y', strtotime($comp->competencia)) ?></td>
-                            <td><?= html_escape($comp->titulo_custo) ?></td>
-                            <td><?= html_escape($comp->categoria_custo) ?></td>
-                            <td><strong>R$ <?= number_format((float) $comp->valor, 2, ',', '.') ?></strong></td>
-                            <td><?= $comp->data_vencimento ? date('d/m/Y', strtotime($comp->data_vencimento)) : '—' ?></td>
-                            <td>
-                                <?php if ($comp->pago): ?>
-                                    <span class="badge-pago">Pago</span>
-                                <?php else: ?>
-                                    <span class="badge-pendente">Pendente</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?= $comp->data_pagamento && $comp->data_pagamento != '0000-00-00' ? date('d/m/Y', strtotime($comp->data_pagamento)) : '—' ?></td>
-                            <td>
-                                <?php if ($comp->pago): ?>
-                                <form method="post" action="<?= site_url('financeiro/togglePagamentoCompetencia') ?>" style="display:inline;">
-                                    <input type="hidden" name="idCompetencia" value="<?= $comp->idCompetencia ?>">
-                                    <input type="hidden" name="action" value="despagar">
-                                    <input type="hidden" name="custo_fixo_id" value="<?= $comp->idCustoFixo ?>">
-                                    <button type="submit" class="btn-nwe4" title="Desmarcar pagamento"><i class="bx bx-undo"></i></button>
-                                </form>
-                                <?php else: ?>
-                                <form method="post" action="<?= site_url('financeiro/togglePagamentoCompetencia') ?>" style="display:inline;">
-                                    <input type="hidden" name="idCompetencia" value="<?= $comp->idCompetencia ?>">
-                                    <input type="hidden" name="action" value="pagar">
-                                    <input type="hidden" name="custo_fixo_id" value="<?= $comp->idCustoFixo ?>">
-                                    <input type="hidden" name="data_pagamento" value="<?= date('d/m/Y') ?>">
-                                    <button type="submit" class="btn-nwe3" title="Marcar como pago"><i class="bx bx-check"></i></button>
-                                </form>
-                                <?php endif; ?>
-                                <a href="<?= site_url('financeiro/competenciasCustoFixo/' . $comp->idCustoFixo) ?>" class="btn-nwe3" title="Ver competências mensais"><i class="bx bx-calendar"></i></a>
-                                <a href="<?= site_url('financeiro/editarCustoFixo/' . $comp->idCustoFixo) ?>" class="btn-nwe3" title="Editar cadastro"><i class="bx bx-edit"></i></a>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- SEÇÃO SECUNDÁRIA: CADASTROS DE CUSTOS FIXOS -->
-    <div style="margin-top:30px;">
-        <div class="widget-title" style="margin:0 -10px 10px">
-            <h5>Cadastros de Custos Fixos</h5>
-        </div>
-
-        <div class="span12" style="margin-left: 0; margin-top: 10px;">
-            <form action="<?= current_url(); ?>" method="get">
-                <div class="span4" style="margin-left: 0;">
-                    <label>Categoria</label>
-                    <input type="text" name="categoria" class="span12" value="<?= html_escape($this->input->get('categoria')); ?>" placeholder="Ex.: aluguel">
-                </div>
-                <div class="span3">
-                    <label>Status</label>
-                    <select name="status" class="span12">
-                        <option value="">Todos</option>
-                        <option value="1" <?= $this->input->get('status') === '1' ? 'selected' : '' ?>>Ativo</option>
-                        <option value="0" <?= $this->input->get('status') === '0' ? 'selected' : '' ?>>Inativo</option>
-                    </select>
-                </div>
-                <div class="span2 pull-right" style="margin-top: 25px;">
-                    <button type="submit" class="button btn btn-primary btn-sm" style="min-width: 120px">
-                        <span class="button__icon"><i class='bx bx-filter-alt'></i></span><span class="button__text2">Filtrar</span>
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <div class="widget-box" style="margin-top:10px;">
-            <div class="widget-content nopadding tab-content">
-                <table class="table table-bordered" id="tabela-cadastros">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Título</th>
-                            <th>Categoria</th>
-                            <th>Valor padrão</th>
-                            <th>Periodicidade</th>
-                            <th>Vencimento</th>
-                            <th>Status</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($results)): ?>
-                            <tr>
-                                <td colspan="8" style="text-align:center;color:#888;">Nenhum custo fixo cadastrado.</td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($results as $r): ?>
-                            <tr>
-                                <td><?= (int) $r->idCustoFixo ?></td>
-                                <td><?= html_escape($r->titulo) ?></td>
-                                <td><?= html_escape($r->categoria) ?></td>
-                                <td>R$ <?= number_format((float) $r->valor, 2, ',', '.') ?></td>
-                                <td><?= ucfirst(html_escape($r->periodicidade)) ?></td>
-                                <td><?= str_pad((string) $r->dia_vencimento, 2, '0', STR_PAD_LEFT) ?></td>
-                                <td><span class="badge <?= ((int) $r->ativo === 1) ? 'badge-ativo' : 'badge-inativo' ?>"><?= ((int) $r->ativo === 1) ? 'Ativo' : 'Inativo' ?></span></td>
-                                <td>
-                                    <a href="<?= site_url('financeiro/competenciasCustoFixo/' . $r->idCustoFixo) ?>" class="btn-nwe3" title="Competências mensais"><i class="bx bx-calendar"></i></a>
-                                    <a href="<?= site_url('financeiro/editarCustoFixo/' . $r->idCustoFixo) ?>" class="btn-nwe3" title="Editar"><i class="bx bx-edit"></i></a>
-                                    <a href="<?= site_url('financeiro/alternarStatusCustoFixo/' . $r->idCustoFixo) ?>" class="btn-nwe4" title="<?= ((int) $r->ativo === 1) ? 'Inativar' : 'Ativar' ?>"><i class="bx bx-toggle-<?= ((int) $r->ativo === 1) ? 'left' : 'right' ?>"></i></a>
-                                    <a href="#modal-excluir" role="button" data-toggle="modal" custo-fixo="<?= $r->idCustoFixo ?>" class="btn-nwe4" title="Excluir"><i class="bx bx-trash"></i></a>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+    <section class="<?= e($caixa) ?>" aria-labelledby="contas-pagar-titulo">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 id="contas-pagar-titulo" class="text-heading-sm text-text">Contas a pagar</h2>
+                <p class="text-caption text-muted">Paga: verde. Pendente/vencida: vermelho. Ações por competência.</p>
             </div>
         </div>
-    </div>
+        <?= component('data-table', ['columns' => $competenciaColunas, 'rows' => $competencias, 'dense' => true, 'empty' => component('empty-state', ['title' => 'Nenhuma conta no período', 'message' => 'Não há contas vencendo no intervalo ou pendências anteriores.', 'icon' => 'file', 'class' => 'border-0']), 'caption' => 'Contas a pagar por competência']) ?>
+    </section>
+
+    <section class="<?= e($caixa) ?>" aria-labelledby="cadastros-titulo">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 id="cadastros-titulo" class="text-heading-sm text-text">Cadastros de custos fixos</h2>
+                <p class="text-caption text-muted">Contratos recorrentes, vigência, periodicidade e histórico de competências.</p>
+            </div>
+        </div>
+        <?= component('data-table', ['columns' => $contratoColunas, 'rows' => $results, 'dense' => true, 'empty' => component('empty-state', ['title' => 'Nenhum custo fixo encontrado', 'message' => 'Cadastre um custo fixo ou limpe os filtros.', 'icon' => 'chart-column', 'class' => 'border-0']), 'caption' => 'Cadastros de custos fixos']) ?>
+    </section>
 </div>
 
-<!-- Modal excluir -->
-<div id="modal-excluir" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-    <form action="<?= site_url('financeiro/excluirCustoFixo') ?>" method="post">
-        <div class="modal-header">
-            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
-            <h5 id="myModalLabel">Excluir Custo Fixo</h5>
-        </div>
-        <div class="modal-body">
-            <input type="hidden" id="idCustoFixo" name="id" value="" />
-            <h5 style="text-align:center">Deseja realmente excluir este custo fixo?</h5>
-        </div>
-        <div class="modal-footer" style="display:flex;justify-content:center">
-            <button class="button btn btn-warning" data-dismiss="modal" aria-hidden="true"><span class="button__icon"><i class="bx bx-x"></i></span><span class="button__text2">Cancelar</span></button>
-            <button class="button btn btn-danger"><span class="button__icon"><i class='bx bx-trash'></i></span> <span class="button__text2">Excluir</span></button>
-        </div>
-    </form>
-</div>
+<?php if ($podeCustos['status']) { ?>
+<form id="form-alternar-custo" method="post" action="<?= e(site_url('financeiro/alternarStatusCustoFixo')) ?>" hidden>
+    <input type="hidden" name="<?= e($csrfNome) ?>" value="<?= e($csrfHash) ?>">
+    <input type="hidden" name="idCustoFixo" value="" data-modal-de="alternar-custo" data-modal-valor="id">
+</form>
+<?= component('modal-confirm', ['id' => 'alternar-custo', 'title' => 'Alterar situação do custo fixo?', 'message' => [new HtmlSeguro('<strong class="font-semibold text-text" data-modal-valor="titulo"></strong> será <span data-modal-valor="acao"></span>. As competências históricas não serão recriadas.'),], 'confirm_label' => 'Confirmar', 'confirm_attrs' => ['form' => 'form-alternar-custo']]) ?>
+<?php } ?>
 
-<script>
-$(document).ready(function() {
-    $(document).on('click', 'a', function() {
-        var custo = $(this).attr('custo-fixo');
-        if (custo) {
-            $('#idCustoFixo').val(custo);
-        }
-    });
-});
-</script>
+<?php if ($podeCustos['excluir']) { ?>
+<form id="form-excluir-custo" method="post" action="<?= e(site_url('financeiro/excluirCustoFixo')) ?>" hidden>
+    <input type="hidden" name="<?= e($csrfNome) ?>" value="<?= e($csrfHash) ?>">
+    <input type="hidden" name="id" value="" data-modal-de="excluir-custo" data-modal-valor="id">
+</form>
+<?= component('modal-confirm', ['id' => 'excluir-custo', 'title' => 'Excluir este custo fixo?', 'message' => [new HtmlSeguro('<strong class="font-semibold text-text" data-modal-valor="titulo"></strong> e suas competências serão excluídos. Essa ação é irreversível no banco.'),], 'confirm_label' => 'Excluir', 'icon' => 'triangle-alert', 'confirm_attrs' => ['form' => 'form-excluir-custo']]) ?>
+<?php } ?>

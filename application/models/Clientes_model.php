@@ -27,36 +27,67 @@ class Clientes_model extends CI_Model
         return $result;
     }
 
+    /**
+     * Clientes da listagem (#2852), do mais recente para o mais antigo.
+     *
+     * @param  array{pesquisa?: string, tipo?: 'cliente'|'fornecedor'}  $filtros  Saída de listagemFiltros()
+     */
+    public function listar(array $filtros, int $limite, int $offset): array
+    {
+        $this->aplicarFiltros($filtros);
+
+        return $this->db
+            ->order_by('idClientes', 'desc')
+            ->limit($limite, max(0, $offset))
+            ->get('clientes')
+            ->result();
+    }
+
+    /**
+     * Total da listagem com os mesmos filtros de listar(): a paginação conta
+     * só o que a busca encontra.
+     */
+    public function contar(array $filtros): int
+    {
+        $this->aplicarFiltros($filtros);
+
+        return (int) $this->db->count_all_results('clientes');
+    }
+
+    /**
+     * pesquisa procura em nome, documento, e-mail, telefone e celular (o OR
+     * fica entre parênteses, para não anular o filtro de tipo); tipo separa
+     * clientes de fornecedores.
+     */
+    private function aplicarFiltros(array $filtros): void
+    {
+        if (($filtros['pesquisa'] ?? '') !== '') {
+            $pesquisa = (string) $filtros['pesquisa'];
+            $documento = preg_replace('/\D+/', '', $pesquisa);
+
+            $this->db->group_start()
+                ->like('nomeCliente', $pesquisa)
+                ->or_like('documento', $pesquisa)
+                ->or_like('email', $pesquisa)
+                ->or_like('telefone', $pesquisa)
+                ->or_like('celular', $pesquisa);
+            if (in_array(strlen($documento), [11, 14], true)) {
+                $this->db->or_like("REPLACE(REPLACE(REPLACE(documento, '.', ''), '-', ''), '/', '')", $documento, 'both', false);
+            }
+            $this->db->group_end();
+        }
+
+        if (($filtros['tipo'] ?? '') !== '') {
+            $this->db->where('fornecedor', $filtros['tipo'] === 'fornecedor' ? 1 : 0);
+        }
+    }
+
     public function getById($id)
     {
         $this->db->where('idClientes', $id);
         $this->db->limit(1);
 
         return $this->db->get('clientes')->row();
-    }
-
-    public function getByCpf($cpf)
-    {
-        $cpf = preg_replace('/\D+/', '', (string) $cpf);
-
-        if (strlen($cpf) !== 11) {
-            return [];
-        }
-
-        return $this->getByDocumentoNormalizado($cpf);
-    }
-
-    public function getByDocumentoNormalizado($documento)
-    {
-        $documento = preg_replace('/\D+/', '', (string) $documento);
-
-        if ($documento === '') {
-            return [];
-        }
-
-        $sql = "SELECT idClientes, nomeCliente, documento, telefone, celular, email, contato, cep, rua, numero, complemento, bairro, cidade, estado, pessoa_fisica, fornecedor\n                FROM clientes\n               WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(documento, '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?\n            ORDER BY idClientes DESC";
-
-        return $this->db->query($sql, [$documento])->result();
     }
 
     public function add($table, $data)
@@ -75,6 +106,12 @@ class Clientes_model extends CI_Model
         $this->db->update($table, $data);
 
         if ($this->db->affected_rows() >= 0) {
+            // Senha trocada: os access tokens da API do cliente deixam de valer.
+            if ($table === 'clientes' && $fieldID === 'idClientes' && isset($data['senha'])) {
+                $this->load->library('Authorization_Token');
+                $this->authorization_token->incrementarVersao('clientes', 'idClientes', (int) $ID);
+            }
+
             return true;
         }
 
@@ -95,6 +132,28 @@ class Clientes_model extends CI_Model
     public function count($table)
     {
         return $this->db->count_all($table);
+    }
+
+    /** OS do cliente, das mais recentes para as mais antigas. */
+    public function osDoCliente(int $id, int $limite, int $offset = 0): array
+    {
+        return $this->db->where('clientes_id', $id)->order_by('idOs', 'desc')->limit($limite, $offset)->get('os')->result();
+    }
+
+    /** Vendas do cliente, das mais recentes para as mais antigas. */
+    public function vendasDoCliente(int $id, int $limite, int $offset = 0): array
+    {
+        return $this->db->where('clientes_id', $id)->order_by('idVendas', 'desc')->limit($limite, $offset)->get('vendas')->result();
+    }
+
+    public function contarOsDoCliente(int $id): int
+    {
+        return (int) $this->db->where('clientes_id', $id)->count_all_results('os');
+    }
+
+    public function contarVendasDoCliente(int $id): int
+    {
+        return (int) $this->db->where('clientes_id', $id)->count_all_results('vendas');
     }
 
     public function getOsByCliente($id)
@@ -199,5 +258,34 @@ class Clientes_model extends CI_Model
         $query = $this->db->get('clientes');
         
         return $query->num_rows() > 0;
+    }
+
+    /**
+     * Busca por documento normalizado (CPF/CNPJ sem pontuação ou com).
+     *
+     * O id opcional é usado na edição para não considerar o próprio registro
+     * como duplicidade. A consulta preserva todos os candidatos históricos:
+     * não escolhe arbitrariamente um cliente quando há duplicatas antigas.
+     *
+     * @param string $documento
+     * @param int|null $excluirId
+     * @return array
+     */
+    public function getByDocumentoNormalizado($documento, ?int $excluirId = null)
+    {
+        $documento = preg_replace('/\D+/', '', (string) $documento);
+        if ($documento === '' || ! in_array(strlen($documento), [11, 14], true)) {
+            return [];
+        }
+
+        $sql = "SELECT idClientes, nomeCliente, documento, telefone, celular, email, contato, cep, rua, numero, complemento, bairro, cidade, estado, pessoa_fisica, fornecedor FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(documento, '.', ''), '-', ''), '/', ''), ' ', ''), '(', ''), ')', '') = ?";
+        $parametros = [$documento];
+        if ($excluirId !== null && $excluirId > 0) {
+            $sql .= ' AND idClientes <> ?';
+            $parametros[] = $excluirId;
+        }
+        $sql .= ' ORDER BY idClientes DESC';
+
+        return $this->db->query($sql, $parametros)->result();
     }
 }

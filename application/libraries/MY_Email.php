@@ -18,6 +18,9 @@ defined('BASEPATH') or exit('No direct script access allowed');
  */
 class MY_Email extends CI_Email
 {
+    /** @var object Instância do CodeIgniter, injetada por get_instance() no construtor */
+    protected $CI;
+
     // DB table
     private $table_email_queue = 'email_queue';
 
@@ -122,17 +125,10 @@ class MY_Email extends CI_Email
     /**
      * Legacy backlog fence
      *
-     * Le a cerca canonica de identidade da fila. A fila ficou parada entre
-     * 2026-06-02 e 2026-09-29 porque o cron do host chamava um container
-     * removido (mapos_php-fpm), falhando em silencio. Durante a janela
-     * congelaram 102 mensagens 'pending' (id 323-424) cujo conteudo divergiria
-     * do estado atual do banco e que NUNCA devem ser enviadas automaticamente.
+     * The queue fence protects the legacy backlog by monotonically increasing
+     * queue id. Missing or invalid fence data is fail-closed.
      *
-     * A cerca e por identidade (id AUTO_INCREMENT monotonico), nao por data:
-     * o campo 'date' e sobrescrito em toda transicao de status e nao serve
-     * como criterio de elegibilidade.
-     *
-     * @return int|null id exclusivo da cerca, ou null em fail-closed
+     * @return int|null exclusive queue id, or null when sending is blocked
      */
     private function queue_fence()
     {
@@ -157,7 +153,7 @@ class MY_Email extends CI_Email
         }
 
         if ($fence === null) {
-            log_message('error', 'Email queue ABORTADA (fail-closed): email_queue_fence.json ausente ou invalido em '.implode(' | ', $candidates).'. Nenhuma mensagem foi enviada.');
+            log_message('error', 'Email queue ABORTED (fail-closed): email_queue_fence.json is missing or invalid in '.implode(' | ', $candidates).'. No message was sent.');
 
             return null;
         }
@@ -165,25 +161,25 @@ class MY_Email extends CI_Email
         $idExclusive = (int) $fence['resume_after_id'];
 
         if ($idExclusive < 0) {
-            log_message('error', 'Email queue ABORTADA (fail-closed): resume_after_id invalido em '.$used.'.');
+            log_message('error', 'Email queue ABORTED (fail-closed): invalid resume_after_id in '.$used.'.');
 
             return null;
         }
 
-        // Guarda 1: o bloco legado precisa continuar integro e congelado.
+        // Guard 1: the frozen legacy block must remain unchanged.
         if (isset($fence['legacy_pending_count'])) {
             $this->CI->db->where('status', 'pending');
             $this->CI->db->where('id <=', $idExclusive);
             $frozen = (int) $this->CI->db->count_all_results($this->table_email_queue);
 
             if ($frozen !== (int) $fence['legacy_pending_count']) {
-                log_message('error', 'Email queue ABORTADA (fail-closed): bloco legado divergente em '.$used.'. Esperado '.$fence['legacy_pending_count'].' pending com id <= '.$idExclusive.', encontrado '.$frozen.'.');
+                log_message('error', 'Email queue ABORTED (fail-closed): legacy block diverged in '.$used.'. Expected '.$fence['legacy_pending_count'].' pending with id <= '.$idExclusive.', found '.$frozen.'.');
 
                 return null;
             }
         }
 
-        // Guarda 2: o AUTO_INCREMENT precisa estar acima da cerca (monotonicidade).
+        // Guard 2: new queue ids must be strictly above the fence.
         $meta = $this->CI->db->select('AUTO_INCREMENT')
             ->from('information_schema.TABLES')
             ->where('TABLE_SCHEMA', $this->CI->db->database)
@@ -193,7 +189,7 @@ class MY_Email extends CI_Email
             ->row();
 
         if ($meta === null || (int) $meta->AUTO_INCREMENT <= $idExclusive) {
-            log_message('error', 'Email queue ABORTADA (fail-closed): AUTO_INCREMENT de email_queue nao esta acima de '.$idExclusive.' (fence '.$used.').');
+            log_message('error', 'Email queue ABORTED (fail-closed): email_queue AUTO_INCREMENT is not above '.$idExclusive.' (fence '.$used.').');
 
             return null;
         }
@@ -204,8 +200,7 @@ class MY_Email extends CI_Email
     /**
      * Send queue
      *
-     * Send queue emails. Apenas mensagens com id acima da cerca de backlog
-     * legado sao selecionadas; o bloco congelado nao e tocado.
+     * Send only pending messages above the legacy backlog fence.
      *
      * @return void
      */
@@ -222,15 +217,14 @@ class MY_Email extends CI_Email
         $emails = $this->CI->db->get($this->table_email_queue)->result();
 
         if (empty($emails)) {
-            log_message('debug', 'Email queue: nada elegivel (fence id > '.$idExclusive.').');
+            log_message('debug', 'Email queue: no eligible messages (fence id > '.$idExclusive.').');
 
             return;
         }
 
-        log_message('debug', 'Email queue: processando '.count($emails).' mensagem(ns) com id > '.$idExclusive.'.');
+        log_message('debug', 'Email queue: processing '.count($emails).' message(s) with id > '.$idExclusive.'.');
 
-        // A transicao para 'sending' usa exatamente o mesmo filtro da selecao.
-        // O UPDATE original marcava TODO o pending, incluindo o backlog legado.
+        // The transition uses the same fence as selection.
         $this->CI->db->where('status', 'pending');
         $this->CI->db->where('id >', $idExclusive);
         $this->CI->db->set('status', 'sending');
@@ -269,7 +263,8 @@ class MY_Email extends CI_Email
     /**
      * Retry failed emails
      *
-     * Resend failed or expired emails
+     * Only explicitly failed rows are retryable. A row in sending has an
+     * unknown delivery state and requires manual reconciliation.
      *
      * @return void
      */
@@ -281,18 +276,14 @@ class MY_Email extends CI_Email
             return;
         }
 
-        $expire = (time() - $this->expiration);
-        $date_expire = date('Y-m-d H:i:s', $expire);
-
-        // A cerca tambem vale para o retry: o backlog legado permanece congelado
-        // no status atual (failed/pending) em vez de ser ressuscitado.
+        // Automatic retry is fail-closed for sending: it may have been
+        // delivered before a worker crash, so requeueing it can duplicate mail.
+        // New failed rows remain eligible after the ID fence is released.
         $this->CI->db->set('status', 'pending');
+        $this->CI->db->where('status', 'failed');
         $this->CI->db->where('id >', $idExclusive);
-        $this->CI->db->where("(date < '{$date_expire}' AND status = 'sending')");
-        $this->CI->db->or_where("status = 'failed' AND id > {$idExclusive}");
-
         $this->CI->db->update($this->table_email_queue);
 
-        log_message('debug', 'Email queue retrying (fence id > '.$idExclusive.')...');
+        log_message('debug', 'Email queue retrying failed rows (fence id > '.$idExclusive.'); sending rows require manual reconciliation.');
     }
 }
