@@ -52,6 +52,7 @@ $config['permissions_map'] = [
         'gerenciar' => 'vCliente',
         'adicionar' => 'aCliente',
         'cadastroRapido' => 'aCliente',
+        'salvarRapido' => 'aCliente',
         'buscarPorDocumento' => ['vCliente', 'aCliente', 'aOs', 'eOs', 'rOs', 'aVenda', 'eVenda', 'rVenda'],
         'editar' => 'eCliente',
         'visualizar' => 'vCliente',
@@ -140,6 +141,11 @@ $config['permissions_map'] = [
         'atualizarBanco' => 'cSistema',
         'atualizacao' => 'cSistema',
         'atualizarMapos' => 'cSistema',
+        // Radar de Rentabilidade — Inteligência de Tickets (STAGING).
+        // Somente leitura; exige visualização financeira e de OS.
+        'radarDados' => ['todas' => ['rFinanceiro', 'vOs']],
+        'inteligenciaTickets' => ['todas' => ['rFinanceiro', 'vOs']],
+        'inteligenciaTicketsDados' => ['todas' => ['rFinanceiro', 'vOs']],
     ],
 
     'Os' => [
@@ -257,6 +263,7 @@ $config['permissions_map'] = [
         'index' => 'vVenda',
         'gerenciar' => 'vVenda',
         'visualizar' => 'vVenda',
+        'visualizarVenda' => 'vVenda',
         'imprimir' => 'vVenda',
         'imprimirTermica' => 'vVenda',
         'imprimirVendaOrcamento' => 'vVenda',

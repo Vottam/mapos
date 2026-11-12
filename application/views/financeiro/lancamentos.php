@@ -82,7 +82,7 @@ $resumo = ($total === 1 ? '1 lançamento' : number_format($total, 0, ',', '.') .
     . ' com vencimento de ' . dataBr($filtros['de']) . ' a ' . dataBr($filtros['ate'])
     . ($temFiltro ? ', filtrados' : '');
 ?>
-<div class="flex flex-col gap-4 pt-2 pb-8">
+<div class="flex flex-col gap-4 pt-2 pb-8" <?= js_module('financeiro/lancamentos') ?>>
     <header>
         <h1 class="font-display text-heading-xl text-text">Lançamentos</h1>
         <p class="text-caption text-muted" aria-live="polite"><?= e($resumo) ?></p>
@@ -247,7 +247,7 @@ $resumo = ($total === 1 ? '1 lançamento' : number_format($total, 0, ',', '.') .
 </div>
 
 <?php if ($pode['excluir']) { ?>
-    <form id="form-excluir-lancamento" method="post" action="<?= e(site_url('financeiro/excluirLancamento') . listagemQuery($filtros)) ?>" hidden>
+    <form id="form-excluir-lancamento" method="post" action="<?= e(site_url('financeiro/excluirLancamento') . listagemQuery($filtros)) ?>" data-financeiro-acao="excluir-lancamento" hidden>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
         <input type="hidden" name="id" value="" data-modal-de="excluir-lancamento" data-modal-valor="id">
     </form>

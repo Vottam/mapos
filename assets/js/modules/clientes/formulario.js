@@ -36,7 +36,6 @@ export function enderecoDoCep(dados) {
 
     return {
         rua: dados.logradouro ?? '',
-        complemento: dados.complemento ?? '',
         bairro: dados.bairro ?? '',
         cidade: dados.localidade ?? '',
         estado: dados.uf ?? '',
@@ -122,12 +121,11 @@ export function preencherSobrescrevendo(formulario, valores) {
 
 const CAMPOS_DO_CEP = ['rua', 'bairro', 'cidade', 'estado'];
 
-/** Endereço do ViaCEP: sobrescreve rua/bairro/cidade/estado e só preenche o complemento vazio. */
+/** Endereço do ViaCEP: preenche somente rua, bairro, cidade e UF. */
 export function preencherEndereco(formulario, endereco) {
     const principais = Object.fromEntries(CAMPOS_DO_CEP.map((nome) => [nome, endereco[nome]]));
 
-    return preencherSobrescrevendo(formulario, principais)
-        + preencherVazios(formulario, { complemento: endereco.complemento });
+    return preencherSobrescrevendo(formulario, principais);
 }
 
 async function consultar(url, buscar = fetch) {

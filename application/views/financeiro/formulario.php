@@ -55,6 +55,9 @@ for ($i = 1; $i <= FINANCEIRO_PARCELAS_MAX; $i++) {
 
     <form method="post" action="<?= e(current_url() . listagemQuery($retorno)) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <?php if ($editando) { ?>
+            <input type="hidden" name="idLancamentos" value="<?= (int) $lancamento->idLancamentos ?>">
+        <?php } ?>
 
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-lancamento">
             <h2 id="secao-lancamento" class="text-heading-sm text-text">Lançamento</h2>

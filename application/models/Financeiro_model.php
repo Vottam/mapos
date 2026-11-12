@@ -21,6 +21,17 @@ class Financeiro_model extends CI_Model
         parent::__construct();
     }
 
+    public function delete($table, $fieldID, $ID)
+    {
+        $this->db->where($fieldID, $ID);
+        $this->db->delete($table);
+        if ($this->db->affected_rows() == '1') {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * Listagem de lançamentos da v5 (#2844), no padrão das listagens (#2852):
      * os mesmos filtros em listar() e contar(), para a paginação contar só o
@@ -1061,5 +1072,490 @@ class Financeiro_model extends CI_Model
             'valor' => $linha['cliente_fornecedor'],
             'detalhe' => 'Já usado em lançamentos',
         ], $linhas);
+    }
+
+    /**
+     * Despesa operacional total do período, compatível com consumidores legados.
+     */
+    public function despesasOperacionaisPeriodo(string $de, string $ate): float
+    {
+        return (float) $this->despesasOperacionaisDetalhadasPeriodo($de, $ate)['total'];
+    }
+
+    /**
+     * Despesa operacional por estado de pagamento, sem duplicar custos de OS.
+     * Competências entram por competência; despesas variáveis entram pela data
+     * de vencimento. Faturas de OS/Venda, transferências e empréstimos não são
+     * somados nesta camada.
+     *
+     * @return array{total: float, pago: float, pendente: float}
+     */
+    public function despesasOperacionaisDetalhadasPeriodo(string $de, string $ate): array
+    {
+        $de = $this->normalizarDataFinanceiro($de);
+        $ate = $this->normalizarDataFinanceiro($ate);
+        if ($de === null || $ate === null || $de > $ate) {
+            return ['total' => 0.0, 'pago' => 0.0, 'pendente' => 0.0];
+        }
+
+        $fixos = $this->getTotaisCustosFixosCompetencia($de, $ate);
+        $liquido = "CASE WHEN l.valor_desconto > 0 THEN l.valor_desconto ELSE l.valor - COALESCE(l.desconto, 0) END";
+        $row = $this->db->query(
+            "SELECT
+                COALESCE(SUM({$liquido}), 0) AS total,
+                COALESCE(SUM(CASE WHEN l.baixado = 1 THEN {$liquido} ELSE 0 END), 0) AS pago,
+                COALESCE(SUM(CASE WHEN l.baixado = 1 THEN 0 ELSE {$liquido} END), 0) AS pendente
+             FROM lancamentos l
+             WHERE l.tipo = 'despesa'
+               AND l.data_vencimento >= " . $this->db->escape($de) . "
+               AND l.data_vencimento <= " . $this->db->escape($ate) . "
+               AND l.descricao NOT LIKE 'Fatura de OS%'
+               AND l.descricao NOT LIKE 'Fatura de Venda%'
+               AND l.descricao NOT LIKE 'Transferência%'
+               AND l.descricao NOT LIKE 'Empréstimo%'
+               AND l.descricao NOT LIKE 'Emprestimo%'"
+        )->row();
+
+        $pago = $this->centavos($fixos->pago ?? 0) + $this->centavos($row->pago ?? 0);
+        $pendente = $this->centavos($fixos->a_pagar ?? 0) + $this->centavos($row->pendente ?? 0);
+
+        return [
+            'total' => $this->reais($pago + $pendente),
+            'pago' => $this->reais($pago),
+            'pendente' => $this->reais($pendente),
+        ];
+    }
+
+    /**
+     * Radar V2: Produção, Ticket Médio e Rentabilidade.
+     *
+     * Todos os agregados são derivados novamente de radarOsDetalhes() e das
+     * competências/lançamentos atuais. Não há lançamento gerencial, cache ou
+     * dependência de cron: reversões e correções aparecem na próxima leitura.
+     */
+    public function radarRentabilidade(string $de, string $ate): array
+    {
+        $de = $this->normalizarDataFinanceiro($de) ?: date('Y-m-01');
+        $ate = $this->normalizarDataFinanceiro($ate) ?: date('Y-m-d');
+        if ($de > $ate) {
+            [$de, $ate] = [$ate, $de];
+        }
+        $meses = $this->radarMesesDoIntervalo($de, $ate);
+        $serie = [];
+        foreach ($meses as $mes) {
+            $serie[$mes] = [
+                'mes' => $mes,
+                'mes_atual_parcial' => $mes === date('Y-m'),
+                'os_recebidas' => 0,
+                'os_reconhecidas' => 0,
+                'os_produtivas' => 0,
+                'os_positivas' => 0,
+                'os_neutras' => 0,
+                'os_negativas' => 0,
+                'os_pendentes' => 0,
+                'os_excecoes' => 0,
+                'receita_total' => 0.0,
+                'custo_total' => 0.0,
+                'contribuicao_total' => 0.0,
+                'despesa_total' => 0.0,
+                'despesa_paga' => 0.0,
+                'despesa_pendente' => 0.0,
+                'resultado_operacional' => 0.0,
+                'ticket_medio_positivo' => null,
+                'contribuicao_media_geral' => null,
+                'despesa_por_os_positiva' => null,
+                'despesa_por_os_reconhecida' => null,
+                'media_contribuicao_por_os_produtiva' => null,
+                'despesa_por_os_produtiva' => null,
+                'classificacao' => ['positiva' => 0, 'zero' => 0, 'negativa' => 0],
+                'pendentes_conclusao' => 0,
+                'dados_insuficientes' => 0,
+            ];
+        }
+
+        $detalhes = $this->osModel()->radarOsDetalhes();
+        $totaisEstado = ['reconhecida' => 0, 'pendente' => 0, 'excecao' => 0];
+        $fontes = ['os.lancamento' => 0, 'legado_exato_unico' => 0, 'nenhuma' => 0, 'legado_ambiguo' => 0];
+        $idsReconhecidas = [];
+        $idsPendentes = [];
+        $idsExcecoes = [];
+        $contribuicaoTotal = 0.0;
+        $receitaTotal = 0.0;
+        $custoTotal = 0.0;
+        $positivasTotal = 0;
+        $neutrasTotal = 0;
+        $negativasTotal = 0;
+        $recebidasTotal = 0;
+        $pendentesTotal = 0;
+        $excecoesTotal = 0;
+
+        foreach ($detalhes as $os) {
+            $estado = (string) ($os['estado'] ?? 'excecao');
+            $totaisEstado[$estado] = ($totaisEstado[$estado] ?? 0) + 1;
+            $fonte = (string) ($os['fonteFinanceira'] ?? 'nenhuma');
+            $fontes[$fonte] = ($fontes[$fonte] ?? 0) + 1;
+            $mesEntrada = $this->radarMesDaData($os['dataInicial'] ?? null);
+            if ($mesEntrada !== null && isset($serie[$mesEntrada])) {
+                $serie[$mesEntrada]['os_recebidas']++;
+                $recebidasTotal++;
+            }
+
+            if ($estado === 'reconhecida') {
+                $idsReconhecidas[] = (int) $os['idOs'];
+                $data = $os['dataReconhecimento'] ?? null;
+                $mesResultado = $this->radarMesDaData($data);
+                if ($mesResultado !== null && isset($serie[$mesResultado])) {
+                    $s = &$serie[$mesResultado];
+                    $s['os_reconhecidas']++;
+                    $s['receita_total'] += (float) ($os['receitaEfetiva'] ?? 0);
+                    $s['custo_total'] += (float) ($os['custoComponentes'] ?? 0);
+                    $s['contribuicao_total'] += (float) ($os['contribuicao'] ?? 0);
+                    if (($os['classificacao'] ?? null) === 'positiva') {
+                        $s['os_produtivas']++;
+                        $s['os_positivas']++;
+                        $s['classificacao']['positiva']++;
+                    } elseif (($os['classificacao'] ?? null) === 'zero') {
+                        $s['os_neutras']++;
+                        $s['classificacao']['zero']++;
+                    } elseif (($os['classificacao'] ?? null) === 'negativa') {
+                        $s['os_negativas']++;
+                        $s['classificacao']['negativa']++;
+                    }
+                    unset($s);
+                }
+                $receitaTotal += (float) ($os['receitaEfetiva'] ?? 0);
+                $custoTotal += (float) ($os['custoComponentes'] ?? 0);
+                $contribuicaoTotal += (float) ($os['contribuicao'] ?? 0);
+                if (($os['classificacao'] ?? null) === 'positiva') {
+                    $positivasTotal++;
+                } elseif (($os['classificacao'] ?? null) === 'zero') {
+                    $neutrasTotal++;
+                } elseif (($os['classificacao'] ?? null) === 'negativa') {
+                    $negativasTotal++;
+                }
+            } elseif ($estado === 'pendente') {
+                $idsPendentes[] = (int) $os['idOs'];
+                if ($mesEntrada !== null && isset($serie[$mesEntrada])) {
+                    $serie[$mesEntrada]['os_pendentes']++;
+                }
+                $pendentesTotal++;
+            } else {
+                $idsExcecoes[] = (int) $os['idOs'];
+                if ($mesEntrada !== null && isset($serie[$mesEntrada])) {
+                    $serie[$mesEntrada]['os_excecoes']++;
+                }
+                $excecoesTotal++;
+            }
+        }
+
+        $despesaTotal = 0.0;
+        $despesaPagaTotal = 0.0;
+        $despesaPendenteTotal = 0.0;
+        foreach ($meses as $mes) {
+            $inicioMes = (new DateTimeImmutable($mes . '-01'))->format('Y-m-d');
+            $fimMes = (new DateTimeImmutable($mes . '-01'))->modify('last day of this month')->format('Y-m-d');
+            $despesas = $this->despesasOperacionaisDetalhadasPeriodo($inicioMes, $fimMes);
+            $serie[$mes]['despesa_total'] = (float) $despesas['total'];
+            $serie[$mes]['despesa_paga'] = (float) $despesas['pago'];
+            $serie[$mes]['despesa_pendente'] = (float) $despesas['pendente'];
+            $despesaTotal += (float) $despesas['total'];
+            $despesaPagaTotal += (float) $despesas['pago'];
+            $despesaPendenteTotal += (float) $despesas['pendente'];
+        }
+
+        $reconhecidasPeriodo = 0;
+        $positivasPeriodo = 0;
+        $neutrasPeriodo = 0;
+        $negativasPeriodo = 0;
+        $recebidasPeriodo = 0;
+        $pendentesPeriodo = 0;
+        $excecoesPeriodo = 0;
+        $contribuicaoPeriodo = 0.0;
+        $receitaPeriodo = 0.0;
+        foreach ($serie as &$s) {
+            $reconhecidasPeriodo += (int) $s['os_reconhecidas'];
+            $positivasPeriodo += (int) $s['os_positivas'];
+            $neutrasPeriodo += (int) $s['os_neutras'];
+            $negativasPeriodo += (int) $s['os_negativas'];
+            $recebidasPeriodo += (int) $s['os_recebidas'];
+            $pendentesPeriodo += (int) $s['os_pendentes'];
+            $excecoesPeriodo += (int) $s['os_excecoes'];
+            $contribuicaoPeriodo += (float) $s['contribuicao_total'];
+            $receitaPeriodo += (float) $s['receita_total'];
+            $s['ticket_medio_positivo'] = $s['os_positivas'] > 0
+                ? (float) round($this->radarSomaPositivasDoMes($detalhes, $s['mes']) / $s['os_positivas'], 2)
+                : null;
+            $s['contribuicao_media_geral'] = $s['os_reconhecidas'] > 0
+                ? (float) round($s['contribuicao_total'] / $s['os_reconhecidas'], 2)
+                : null;
+            $s['despesa_por_os_positiva'] = $s['os_positivas'] > 0
+                ? (float) round($s['despesa_total'] / $s['os_positivas'], 2)
+                : null;
+            $s['despesa_por_os_reconhecida'] = $s['os_reconhecidas'] > 0
+                ? (float) round($s['despesa_total'] / $s['os_reconhecidas'], 2)
+                : null;
+            $s['media_contribuicao_por_os_produtiva'] = $s['ticket_medio_positivo'];
+            $s['despesa_por_os_produtiva'] = $s['despesa_por_os_positiva'];
+            $s['resultado_operacional'] = (float) round($s['contribuicao_total'] - $s['despesa_total'], 2);
+            unset($s);
+        }
+
+        $resultadoOperacional = (float) round($contribuicaoPeriodo - $despesaTotal, 2);
+        $ticketMedioPositivo = $positivasPeriodo > 0
+            ? (float) round($this->radarSomaPositivasNoPeriodo($detalhes, $meses) / $positivasPeriodo, 2)
+            : null;
+        $contribuicaoMediaGeral = $reconhecidasPeriodo > 0
+            ? (float) round($contribuicaoPeriodo / $reconhecidasPeriodo, 2)
+            : null;
+        $aproveitamento = $reconhecidasPeriodo > 0 ? (float) round($positivasPeriodo / $reconhecidasPeriodo, 4) : null;
+        $mediaMovel3M = $this->radarMediaMovelPonderada3M(array_values($serie));
+        $particaoOk = count($detalhes) === ($totaisEstado['reconhecida'] + $totaisEstado['pendente'] + $totaisEstado['excecao']);
+        $os1006 = null;
+        foreach ($detalhes as $os) {
+            if ((int) $os['idOs'] === 1006) {
+                $os1006 = [
+                    'estado' => $os['estado'],
+                    'motivo' => $os['motivo'],
+                    'fonteFinanceira' => $os['fonteFinanceira'],
+                    'lancamentoId' => $os['lancamentoId'],
+                    'dataReconhecimento' => $os['dataReconhecimento'],
+                ];
+                break;
+            }
+        }
+
+        return [
+            'versao' => 'V2',
+            'janela' => ['de' => $de, 'ate' => $ate, 'meses' => $meses, 'mes_atual' => date('Y-m')],
+            'serie' => array_values($serie),
+            'os' => $detalhes,
+            'totais' => [
+                'total_os_universo' => count($detalhes),
+                'os_recebidas' => $recebidasPeriodo,
+                'os_reconhecidas' => $reconhecidasPeriodo,
+                'os_produtivas' => $positivasPeriodo,
+                'os_positivas' => $positivasPeriodo,
+                'os_neutras' => $neutrasPeriodo,
+                'os_negativas' => $negativasPeriodo,
+                'os_pendentes' => $pendentesPeriodo,
+                'os_excecoes' => $excecoesPeriodo,
+                'receita_total' => (float) round($receitaPeriodo, 2),
+                'custo_total' => (float) round(array_sum(array_map(static fn ($s) => (float) $s['custo_total'], $serie)), 2),
+                'contribuicao_total' => (float) round($contribuicaoPeriodo, 2),
+                'ticket_medio_positivo' => $ticketMedioPositivo,
+                'contribuicao_media_geral' => $contribuicaoMediaGeral,
+                'aproveitamento' => $aproveitamento,
+                'despesa_total' => (float) round($despesaTotal, 2),
+                'despesa_paga' => (float) round($despesaPagaTotal, 2),
+                'despesa_pendente' => (float) round($despesaPendenteTotal, 2),
+                'despesa_por_os_positiva' => $positivasPeriodo > 0 ? (float) round($despesaTotal / $positivasPeriodo, 2) : null,
+                'despesa_por_os_reconhecida' => $reconhecidasPeriodo > 0 ? (float) round($despesaTotal / $reconhecidasPeriodo, 2) : null,
+                'resultado_operacional' => $resultadoOperacional,
+                'media_contribuicao_por_os_produtiva' => $ticketMedioPositivo,
+            ],
+            'aproveitamento' => [
+                'positiva' => $positivasPeriodo,
+                'zero' => $neutrasPeriodo,
+                'negativa' => $negativasPeriodo,
+                'reconhecida' => $reconhecidasPeriodo,
+                'pendente' => $pendentesPeriodo,
+                'excecao' => $excecoesPeriodo,
+                'pendente_conclusao' => $pendentesPeriodo,
+                'dados_insuficientes' => $excecoesPeriodo,
+            ],
+            'despesas' => [
+                'total' => (float) round($despesaTotal, 2),
+                'pago' => (float) round($despesaPagaTotal, 2),
+                'a_pagar' => (float) round($despesaPendenteTotal, 2),
+                'por_mes' => array_map(static fn ($s) => (float) $s['despesa_total'], $serie),
+            ],
+            'mediaMovel3M' => $mediaMovel3M,
+            'cobertura' => [
+                'total_os' => count($detalhes),
+                'reconhecidas' => $totaisEstado['reconhecida'],
+                'pendentes' => $totaisEstado['pendente'],
+                'excecoes' => $totaisEstado['excecao'],
+                'particao_exata' => $particaoOk,
+                'os_recebidas_periodo' => $recebidasPeriodo,
+                'os_pendentes_periodo' => $pendentesPeriodo,
+                'os_excecoes_periodo' => $excecoesPeriodo,
+                'fontes_financeiras' => $fontes,
+                'ids_reconhecidas' => $idsReconhecidas,
+                'ids_pendentes' => $idsPendentes,
+                'ids_excecoes' => $idsExcecoes,
+                'os_concluidas_sem_evento_conclusao' => 0,
+                'os_pendentes_conclusao' => $pendentesPeriodo,
+                'mensagem' => $particaoOk
+                    ? 'Todas as OS do universo estão em exatamente uma categoria: reconhecida, pendente ou exceção.'
+                    : 'Falha de reconciliação: as categorias não cobrem o universo sem duplicação.',
+            ],
+            'reconciliacao' => [
+                'universo' => count($detalhes),
+                'reconhecidas' => $totaisEstado['reconhecida'],
+                'pendentes' => $totaisEstado['pendente'],
+                'excecoes' => $totaisEstado['excecao'],
+                'soma_categorias' => $totaisEstado['reconhecida'] + $totaisEstado['pendente'] + $totaisEstado['excecao'],
+                'sem_duplicacao' => count(array_unique(array_merge($idsReconhecidas, $idsPendentes, $idsExcecoes))) === count($detalhes),
+                'periodo' => ['recebidas' => $recebidasPeriodo, 'reconhecidas' => $reconhecidasPeriodo, 'positivas' => $positivasPeriodo, 'zero' => $neutrasPeriodo, 'negativas' => $negativasPeriodo, 'pendentes' => $pendentesPeriodo, 'excecoes' => $excecoesPeriodo],
+            ],
+            'os1006' => $os1006,
+            'filtros' => ['de' => $de, 'ate' => $ate],
+        ];
+    }
+
+    /** Soma contribuições positivas reconhecidas no mês de reconhecimento. */
+    private function radarSomaPositivasDoMes(array $detalhes, string $mes): float
+    {
+        $total = 0.0;
+        foreach ($detalhes as $os) {
+            if (($os['classificacao'] ?? null) === 'positiva' && $this->radarMesDaData($os['dataReconhecimento'] ?? null) === $mes) {
+                $total += (float) ($os['contribuicao'] ?? 0);
+            }
+        }
+        return (float) round($total, 2);
+    }
+
+    /** Soma contribuições positivas reconhecidas nos meses selecionados. */
+    private function radarSomaPositivasNoPeriodo(array $detalhes, array $meses): float
+    {
+        $permitidos = array_fill_keys($meses, true);
+        $total = 0.0;
+        foreach ($detalhes as $os) {
+            $mes = $this->radarMesDaData($os['dataReconhecimento'] ?? null);
+            if (($os['classificacao'] ?? null) === 'positiva' && $mes !== null && isset($permitidos[$mes])) {
+                $total += (float) ($os['contribuicao'] ?? 0);
+            }
+        }
+        return (float) round($total, 2);
+    }
+
+    private function radarMesDaData($data): ?string
+    {
+        $data = trim((string) $data);
+        return preg_match('/^\\d{4}-\\d{2}-\\d{2}/', $data) ? substr($data, 0, 7) : null;
+    }
+
+    /**
+     * Lista de meses 'AAAA-MM' do intervalo [de, ate], incluindo ambos os extremos.
+     */
+    private function radarMesesDoIntervalo(string $de, string $ate): array
+    {
+        $inicio = (new DateTime($de))->modify('first day of this month');
+        $fim = (new DateTime($ate))->modify('first day of this month');
+        $meses = [];
+        $cursor = clone $inicio;
+        while ($cursor <= $fim) {
+            $meses[] = $cursor->format('Y-m');
+            $cursor->modify('first day of next month');
+        }
+        return $meses;
+    }
+
+    /**
+     * Média móvel ponderada de 3 meses: soma das contribuições reconhecidas /
+     * soma das OS reconhecidas (nunca média simples de três médias).
+     *
+     * @return list<array{mes: string, media_movel_3m: float|null, periodo_completo: bool}>
+     */
+    private function radarMediaMovelPonderada3M(array $serie): array
+    {
+        $resultado = [];
+        $n = count($serie);
+        for ($i = 0; $i < $n; $i++) {
+            $inicioJanela = max(0, $i - 2);
+            $somaContribuicao = 0.0;
+            $somaOs = 0;
+            for ($j = $inicioJanela; $j <= $i; $j++) {
+                $somaContribuicao += (float) ($serie[$j]['contribuicao_total'] ?? 0);
+                $somaOs += (int) ($serie[$j]['os_reconhecidas'] ?? 0);
+            }
+            $resultado[] = [
+                'mes' => $serie[$i]['mes'] ?? '',
+                'media_movel_3m' => $somaOs > 0 ? (float) round($somaContribuicao / $somaOs, 2) : null,
+                'periodo_completo' => ($i - $inicioJanela) === 2,
+            ];
+        }
+        return $resultado;
+    }
+
+    /**
+     * Autocomplete de clientes (com id para vínculo) e nomes usados em
+     * lançamentos, para o campo Cliente / Fornecedor da tela financeira.
+     * Saída em JSON no formato do autocomplete da v5 (id, label, valor, detalhe).
+     */
+    public function autoCompleteClienteFornecedor(string $q): void
+    {
+        $termo = trim($q);
+        $itens = [];
+
+        if ($termo !== '') {
+            $this->db->select('idClientes, nomeCliente, documento, celular');
+            $this->db->group_start()->like('nomeCliente', $termo)->or_like('documento', $termo)->group_end();
+            $this->db->order_by('nomeCliente', 'asc')->limit(10);
+            foreach ($this->db->get('clientes')->result_array() as $linha) {
+                $detalhe = array_filter([$linha['documento'], $linha['celular']], static fn ($v) => (string) $v !== '');
+                $itens[] = [
+                    'id' => (int) $linha['idClientes'],
+                    'label' => $linha['nomeCliente'],
+                    'valor' => $linha['nomeCliente'],
+                    'detalhe' => implode(' · ', $detalhe),
+                ];
+            }
+
+            $nomes = [];
+            $linhas = $this->db->distinct()->select('cliente_fornecedor')
+                ->like('cliente_fornecedor', $termo)
+                ->where('cliente_fornecedor IS NOT NULL', null, false)
+                ->order_by('cliente_fornecedor', 'asc')
+                ->limit(10)
+                ->get('lancamentos')
+                ->result_array();
+            $clientesEmUso = array_map(static fn ($i) => mb_strtolower($i['valor']), $itens);
+            foreach ($linhas as $linha) {
+                $nome = (string) $linha['cliente_fornecedor'];
+                if ($nome !== '' && ! in_array(mb_strtolower($nome), $clientesEmUso, true)) {
+                    $nomes[] = [
+                        'id' => null,
+                        'label' => $nome,
+                        'valor' => $nome,
+                        'detalhe' => 'Já usado em lançamentos',
+                    ];
+                }
+            }
+            $itens = array_slice(array_merge($itens, $nomes), 0, 10);
+        }
+
+        $this->output
+            ->set_content_type('application/json', 'utf-8')
+            ->set_output(json_encode($itens));
+    }
+
+    /**
+     * Autocomplete de clientes para o campo de receita (id para vínculo).
+     * Sempre devolve lista JSON, vazia sem termo.
+     */
+    public function autoCompleteClienteReceita(string $q): void
+    {
+        $termo = trim($q);
+        $itens = [];
+
+        if ($termo !== '') {
+            $this->db->select('idClientes, nomeCliente, documento, celular');
+            $this->db->group_start()->like('nomeCliente', $termo)->or_like('documento', $termo)->group_end();
+            $this->db->order_by('nomeCliente', 'asc')->limit(25);
+            foreach ($this->db->get('clientes')->result_array() as $linha) {
+                $detalhe = array_filter([$linha['documento'], $linha['celular']], static fn ($v) => (string) $v !== '');
+                $itens[] = [
+                    'id' => (int) $linha['idClientes'],
+                    'label' => $linha['nomeCliente'],
+                    'valor' => $linha['nomeCliente'],
+                    'detalhe' => implode(' · ', $detalhe),
+                ];
+            }
+        }
+
+        $this->output
+            ->set_content_type('application/json', 'utf-8')
+            ->set_output(json_encode($itens));
     }
 }

@@ -25,7 +25,7 @@
   <meta name="csp-nonce" content="<?= e(segurancaNonceAtual()) ?>">
   <?php } ?>
   <?php $assetBasePath = rtrim((string) (parse_url(base_url(), PHP_URL_PATH) ?: '/'), '/') . '/'; ?>
-  <link rel="shortcut icon" type="image/png" href="<?= e($assetBasePath . 'assets/img/favicon.png') ?>">
+  <link rel="icon" type="image/png" href="<?= e($assetBasePath . 'assets/img/favicon.png') ?>">
   <script src="<?= e(layoutUrlAsset('assets/js/tema.js', $assetBasePath)) ?>"></script>
   <?php foreach ($layout['assets']['css'] as $arquivo) { ?>
   <link rel="stylesheet" href="<?= e(layoutUrlAsset($arquivo, $assetBasePath)) ?>">

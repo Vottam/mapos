@@ -7,7 +7,7 @@
 // Incluído no layout com <script type="module">, que só roda depois de o HTML
 // ser lido; o teste do readyState cobre os dois casos.
 
-const VERSAO_ASSETS = 'fix-sidebar-install-final-20261031';
+const VERSAO_ASSETS = 'mapos-ui-sync-20261110-r1';
 const NOME_VALIDO = /^[a-z0-9_-]+(\/[a-z0-9_-]+)*$/;
 
 export function nomeDeModuloValido(nome) {

@@ -6,12 +6,10 @@ if (! defined('BASEPATH')) {
 
 class Produtos extends MY_Controller
 {
-    /** Filtros da listagem, na query string (listagemFiltros()). */
     public const FILTROS = [
         'pesquisa' => 'texto',
         'estoque' => ['baixo'],
     ];
-
     public function __construct()
     {
         parent::__construct();
@@ -27,10 +25,6 @@ class Produtos extends MY_Controller
         $this->gerenciar();
     }
 
-    /**
-     * Listagem de produtos (#2841), no padrão das listagens (#2852), com o
-     * filtro de estoque baixo e as etiquetas em modal.
-     */
     public function gerenciar()
     {
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vProduto')) {
@@ -69,111 +63,145 @@ class Produtos extends MY_Controller
             redirect(base_url());
         }
 
-        return $this->formulario(null);
-    }
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
 
-    public function editar()
-    {
-        $produto = $this->produtoDaUrl();
+        if ($this->form_validation->run('produtos') == false) {
+            $this->data['custom_error'] = (validation_errors() ? '<div class="form_error">' . validation_errors() . '</div>' : false);
+        } else {
+            $precoCompra = valorDecimal($this->input->post('precoCompra'));
+            $precoVenda = valorDecimal($this->input->post('precoVenda'));
+            $data = [
+                'codDeBarra' => set_value('codDeBarra'),
+                'descricao' => set_value('descricao'),
+                'unidade' => set_value('unidade'),
+                'precoCompra' => $precoCompra,
+                'precoVenda' => $precoVenda,
+                'estoque' => set_value('estoque'),
+                'estoqueMinimo' => set_value('estoqueMinimo'),
+                'saida' => set_value('saida'),
+                'entrada' => set_value('entrada'),
+            ];
 
-        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eProduto')) {
-            $this->session->set_flashdata('error', 'Você não tem permissão para editar produtos.');
-            redirect(base_url());
-        }
-
-        return $this->formulario($produto);
-    }
-
-    /**
-     * Formulário de produto (#2841), no padrão dos formulários (#2851). O id
-     * editado é o da URL; os preços aceitam "1.234,56" ou "1234.56".
-     */
-    private function formulario(?object $produto)
-    {
-        $erros = [];
-
-        if ($this->input->method() === 'post') {
-            $erros = $this->validarFormulario('produtos');
-            $precos = [];
-            foreach (['precoCompra', 'precoVenda'] as $campo) {
-                $precos[$campo] = valorDecimal($this->input->post($campo));
-                if (! isset($erros[$campo]) && $precos[$campo] === null) {
-                    $erros[$campo] = 'Informe o valor em reais, como 150,00 (até 99.999.999,99).';
-                }
-            }
-
-            if ($erros === []) {
-                $dados = produtoDadosDoFormulario($this->input->post(), $precos['precoCompra'], $precos['precoVenda']);
-
-                $salvou = $produto === null
-                    ? $this->produtos_model->add('produtos', $dados)
-                    : $this->produtos_model->edit('produtos', $dados, 'idProdutos', (int) $produto->idProdutos);
-
-                if ($salvou) {
-                    log_info($produto === null ? 'Adicionou um produto' : 'Alterou um produto. ID: ' . (int) $produto->idProdutos);
-                    $this->session->set_flashdata('success', $produto === null ? 'Produto cadastrado com sucesso!' : 'Alterações salvas.');
-
-                    return redirect($produto === null ? 'produtos' : 'produtos/visualizar/' . (int) $produto->idProdutos);
-                }
-
-                $erros['_geral'] = 'Não foi possível salvar. Tente de novo.';
+            if ($this->produtos_model->add('produtos', $data) == true) {
+                $this->session->set_flashdata('success', 'Produto adicionado com sucesso!');
+                log_info('Adicionou um produto');
+                redirect(site_url('produtos/adicionar/'));
+            } else {
+                $this->data['custom_error'] = '<div class="form_error"><p>An Error Occured.</p></div>';
             }
         }
-
-        $post = $this->input->method() === 'post' ? $this->input->post() : null;
-        $valores = [];
-        foreach (['codDeBarra', 'descricao', 'unidade', 'precoCompra', 'precoVenda', 'estoque', 'estoqueMinimo'] as $campo) {
-            $valores[$campo] = is_array($post) ? (is_string($post[$campo] ?? null) ? $post[$campo] : '') : (string) ($produto->{$campo} ?? '');
+        $this->data['produto'] = null;
+        $this->data['valores'] = array_merge([
+            'descricao' => '',
+            'unidade' => '',
+            'codDeBarra' => '',
+            'precoCompra' => '',
+            'precoVenda' => '',
+            'estoque' => '',
+            'estoqueMinimo' => '',
+            'entrada' => '',
+            'saida' => '',
+        ], (array) $this->input->post());
+        $this->data['erros'] = $this->form_validation->error_array();
+        if ($this->data['custom_error'] && empty($this->data['erros'])) {
+            $this->data['erros']['_geral'] = strip_tags($this->data['custom_error']);
         }
-        // Novo produto: entra e sai do estoque, como na v4.
-        foreach (['entrada', 'saida'] as $campo) {
-            $valores[$campo] = is_array($post) ? ! empty($post[$campo]) : ($produto === null || (bool) $produto->{$campo});
-        }
-
-        $this->data['produto'] = $produto;
-        $this->data['valores'] = $valores;
-        $this->data['erros'] = $erros;
         $this->data['view'] = 'produtos/formulario';
 
         return $this->layout();
     }
 
-    /**
-     * Ficha do produto (#2841): dados, preços com o lucro e a entrada de
-     * estoque.
-     */
+    public function editar()
+    {
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3)) || ! $this->produtos_model->getById($this->uri->segment(3))) {
+            $this->session->set_flashdata('error', 'Produto não encontrado ou parâmetro inválido.');
+            redirect('produtos/gerenciar');
+        }
+
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eProduto')) {
+            $this->session->set_flashdata('error', 'Você não tem permissão para editar produtos.');
+            redirect(base_url());
+        }
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
+
+        if ($this->form_validation->run('produtos') == false) {
+            $this->data['custom_error'] = (validation_errors() ? '<div class="form_error">' . validation_errors() . '</div>' : false);
+        } else {
+            $precoCompra = valorDecimal($this->input->post('precoCompra'));
+            $precoVenda = valorDecimal($this->input->post('precoVenda'));
+            $data = [
+                'codDeBarra' => set_value('codDeBarra'),
+                'descricao' => $this->input->post('descricao'),
+                'unidade' => $this->input->post('unidade'),
+                'precoCompra' => $precoCompra,
+                'precoVenda' => $precoVenda,
+                'estoque' => $this->input->post('estoque'),
+                'estoqueMinimo' => $this->input->post('estoqueMinimo'),
+                'saida' => set_value('saida'),
+                'entrada' => set_value('entrada'),
+            ];
+
+            if ($this->produtos_model->edit('produtos', $data, 'idProdutos', $this->input->post('idProdutos')) == true) {
+                $this->session->set_flashdata('success', 'Produto editado com sucesso!');
+                log_info('Alterou um produto. ID: ' . $this->input->post('idProdutos'));
+                redirect(site_url('produtos/editar/') . $this->input->post('idProdutos'));
+            } else {
+                $this->data['custom_error'] = '<div class="form_error"><p>An Error Occured</p></div>';
+            }
+        }
+
+        $produto = $this->produtos_model->getById($this->uri->segment(3));
+        $this->data['result'] = $produto;
+        $this->data['produto'] = $produto;
+        $this->data['valores'] = [
+            'descricao' => $produto->descricao ?? '',
+            'unidade' => $produto->unidade ?? '',
+            'codDeBarra' => $produto->codDeBarra ?? '',
+            'precoCompra' => number_format((float) ($produto->precoCompra ?? 0), 2, ',', '.'),
+            'precoVenda' => number_format((float) ($produto->precoVenda ?? 0), 2, ',', '.'),
+            'estoque' => (string) ($produto->estoque ?? ''),
+            'estoqueMinimo' => (string) ($produto->estoqueMinimo ?? ''),
+            'entrada' => $produto->entrada ?? '',
+            'saida' => $produto->saida ?? '',
+        ];
+        $this->data['erros'] = $this->form_validation->error_array();
+        if ($this->data['custom_error'] && empty($this->data['erros'])) {
+            $this->data['erros']['_geral'] = strip_tags($this->data['custom_error']);
+        }
+        $this->data['view'] = 'produtos/formulario';
+
+        return $this->layout();
+    }
+
     public function visualizar()
     {
-        $produto = $this->produtoDaUrl();
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3))) {
+            $this->session->set_flashdata('error', 'Item não pode ser encontrado, parâmetro não foi passado corretamente.');
+            redirect('mapos');
+        }
 
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vProduto')) {
             $this->session->set_flashdata('error', 'Você não tem permissão para visualizar produtos.');
             redirect(base_url());
         }
 
-        $this->data['produto'] = $produto;
-        $this->data['pode'] = [
-            'editar' => $this->permite('eProduto'),
-            'excluir' => $this->permite('dProduto'),
-        ];
+        $this->data['result'] = $this->produtos_model->getById($this->uri->segment(3));
 
-        if ($this->data['pode']['editar']) {
-            $this->data['topbar_acao'] = ['label' => 'Editar produto', 'icon' => 'pencil', 'href' => site_url('produtos/editar/' . (int) $produto->idProdutos)];
+        if ($this->data['result'] == null) {
+            $this->session->set_flashdata('error', 'Produto não encontrado.');
+            redirect(site_url('produtos/editar/') . $this->input->post('idProdutos'));
         }
 
-        $this->data['view'] = 'produtos/visualizar';
+        $this->data['view'] = 'produtos/visualizarProduto';
 
         return $this->layout();
     }
 
     /**
-     * Etiqueta individual 40x25mm do produto (QR "PROD:{id}").
-     *
-     * O fork usava qrcodejs2 via CDN e mostrava a etiqueta numa página
-     * HTML. Aqui o QR é gerado no servidor pelo mPDF, sem rede, e a
-     * etiqueta sai como PDF — o mesmo motor da impressão em lote que a
-     * v5 já usa (Relatorios::produtosEtiquetas). O payload é o mesmo do
-     * fork para não quebrar leitores já configurados.
+     * Etiqueta individual 40x25mm do produto, gerada no servidor como PDF.
+     * O payload QR permanece PROD:{id com quatro dígitos}.
      */
     public function imprimirEtiqueta()
     {
@@ -205,10 +233,10 @@ class Produtos extends MY_Controller
             redirect(base_url());
         }
 
-        $id = (int) $this->input->post('id');
-        if ($id <= 0) {
+        $id = $this->input->post('id');
+        if ($id == null) {
             $this->session->set_flashdata('error', 'Erro ao tentar excluir produto.');
-            redirect('produtos');
+            redirect(base_url() . 'index.php/produtos/gerenciar/');
         }
 
         $this->produtos_model->delete('produtos_os', 'produtos_id', $id);
@@ -217,15 +245,10 @@ class Produtos extends MY_Controller
 
         log_info('Removeu um produto. ID: ' . $id);
 
-        $this->session->set_flashdata('success', 'Produto excluído com sucesso!');
-        redirect('produtos' . listagemQuery(listagemFiltros(self::FILTROS, $this->input->get())));
+        $this->session->set_flashdata('success', 'Produto excluido com sucesso!');
+        redirect(site_url('produtos/gerenciar/'));
     }
 
-    /**
-     * Soma (ou, com número negativo, retira) uma quantidade do estoque. A
-     * conta é feita no banco (estoque = estoque + ?): o valor atual não vem
-     * mais do navegador.
-     */
     public function atualizar_estoque()
     {
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eProduto')) {
@@ -233,44 +256,22 @@ class Produtos extends MY_Controller
             redirect(base_url());
         }
 
-        $produto = $this->produtos_model->getById((int) $this->input->post('id'));
-        if (! $produto) {
-            $this->session->set_flashdata('error', 'Produto não encontrado.');
-            redirect('produtos');
+        $idProduto = $this->input->post('id');
+        $novoEstoque = $this->input->post('estoque');
+        $estoqueAtual = $this->input->post('estoqueAtual');
+
+        $estoque = $estoqueAtual + $novoEstoque;
+
+        $data = [
+            'estoque' => $estoque,
+        ];
+
+        if ($this->produtos_model->edit('produtos', $data, 'idProdutos', $idProduto) == true) {
+            $this->session->set_flashdata('success', 'Estoque de Produto atualizado com sucesso!');
+            log_info('Atualizou estoque de um produto. ID: ' . $idProduto);
+            redirect(site_url('produtos/visualizar/') . $idProduto);
+        } else {
+            $this->data['custom_error'] = '<div class="alert">Ocorreu um erro.</div>';
         }
-
-        $quantidade = filter_var($this->input->post('quantidade'), FILTER_VALIDATE_INT);
-        // Da listagem, volta para ela com os mesmos filtros (vêm na query string).
-        $destino = $this->input->post('voltar') === 'lista'
-            ? site_url('produtos') . listagemQuery(listagemFiltros(self::FILTROS, $this->input->get()))
-            : site_url('produtos/visualizar/' . (int) $produto->idProdutos);
-
-        if ($quantidade === false || $quantidade === 0 || abs($quantidade) > 1000000) {
-            $this->session->set_flashdata('error', 'Informe uma quantidade inteira diferente de zero (negativa para retirar).');
-            redirect($destino);
-        }
-
-        if ((int) $produto->estoque + $quantidade < 0) {
-            $this->session->set_flashdata('error', 'O estoque não pode ficar negativo: há ' . (int) $produto->estoque . ' em estoque.');
-            redirect($destino);
-        }
-
-        $this->produtos_model->updateEstoque((int) $produto->idProdutos, abs($quantidade), $quantidade > 0 ? '+' : '-');
-        log_info('Atualizou estoque de um produto. ID: ' . (int) $produto->idProdutos . ' (' . sprintf('%+d', $quantidade) . ')');
-
-        $this->session->set_flashdata('success', 'Estoque atualizado: ' . sprintf('%+d', $quantidade) . ' (agora ' . ((int) $produto->estoque + $quantidade) . ').');
-        redirect($destino);
-    }
-
-    /** Produto do segmento 3 da URL, ou redireciona para a listagem. */
-    private function produtoDaUrl(): object
-    {
-        $produto = is_numeric($this->uri->segment(3)) ? $this->produtos_model->getById((int) $this->uri->segment(3)) : null;
-        if (! $produto) {
-            $this->session->set_flashdata('error', 'Produto não encontrado ou parâmetro inválido.');
-            redirect('produtos/gerenciar');
-        }
-
-        return $produto;
     }
 }

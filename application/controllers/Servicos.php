@@ -6,9 +6,7 @@ if (! defined('BASEPATH')) {
 
 class Servicos extends MY_Controller
 {
-    /** Filtros da listagem, na query string (listagemFiltros()). */
     public const FILTROS = ['pesquisa' => 'texto'];
-
     public function __construct()
     {
         parent::__construct();
@@ -23,9 +21,6 @@ class Servicos extends MY_Controller
         $this->gerenciar();
     }
 
-    /**
-     * Listagem de serviços (#2841), no padrão das listagens (#2852).
-     */
     public function gerenciar()
     {
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vServico')) {
@@ -63,13 +58,46 @@ class Servicos extends MY_Controller
             redirect(base_url());
         }
 
-        return $this->formulario(null);
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
+
+        if ($this->form_validation->run('servicos') == false) {
+            $this->data['custom_error'] = (validation_errors() ? '<div class="form_error">' . validation_errors() . '</div>' : false);
+        } else {
+            $preco = valorDecimal($this->input->post('preco'));
+
+            $data = [
+                'nome' => set_value('nome'),
+                'descricao' => set_value('descricao'),
+                'preco' => $preco,
+            ];
+
+            if ($this->servicos_model->add('servicos', $data) == true) {
+                $this->session->set_flashdata('success', 'Serviço adicionado com sucesso!');
+                log_info('Adicionou um serviço');
+                redirect(site_url('servicos/adicionar/'));
+            } else {
+                $this->data['custom_error'] = '<div class="form_error"><p>Ocorreu um erro.</p></div>';
+            }
+        }
+        $this->data['servico'] = null;
+        $this->data['valores'] = array_merge([
+            'nome' => '',
+            'preco' => '',
+            'descricao' => '',
+        ], (array) $this->input->post());
+        $this->data['erros'] = $this->form_validation->error_array();
+        if ($this->data['custom_error'] && empty($this->data['erros'])) {
+            $this->data['erros']['_geral'] = strip_tags($this->data['custom_error']);
+        }
+        $this->data['view'] = 'servicos/formulario';
+
+        return $this->layout();
     }
 
     public function editar()
     {
-        $servico = is_numeric($this->uri->segment(3)) ? $this->servicos_model->getById((int) $this->uri->segment(3)) : null;
-        if (! $servico) {
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3)) || ! $this->servicos_model->getById($this->uri->segment(3))) {
             $this->session->set_flashdata('error', 'Serviço não encontrado ou parâmetro inválido.');
             redirect('servicos/gerenciar');
         }
@@ -78,55 +106,40 @@ class Servicos extends MY_Controller
             $this->session->set_flashdata('error', 'Você não tem permissão para editar serviços.');
             redirect(base_url());
         }
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
 
-        return $this->formulario($servico);
-    }
-
-    /**
-     * Formulário de serviço (#2841), no padrão dos formulários (#2851). O id
-     * editado é o da URL; o preço aceita "1.234,56" ou "1234.56".
-     */
-    private function formulario(?object $servico)
-    {
-        $erros = [];
-
-        if ($this->input->method() === 'post') {
-            $erros = $this->validarFormulario('servicos');
+        if ($this->form_validation->run('servicos') == false) {
+            $this->data['custom_error'] = (validation_errors() ? '<div class="form_error">' . validation_errors() . '</div>' : false);
+        } else {
             $preco = valorDecimal($this->input->post('preco'));
-            if (! isset($erros['preco']) && $preco === null) {
-                $erros['preco'] = 'Informe o preço em reais, como 150,00 (até 99.999.999,99).';
-            }
+            $data = [
+                'nome' => $this->input->post('nome'),
+                'descricao' => $this->input->post('descricao'),
+                'preco' => $preco,
+            ];
 
-            if ($erros === []) {
-                $dados = [
-                    'nome' => trim((string) $this->input->post('nome')),
-                    'descricao' => trim((string) $this->input->post('descricao')),
-                    'preco' => $preco,
-                ];
-
-                $salvou = $servico === null
-                    ? $this->servicos_model->add('servicos', $dados)
-                    : $this->servicos_model->edit('servicos', $dados, 'idServicos', (int) $servico->idServicos);
-
-                if ($salvou) {
-                    log_info($servico === null ? 'Adicionou um serviço' : 'Alterou um serviço. ID: ' . (int) $servico->idServicos);
-                    $this->session->set_flashdata('success', $servico === null ? 'Serviço cadastrado com sucesso!' : 'Alterações salvas.');
-
-                    return redirect('servicos');
-                }
-
-                $erros['_geral'] = 'Não foi possível salvar. Tente de novo.';
+            if ($this->servicos_model->edit('servicos', $data, 'idServicos', $this->input->post('idServicos')) == true) {
+                $this->session->set_flashdata('success', 'Serviço editado com sucesso!');
+                log_info('Alterou um serviço. ID: ' . $this->input->post('idServicos'));
+                redirect(site_url('servicos/editar/') . $this->input->post('idServicos'));
+            } else {
+                $this->data['custom_error'] = '<div class="form_error"><p>Ocorreu um errro.</p></div>';
             }
         }
 
-        $post = $this->input->method() === 'post' ? $this->input->post() : null;
+        $servico = $this->servicos_model->getById($this->uri->segment(3));
+        $this->data['result'] = $servico;
         $this->data['servico'] = $servico;
         $this->data['valores'] = [
-            'nome' => is_array($post) ? (string) ($post['nome'] ?? '') : (string) ($servico->nome ?? ''),
-            'descricao' => is_array($post) ? (string) ($post['descricao'] ?? '') : (string) ($servico->descricao ?? ''),
-            'preco' => is_array($post) ? (string) ($post['preco'] ?? '') : (string) ($servico->preco ?? ''),
+            'nome' => $servico->nome ?? '',
+            'preco' => number_format((float) ($servico->preco ?? 0), 2, ',', '.'),
+            'descricao' => $servico->descricao ?? '',
         ];
-        $this->data['erros'] = $erros;
+        $this->data['erros'] = $this->form_validation->error_array();
+        if ($this->data['custom_error'] && empty($this->data['erros'])) {
+            $this->data['erros']['_geral'] = strip_tags($this->data['custom_error']);
+        }
         $this->data['view'] = 'servicos/formulario';
 
         return $this->layout();
@@ -142,7 +155,7 @@ class Servicos extends MY_Controller
         $id = $this->input->post('id');
         if ($id == null) {
             $this->session->set_flashdata('error', 'Erro ao tentar excluir serviço.');
-            redirect('servicos/gerenciar/');
+            redirect(site_url('servicos/gerenciar/'));
         }
 
         $this->servicos_model->delete('servicos_os', 'servicos_id', $id);
@@ -150,7 +163,7 @@ class Servicos extends MY_Controller
 
         log_info('Removeu um serviço. ID: ' . $id);
 
-        $this->session->set_flashdata('success', 'Serviço excluído com sucesso!');
-        redirect('servicos' . listagemQuery(listagemFiltros(self::FILTROS, $this->input->get())));
+        $this->session->set_flashdata('success', 'Serviço excluido com sucesso!');
+        redirect(site_url('servicos/gerenciar/'));
     }
 }

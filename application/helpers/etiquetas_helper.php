@@ -11,7 +11,7 @@ require_once __DIR__ . '/mpdf_helper.php';
 /**
  * Etiquetas 40x25mm do MapOS 5 — motor único, local, sem CDN.
  *
- * O fork LIVE carregava JsBarcode e qrcodejs2 de cdn.jsdelivr.net. A v5
+ * O fork LIVE carregava bibliotecas JavaScript remotas. A v5
  * removeu toda dependência de CDN e imprime código de barras com o mPDF
  * nativo (<barcode>) e QR com mpdf/qrcode. As etiquetas compartilham a
  * área física de 40x25mm e a stack local; cada template mantém somente

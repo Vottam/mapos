@@ -64,13 +64,46 @@ class Garantias extends MY_Controller
             redirect(base_url());
         }
 
-        return $this->formulario(null);
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
+
+        if ($this->form_validation->run('garantias') == false) {
+            $this->data['custom_error'] = (validation_errors() ? true : false);
+        } else {
+            $data = [
+                'dataGarantia' => date('Y/m/d'),
+                'refGarantia' => $this->input->post('refGarantia'),
+                'textoGarantia' => $this->input->post('textoGarantia'),
+                'usuarios_id' => $this->session->userdata('id_admin'),
+            ];
+
+            if (is_numeric($id = $this->garantias_model->add('garantias', $data, true))) {
+                log_info('Adicionou uma garantia');
+                $this->session->set_flashdata('success', 'Termo de Garantia adicionado com sucesso.');
+                redirect(site_url('garantias/editar/') . $id);
+            } else {
+                $this->data['custom_error'] = '<div class="form_error"><p>Ocorreu um erro.</p></div>';
+            }
+        }
+
+        $garantia = null;
+        $this->data['garantia'] = $garantia;
+        $this->data['valores'] = array_merge([
+            'refGarantia' => '',
+            'textoGarantia' => '',
+        ], (array) $this->input->post());
+        $this->data['erros'] = $this->form_validation->error_array();
+        if ($this->data['custom_error'] && empty($this->data['erros'])) {
+            $this->data['erros']['_geral'] = strip_tags($this->data['custom_error']);
+        }
+        $this->data['view'] = 'garantias/formulario';
+
+        return $this->layout();
     }
 
     public function editar()
     {
-        $garantia = is_numeric($this->uri->segment(3)) ? $this->garantias_model->getById((int) $this->uri->segment(3)) : null;
-        if (! $garantia) {
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3)) || ! $this->garantias_model->getById($this->uri->segment(3))) {
             $this->session->set_flashdata('error', 'Termo de garantia não encontrado ou parâmetro inválido.');
             redirect('garantias/gerenciar');
         }
@@ -80,57 +113,37 @@ class Garantias extends MY_Controller
             redirect(base_url());
         }
 
-        return $this->formulario($garantia);
-    }
+        $this->load->library('form_validation');
+        $this->data['custom_error'] = '';
 
-    /**
-     * Formulário do termo, para cadastrar e editar (#2845), no padrão dos
-     * formulários (#2851). O id editado é o da URL. O texto vira o formato dos
-     * textos da OS (osTextoParaGravar()), como no formulário da OS: sem o
-     * editor rico, e as impressões o exibem pelo HTMLPurifier.
-     */
-    private function formulario(?object $garantia)
-    {
-        $erros = [];
+        if ($this->form_validation->run('garantias') == false) {
+            $this->data['custom_error'] = (validation_errors() ? '<div class="form_error">' . validation_errors() . '</div>' : false);
+        } else {
+            $data = [
+                'textoGarantia' => $this->input->post('textoGarantia'),
+                'refGarantia' => $this->input->post('refGarantia'),
+            ];
 
-        if ($this->input->method() === 'post') {
-            $erros = $this->validarFormulario('garantias');
-
-            if ($erros === []) {
-                $dados = [
-                    'refGarantia' => trim((string) $this->input->post('refGarantia')),
-                    'textoGarantia' => osTextoParaGravar((string) $this->input->post('textoGarantia')),
-                ];
-
-                if ($garantia === null) {
-                    $id = $this->garantias_model->add('garantias', $dados + [
-                        'dataGarantia' => date('Y-m-d'),
-                        'usuarios_id' => $this->session->userdata('id_admin'),
-                    ], true);
-                    $salvou = is_numeric($id);
-                } else {
-                    $id = (int) $garantia->idGarantias;
-                    $salvou = $this->garantias_model->edit('garantias', $dados, 'idGarantias', $id);
-                }
-
-                if ($salvou) {
-                    log_info($garantia === null ? 'Adicionou uma garantia' : 'Alterou uma garantia. ID: ' . $id);
-                    $this->session->set_flashdata('success', $garantia === null ? 'Termo de garantia cadastrado com sucesso!' : 'Alterações salvas.');
-
-                    return redirect('garantias');
-                }
-
-                $erros['_geral'] = 'Não foi possível salvar. Tente de novo.';
+            if ($this->garantias_model->edit('garantias', $data, 'idGarantias', $this->input->post('idGarantias')) == true) {
+                $this->session->set_flashdata('success', 'Termo de garantia editada com sucesso!');
+                log_info('Alterou uma garantia. ID: ' . $this->input->post('idGarantias'));
+                redirect(site_url('garantias/editar/') . $this->input->post('idGarantias'));
+            } else {
+                $this->data['custom_error'] = '<div class="form_error"><p>Ocorreu um erro</p></div>';
             }
         }
 
-        $post = $this->input->method() === 'post' ? $this->input->post() : null;
+        $garantia = $this->garantias_model->getById($this->uri->segment(3));
+        $this->data['result'] = $garantia;
         $this->data['garantia'] = $garantia;
-        $this->data['valores'] = [
-            'refGarantia' => is_array($post) ? (string) ($post['refGarantia'] ?? '') : (string) ($garantia->refGarantia ?? ''),
-            'textoGarantia' => is_array($post) ? (string) ($post['textoGarantia'] ?? '') : osTextoParaEdicao($garantia->textoGarantia ?? ''),
-        ];
-        $this->data['erros'] = $erros;
+        $this->data['valores'] = array_merge([
+            'refGarantia' => (string) ($garantia->refGarantia ?? ''),
+            'textoGarantia' => (string) ($garantia->textoGarantia ?? ''),
+        ], (array) $this->input->post());
+        $this->data['erros'] = $this->form_validation->error_array();
+        if ($this->data['custom_error'] && empty($this->data['erros'])) {
+            $this->data['erros']['_geral'] = strip_tags($this->data['custom_error']);
+        }
         $this->data['view'] = 'garantias/formulario';
 
         return $this->layout();
@@ -138,10 +151,9 @@ class Garantias extends MY_Controller
 
     public function visualizar()
     {
-        $garantia = is_numeric($this->uri->segment(3)) ? $this->garantias_model->getById((int) $this->uri->segment(3)) : null;
-        if (! $garantia) {
+        if (! $this->uri->segment(3) || ! is_numeric($this->uri->segment(3))) {
             $this->session->set_flashdata('error', 'Item não pode ser encontrado, parâmetro não foi passado corretamente.');
-            redirect('garantias/gerenciar');
+            redirect('mapos');
         }
 
         if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'vGarantia')) {
@@ -149,17 +161,12 @@ class Garantias extends MY_Controller
             redirect(base_url());
         }
 
-        $this->data['result'] = $garantia;
-        $this->data['pode'] = [
-            'editar' => $this->permite('eGarantia'),
-            'excluir' => $this->permite('dGarantia'),
-        ];
+        $this->data['custom_error'] = '';
+        $this->load->model('mapos_model');
+        $this->data['result'] = $this->garantias_model->getById($this->uri->segment(3));
+        $this->data['emitente'] = $this->mapos_model->getEmitente();
 
-        if ($this->data['pode']['editar']) {
-            $this->data['topbar_acao'] = ['label' => 'Editar termo', 'icon' => 'pencil', 'href' => site_url('garantias/editar/' . (int) $garantia->idGarantias)];
-        }
-
-        $this->data['view'] = 'garantias/visualizar';
+        $this->data['view'] = 'garantias/visualizarGarantia';
 
         return $this->layout();
     }
@@ -179,9 +186,18 @@ class Garantias extends MY_Controller
         $this->data['custom_error'] = '';
         $this->load->model('mapos_model');
         $this->data['result'] = $this->garantias_model->getById($this->uri->segment(3));
+        if (! $this->data['result']) {
+            $this->session->set_flashdata('error', 'Termo de garantia não encontrado.');
+            redirect('garantias');
+        }
         $this->data['emitente'] = $this->mapos_model->getEmitente();
 
-        $this->load->view('garantias/imprimirGarantia', $this->data);
+        $this->load->helper(['mpdf', 'garantias_pdf']);
+        $html = garantiaPdfHtml(
+            $this->data['emitente'],
+            (string) $this->data['result']->textoGarantia
+        );
+        pdf_create($html, 'garantia_' . (int) $this->uri->segment(3), true);
     }
 
     public function imprimirGarantiaOs()
@@ -199,9 +215,25 @@ class Garantias extends MY_Controller
         $this->data['custom_error'] = '';
         $this->load->model('mapos_model');
         $this->data['osGarantia'] = $this->garantias_model->getByIdOsGarantia($this->uri->segment(3));
+        if (! $this->data['osGarantia']) {
+            $this->session->set_flashdata('error', 'Termo de garantia da OS não encontrado.');
+            redirect('os/visualizar/' . (int) $this->uri->segment(3));
+        }
         $this->data['emitente'] = $this->mapos_model->getEmitente();
 
-        $this->load->view('garantias/imprimirGarantiaOs', $this->data);
+        $this->load->helper(['mpdf', 'garantias_pdf', 'os']);
+        $dataBaseGarantia = osDataBaseDaGarantia(
+            (string) ($this->data['osGarantia']->osDataFinal ?? ''),
+            (string) ($this->data['osGarantia']->osDataEntrega ?? ''),
+            (string) ($this->data['osGarantia']->osStatus ?? '')
+        );
+        $html = garantiaPdfHtml(
+            $this->data['emitente'],
+            (string) $this->data['osGarantia']->textoGarantia,
+            (int) $this->data['osGarantia']->idOs,
+            $dataBaseGarantia ?? ''
+        );
+        pdf_create($html, 'garantia_os_' . (int) $this->uri->segment(3), true);
     }
 
     public function excluir()
@@ -231,5 +263,29 @@ class Garantias extends MY_Controller
         }
 
         redirect('garantias' . listagemQuery(listagemFiltros(self::FILTROS, $this->input->get())));
+    }
+
+    public function autoCompleteProduto()
+    {
+        if (isset($_GET['term'])) {
+            $q = strtolower($_GET['term']);
+            $this->vendas_model->autoCompleteProduto($q);
+        }
+    }
+
+    public function autoCompleteCliente()
+    {
+        if (isset($_GET['term'])) {
+            $q = strtolower($_GET['term']);
+            $this->vendas_model->autoCompleteCliente($q);
+        }
+    }
+
+    public function autoCompleteUsuario()
+    {
+        if (isset($_GET['term'])) {
+            $q = strtolower($_GET['term']);
+            $this->vendas_model->autoCompleteUsuario($q);
+        }
     }
 }

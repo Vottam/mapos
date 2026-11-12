@@ -438,43 +438,6 @@ abstract class REST_Controller extends CI_Controller
      */
     protected function early_checks()
     {
-        $this->limiteDeRequisicoes();
-    }
-
-    /**
-     * Limite de requisições por IP e por minuto (#2869), configurado em
-     * config/rest.php (api_rate_limit). Janela fixa, contada na tabela
-     * api_rate_limit; a chave é um HMAC do IP, sem guardá-lo em claro. Sem a
-     * tabela (migration não rodada) o limite fica desligado.
-     */
-    protected function limiteDeRequisicoes(): void
-    {
-        $limite = (int) $this->config->item('api_rate_limit');
-        if ($limite <= 0 || $this->input->method() === 'options' || ! $this->db->table_exists('api_rate_limit')) {
-            return;
-        }
-
-        $janela = intdiv(time(), 60);
-        $chave = hash_hmac('sha256', $this->input->ip_address(), (string) config_item('encryption_key'));
-
-        $this->db->query(
-            'INSERT INTO api_rate_limit (chave, janela, total) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE total = total + 1',
-            [$chave, $janela]
-        );
-        $total = (int) $this->db->select('total')->where(['chave' => $chave, 'janela' => $janela])->get('api_rate_limit')->row('total');
-
-        // Limpa janelas antigas de vez em quando, sem custo em toda requisição.
-        if (random_int(1, 100) === 1) {
-            $this->db->where('janela <', $janela - 5)->delete('api_rate_limit');
-        }
-
-        if ($total > $limite) {
-            header('Retry-After: ' . (60 - (time() % 60)));
-            $this->response([
-                'status' => false,
-                'message' => 'Muitas requisições. Aguarde um instante e tente novamente.',
-            ], self::HTTP_TOO_MANY_REQUESTS);
-        }
     }
 
     /**
@@ -487,23 +450,7 @@ abstract class REST_Controller extends CI_Controller
     {
         parent::__construct();
 
-        // API desligada: nenhum controller de api/ responde, nem por URL direta.
-        if (! apiHabilitada()) {
-            show_404();
-        }
-
         $this->preflight_checks();
-
-        // Chave dos tokens vazia, curta ou igual à do .env.example: qualquer um
-        // forjaria um token. Em produção a API fica fora do ar até a troca
-        // (Configurações > Sistema, "Gerar uma chave nova para os tokens").
-        if (ENVIRONMENT === 'production' && apiChaveJwtInsegura()) {
-            log_message('error', 'API desativada: API_JWT_KEY vazia, com menos de 32 caracteres ou igual ao valor do .env.example.');
-            http_response_code(503);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['status' => false, 'error' => 'API indisponível: a chave dos tokens (API_JWT_KEY) não está configurada.']);
-            exit;
-        }
 
         $this->config->set_item('token_header', 'Authorization');
 
@@ -1600,9 +1547,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from a GET request
      *
-     * @param  string|array|null  $key  Key to retrieve from the GET request
+     * @param  null  $key  Key to retrieve from the GET request
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the GET request; otherwise, NULL
      */
     public function get($key = null, $xss_clean = null)
@@ -1617,9 +1564,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from a OPTIONS request
      *
-     * @param  string|array|null  $key  Key to retrieve from the OPTIONS request.
+     * @param  null  $key  Key to retrieve from the OPTIONS request.
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the OPTIONS request; otherwise, NULL
      */
     public function options($key = null, $xss_clean = null)
@@ -1634,9 +1581,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from a HEAD request
      *
-     * @param  string|array|null  $key  Key to retrieve from the HEAD request
+     * @param  null  $key  Key to retrieve from the HEAD request
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the HEAD request; otherwise, NULL
      */
     public function head($key = null, $xss_clean = null)
@@ -1651,9 +1598,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from a POST request
      *
-     * @param  string|array|null  $key  Key to retrieve from the POST request
+     * @param  null  $key  Key to retrieve from the POST request
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the POST request; otherwise, NULL
      */
     public function post($key = null, $xss_clean = null)
@@ -1668,9 +1615,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from a PUT request
      *
-     * @param  string|array|null  $key  Key to retrieve from the PUT request
+     * @param  null  $key  Key to retrieve from the PUT request
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the PUT request; otherwise, NULL
      */
     public function put($key = null, $xss_clean = null)
@@ -1685,9 +1632,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from a DELETE request
      *
-     * @param  string|array|null  $key  Key to retrieve from the DELETE request
+     * @param  null  $key  Key to retrieve from the DELETE request
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the DELETE request; otherwise, NULL
      */
     public function delete($key = null, $xss_clean = null)
@@ -1702,9 +1649,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from a PATCH request
      *
-     * @param  string|array|null  $key  Key to retrieve from the PATCH request
+     * @param  null  $key  Key to retrieve from the PATCH request
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the PATCH request; otherwise, NULL
      */
     public function patch($key = null, $xss_clean = null)
@@ -1719,9 +1666,9 @@ abstract class REST_Controller extends CI_Controller
     /**
      * Retrieve a value from the query parameters
      *
-     * @param  string|array|null  $key  Key to retrieve from the query parameters
+     * @param  null  $key  Key to retrieve from the query parameters
      *                     If NULL an array of arguments is returned
-     * @param  bool|null  $xss_clean  Whether to apply XSS filtering
+     * @param  null  $xss_clean  Whether to apply XSS filtering
      * @return array|string|null Value from the query parameters; otherwise, NULL
      */
     public function query($key = null, $xss_clean = null)
@@ -2275,7 +2222,7 @@ abstract class REST_Controller extends CI_Controller
         return $array ? $this->CI->db->get($table)->row_array() : $this->CI->db->get($table)->row_object();
     }
 
-    public function logged_user()
+    public function logged_user($reGenToken = false)
     {
         $headers = $this->input->request_headers();
 
@@ -2293,9 +2240,18 @@ abstract class REST_Controller extends CI_Controller
 
         $this->load->library('Authorization_Token');
         $token = explode(' ', $_SERVER["HTTP_AUTHORIZATION"]);
-        $decodedToken = (object) $this->authorization_token->validateToken($token[1] ?? '');
+        $decodedToken = (object) $this->authorization_token->validateToken($token[1] ?? '', $reGenToken);
 
-        if (! $decodedToken->status || ! isset($decodedToken->data)) {
+        // Assinatura/formato inválidos derrubam a requisição mesmo na
+        // renovação de token: sem isso, $decodedToken->data nem existe.
+        if (! $decodedToken->status && ! isset($decodedToken->data)) {
+            $this->response([
+                'status' => false,
+                'message' => 'Faça o login novamente!',
+            ], self::HTTP_FORBIDDEN);
+        }
+
+        if (! $reGenToken && ! $decodedToken->status) {
             $this->response([
                 'status' => false,
                 'message' => 'Faça o login novamente!',
@@ -2314,40 +2270,12 @@ abstract class REST_Controller extends CI_Controller
         $this->load->model('Usuarios_model');
         $this->user = $decodedToken;
         $this->user->usuario = $this->Usuarios_model->getById($decodedToken->data->uid);
-
-        // O usuário e a permissão vêm do banco a cada requisição (#2869), não do
-        // token: quem foi removido, desativado ou teve a permissão trocada
-        // perde o acesso na hora, sem esperar o token vencer. O mesmo vale para
-        // quem trocou a senha (versão do token) ou saiu (sessão `sid` revogada).
-        if (empty($this->user->usuario)
-            || (int) $this->user->usuario->situacao !== 1
-            || ! Authorization_Token::versaoVigente($decodedToken->data, $this->authorization_token->versaoAtual('usuarios', 'idUsuarios', (int) $decodedToken->data->uid))
-            || ! $this->sessaoDoTokenAtiva($decodedToken->data)) {
-            $this->response([
-                'status' => false,
-                'message' => 'Faça o login novamente!',
-            ], self::HTTP_FORBIDDEN);
-        }
-
-        $this->user->level = $this->user->usuario->permissoes_id;
+        $this->user->level = $decodedToken->data->permissao;
 
         return $this->user;
     }
 
-    /** O refresh token da sessão que emitiu este access token (claim `sid`) não foi revogado. */
-    private function sessaoDoTokenAtiva(object $dadosDoToken): bool
-    {
-        $sid = (string) ($dadosDoToken->sid ?? '');
-        if ($sid === '') {
-            return true;
-        }
-
-        $this->load->library('Refresh_token');
-
-        return $this->refresh_token->familiaAtiva($sid);
-    }
-
-    public function logged_client()
+    public function logged_client($reGenToken = false)
     {
         $headers = $this->input->request_headers();
 
@@ -2365,7 +2293,7 @@ abstract class REST_Controller extends CI_Controller
 
         $this->load->library('Authorization_Token');
         $token = explode(' ', $_SERVER["HTTP_AUTHORIZATION"]);
-        $decodedToken = (object) $this->authorization_token->validateToken($token[1] ?? '');
+        $decodedToken = (object) $this->authorization_token->validateToken($token[1] ?? '', $reGenToken);
 
         if (! $decodedToken->status || ! isset($decodedToken->data)) {
             $this->response([
@@ -2386,7 +2314,7 @@ abstract class REST_Controller extends CI_Controller
         $this->client = $decodedToken;
         $this->client->usuario = $this->Clientes_model->getById($decodedToken->data->uid);
 
-        if (! $this->client->usuario || ! Authorization_Token::versaoVigente($decodedToken->data, $this->authorization_token->versaoAtual('clientes', 'idClientes', (int) $decodedToken->data->uid))) {
+        if (! $this->client->usuario) {
             $this->response([
                 'status' => false,
                 'message' => 'Faça o login novamente!',

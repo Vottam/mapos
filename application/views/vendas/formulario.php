@@ -66,7 +66,7 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
             </div>
             <p class="text-caption text-muted"><?= e($editando ? $venda->nomeCliente : 'Os produtos são adicionados depois de criar a venda.') ?></p>
         </div>
-        <?php if ($pode['ver_venda']) { ?>
+        <?php if ($editando && $pode['ver_venda']) { ?>
             <?= component('button', [
                 'label' => 'Ver venda, produtos e faturamento',
                 'icon' => 'eye',
@@ -84,6 +84,9 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
 
     <form method="post" action="<?= e(current_url()) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <?php if ($editando) { ?>
+            <input type="hidden" name="idVendas" value="<?= (int) $venda->idVendas ?>">
+        <?php } ?>
 
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-responsaveis">
             <h2 id="secao-responsaveis" class="text-heading-sm text-text">Cliente e vendedor</h2>

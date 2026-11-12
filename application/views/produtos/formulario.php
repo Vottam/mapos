@@ -43,6 +43,9 @@ $caixa = 'rounded-xl border border-border bg-surface p-4 sm:p-6';
 
     <form method="post" action="<?= e(current_url()) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <?php if ($editando) { ?>
+            <input type="hidden" name="idProdutos" value="<?= (int) $produto->idProdutos ?>">
+        <?php } ?>
 
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-produto">
             <h2 id="secao-produto" class="text-heading-sm text-text">Produto</h2>

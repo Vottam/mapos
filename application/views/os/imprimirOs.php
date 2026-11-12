@@ -1,77 +1,80 @@
 <?php
 $totalServico  = 0;
 $totalProdutos = 0;
+$garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $result->status, $result->dataEntrega ?? null);
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
-    <title><?= e($this->config->item('app_name')) ?> - <?= e($result->idOs) ?> - <?= e($result->nomeCliente) ?></title>
+    <title><?= $this->config->item('app_name') ?> - <?= $result->idOs ?> - <?= $result->nomeCliente ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="<?= base_url() ?>assets/dist/imprimir.css">
+    <link rel="stylesheet" href="<?= base_url() ?>assets/css/bootstrap5.3.2.min.css" />
+    <link rel="stylesheet" href="<?= base_url() ?>assets/font-awesome/css/font-awesome.css" />
+    <link rel="stylesheet" href="<?= base_url() ?>assets/css/imprimir.css">
 </head>
 <body>
-    <div class="doc-folha">
-        <div>
-            <header class="doc-cabecalho">
+    <div class="main-page">
+        <div class="sub-page">
+            <header>
                 <?php if ($emitente == null) : ?>
-                    <div class="w-full bg-danger-soft p-2 text-danger-ink" role="alert">
+                    <div class="alert alert-danger" role="alert">
                         Você precisa configurar os dados do emitente. >>> <a href="<?=base_url()?>index.php/mapos/emitente">Configurar</a>
                     </div>
                 <?php else : ?>
-                    <div class="flex items-center">
-                        <img src="<?= e($emitente->url_logo) ?>" class="h-auto w-[140px] max-w-full" alt="">
+                    <div class="imgLogo" class="align-middle">
+                        <img src="<?= convertUrlToUploadsPath($emitente->url_logo) ?>" class="img-fluid" style="width:140px;">
                     </div>
-                    <div class="mt-0.5 px-2.5">
-                        <span class="text-base"><b><?= e($emitente->nome) ?></b></span><br>
+                    <div class="emitente">
+                        <span style="font-size: 16px;"><b><?= $emitente->nome ?></b></span></br>
                         <?php if ($emitente->cnpj != "00.000.000/0000-00") : ?>
-                            <span>CNPJ: <?= e($emitente->cnpj) ?></span><br>
+                            <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span></br>
                         <?php endif; ?>
-                        <span>
-                            <?= e($emitente->rua.', '.$emitente->numero.', '.$emitente->bairro) ?><br>
-                            <?= e($emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep) ?>
+                        <span class="align-middle">
+                            <?= $emitente->rua.', '.$emitente->numero.', '.$emitente->bairro ?><br>
+                            <?= $emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep ?>
                         </span>
                     </div>
-                    <div class="mt-2.5 max-w-[230px] text-right">
-                        <span class="font-bold">Tel: <?= e($emitente->telefone) ?></span><br>
-                        <span class="font-bold"><?= e($emitente->email) ?></span><br>
-                        <span class="break-words">Responsável: <b><?= e($result->nome) ?></b></span>
+                    <div class="contatoEmitente">
+                        <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span></br>
+                        <span style="font-weight: bold;"><?= $emitente->email ?></span></br>
+                        <span style="word-break: break-word;">Responsável: <b><?= $result->nome ?></b></span>
                     </div>
                 <?php endif; ?>
             </header>
-            <section class="w-full py-2.5">
-                <div class="doc-titulo">
-                    <?php if ($configuration['control_2vias']) : ?><span class="doc-so-impressao absolute left-1 text-[13px]">Via cliente</span><?php endif; ?>
-                    ORDEM DE SERVIÇO #<?= e(str_pad($result->idOs, 4, 0, STR_PAD_LEFT)) ?>
-                    <span class="absolute right-1 text-[13px]">Emissão: <?= date('d/m/Y H:i:s') ?></span>
+            <section>
+                <div class="title">
+                    <?php if ($configuration['control_2vias']) : ?><span class="via">Via cliente</span><?php endif; ?>
+                    ORDEM DE SERVIÇO #<?= str_pad($result->idOs, 4, 0, STR_PAD_LEFT) ?>
+                    <span class="emissao">Emissão: <?= date('d/m/Y H:i:s') ?></span>
                 </div>
 
                 <?php if ($result->dataInicial != null): ?>
-                    <div>
-                        <table class="doc-tabela">
+                    <div class="tabela">
+                        <table class="table table-bordered">
                             <thead>
-                                <tr>
+                                <tr class="table-secondary">
                                     <th class="text-center">STATUS</th>
                                     <th class="text-center">DATA INICIAL</th>
                                     <th class="text-center">DATA FINAL</th>
                                     <?php if ($result->garantia) : ?>
                                         <th class="text-center">GARANTIA</th>
                                     <?php endif; ?>
-                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado'])) : ?>
+                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
                                         <th class="text-center">VENC. GARANTIA</th>
                                     <?php endif; ?>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td class="text-center"><?= e($result->status) ?></td>
+                                    <td class="text-center"><?= $result->status ?></td>
                                     <td class="text-center"><?= date('d/m/Y', strtotime($result->dataInicial)) ?></td>
                                     <td class="text-center"><?= $result->dataFinal ? date('d/m/Y', strtotime($result->dataFinal)) : '' ?></td>
                                     <?php if ($result->garantia) : ?>
-                                        <td class="text-center"><?= e($result->garantia . ' dia(s)') ?></td>
+                                        <td class="text-center"><?= $result->garantia . ' dia(s)' ?></td>
                                     <?php endif; ?>
-                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado'])) : ?>
-                                        <td class="text-center"><?= e(dateInterval($result->dataFinal, $result->garantia)) ?></td>
+                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
+                                        <td class="text-center"><?= $garantiaAte ? date('d/m/Y', strtotime($garantiaAte)) : '' ?></td>
                                     <?php endif; ?>
                                 </tr>
                             </tbody>
@@ -79,88 +82,100 @@ $totalProdutos = 0;
                     </div>
                 <?php endif; ?>
 
-                <div class="doc-subtitulo">DADOS DO CLIENTE</div>
-                <div class="doc-dados">
+                <div class="subtitle">DADOS DO CLIENTE</div>
+                <div class="dados">
                     <div>
-                        <span><b><?= e($result->nomeCliente) ?></b></span><br />
-                        <span>CPF/CNPJ: <?= e($result->documento) ?></span><br />
-                        <span><?= e($result->contato_cliente.' '.$result->telefone) ?><?= e($result->telefone && $result->celular ? ' / '.$result->celular : $result->celular) ?></span><br />
-                        <span><?= e($result->email) ?></span><br />
+                        <span><b><?= $result->nomeCliente ?></b></span><br />
+                        <span>CPF/CNPJ: <?= $result->documento ?></span><br />
+                        <span><?= $result->contato_cliente.' '.$result->telefone ?><?= $result->telefone && $result->celular ? ' / '.$result->celular : $result->celular ?></span><br />
+                        <span><?= $result->email ?></span><br />
                     </div>
-                    <div class="text-right">
-                        <span><?= e($result->rua.', '.$result->numero.', '.$result->bairro) ?></span><br />
-                        <span><?= e($result->complemento.' - '.$result->cidade.' - '.$result->estado) ?></span><br />
-                        <span>CEP: <?= e($result->cep) ?></span><br />
+                    <div style="text-align: right;">
+                        <span><?= $result->rua.', '.$result->numero.', '.$result->bairro ?></span><br />
+                        <span><?= $result->complemento.' - '.$result->cidade.' - '.$result->estado ?></span><br />
+                        <span>CEP: <?= $result->cep ?></span><br />
                     </div>
                 </div>
 
                 <?php if ($result->descricaoProduto) : ?>
-                    <div class="doc-subtitulo">DESCRIÇÃO</div>
-                    <div class="doc-dados">
-                        <div class="text-justify">
+                    <div class="subtitle">DESCRIÇÃO</div>
+                    <div class="dados">
+                        <div style="text-align: justify;">
                             <?= printSafeHtml($result->descricaoProduto) ?>
                         </div>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($result->defeito) : ?>
-                    <div class="doc-subtitulo">DEFEITO APRESENTADO</div>
-                    <div class="doc-dados">
-                        <div class="text-justify">
+                    <div class="subtitle">DEFEITO APRESENTADO</div>
+                    <div class="dados">
+                        <div style="text-align: justify;">
                             <?= printSafeHtml($result->defeito) ?>
                         </div>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($result->observacoes) : ?>
-                    <div class="doc-subtitulo">OBSERVAÇÕES</div>
-                    <div class="doc-dados">
-                        <div class="text-justify">
+                    <div class="subtitle">OBSERVAÇÕES</div>
+                    <div class="dados">
+                        <div style="text-align: justify;">
                             <?= printSafeHtml($result->observacoes) ?>
                         </div>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($result->laudoTecnico) : ?>
-					<div class="doc-subtitulo">PARECER TÉCNICO</div>
-                    <div class="doc-dados">
-                        <div class="text-justify">
+					<div class="subtitle">PARECER TÉCNICO</div>
+                    <div class="dados">
+                        <div style="text-align: justify;">
     						<?= printSafeHtml($result->laudoTecnico) ?>
 						</div>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($result->garantias_id) : ?>
-                    <div class="doc-subtitulo">TERMO DE GARANTIA</div>
-                    <div class="doc-dados">
-                        <div class="text-justify"><?= printSafeHtml($result->textoGarantia) ?></div>
+                    <div class="subtitle">TERMO DE GARANTIA</div>
+                    <div class="dados">
+                        <div style="text-align: justify;"><?= printSafeHtml($result->textoGarantia) ?></div>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($equipamento)) : ?>
+                    <div class="subtitle">EQUIPAMENTO</div>
+                    <div class="dados">
+                        <div>
+                            <span>Tipo: <b><?= !empty($equipamento->equipamento) ? html_escape($equipamento->equipamento) : 'Não informado' ?></b></span><br />
+                            <span>Marca: <b><?= !empty($equipamento->marca_nome) ? html_escape($equipamento->marca_nome) : 'Não informado' ?></b></span><br />
+                            <span>Modelo: <b><?= !empty($equipamento->modelo) ? html_escape($equipamento->modelo) : 'Não informado' ?></b></span><br />
+                            <span>Número de série: <b><?= !empty($equipamento->num_serie) ? html_escape($equipamento->num_serie) : 'Não informado' ?></b></span><br />
+                        </div>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($produtos) : ?>
-                    <div>
-                        <table class="doc-tabela">
+                    <div class="tabela">
+                        <table class="table table-bordered">
                             <thead>
-                                <tr>
+                                <tr class="table-secondary">
                                     <th>PRODUTO(S)</th>
-                                    <th class="w-[10%] text-center">QTD</th>
-                                    <th class="w-[10%] text-center">UNT</th>
-                                    <th class="w-[15%] text-right">SUBTOTAL</th>
+                                    <th class="text-center" width="10%">QTD</th>
+                                    <th class="text-center" width="10%">UNT</th>
+                                    <th class="text-end" width="15%" >SUBTOTAL</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($produtos as $p) :
                                     $totalProdutos = $totalProdutos + $p->subTotal;
                                     echo '<tr>';
-                                    echo '  <td>' . e($p->descricao) . osDescontoItemNota($p) . '</td>';
-                                    echo '  <td class="text-center">' . e($p->quantidade) . '</td>';
+                                    echo '  <td>' . $p->descricao . '</td>';
+                                    echo '  <td class="text-center">' . $p->quantidade . '</td>';
                                     echo '  <td class="text-center">' . number_format($p->preco ?: $p->precoVenda, 2, ',', '.') . '</td>';
-                                    echo '  <td class="text-right">R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
+                                    echo '  <td class="text-end">R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                     echo '</tr>';
                                 endforeach; ?>
                                 <tr>
-                                    <td colspan="3" class="text-right"><b>TOTAL PRODUTOS:</b></td>
-                                    <td class="text-right"><b>R$ <?= number_format($totalProdutos, 2, ',', '.') ?></b></td>
+                                    <td colspan="3" class="text-end"><b>TOTAL PRODUTOS:</b></td>
+                                    <td class="text-end"><b>R$ <?= number_format($totalProdutos, 2, ',', '.') ?></b></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -168,14 +183,14 @@ $totalProdutos = 0;
                 <?php endif; ?>
 
                 <?php if ($servicos) : ?>
-                    <div>
-                        <table class="doc-tabela">
+                    <div class="tabela">
+                        <table class="table table-bordered">
                             <thead>
-                                <tr>
+                                <tr class="table-secondary">
                                     <th>SERVIÇO(S)</th>
-                                    <th class="w-[10%] text-center">QTD</th>
-                                    <th class="w-[10%] text-center">UNT</th>
-                                    <th class="w-[15%] text-right">SUBTOTAL</th>
+                                    <th class="text-center" width="10%">QTD</th>
+                                    <th class="text-center" width="10%">UNT</th>
+                                    <th class="text-end" width="15%" >SUBTOTAL</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -183,18 +198,18 @@ $totalProdutos = 0;
                                     setlocale(LC_MONETARY, 'en_US');
                     foreach ($servicos as $s) :
                         $preco = $s->preco ?: $s->precoVenda;
-                        $subtotal = osValorDoItem($s);
+                        $subtotal = $preco * ($s->quantidade ?: 1);
                         $totalServico = $totalServico + $subtotal;
                         echo '<tr>';
-                        echo '  <td>' . e($s->nome) . osDescontoItemNota($s) . '</td>';
-                        echo '  <td class="text-center">' . e(($s->quantidade ?: 1)) . '</td>';
+                        echo '  <td>' . $s->nome . '</td>';
+                        echo '  <td class="text-center">' . ($s->quantidade ?: 1) . '</td>';
                         echo '  <td class="text-center">' . number_format($preco, 2, ',', '.') . '</td>';
-                        echo '  <td class="text-right">R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
+                        echo '  <td class="text-end">R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
                         echo '</tr>';
                     endforeach; ?>
                                 <tr>
-                                    <td colspan="3" class="text-right"><b>TOTAL SERVIÇOS:</b></td>
-                                    <td class="text-right"><b>R$ <?= number_format($totalServico, 2, ',', '.') ?></b></td>
+                                    <td colspan="3" class="text-end"><b>TOTAL SERVIÇOS:</b></td>
+                                    <td class="text-end"><b>R$ <?= number_format($totalServico, 2, ',', '.') ?></b></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -202,31 +217,31 @@ $totalProdutos = 0;
                 <?php endif; ?>
 
                 <?php if ($totalProdutos != 0 || $totalServico != 0) : ?>
-                    <div class="flex items-center justify-between">
-                        <div class="flex justify-between">
+                    <div class="pagamento">
+                        <div class="qrcode">
                             <?php if ($this->data['configuration']['pix_key']) : ?>
-                                <div><img class="w-[130px]" src="<?= e($qrCode) ?>" alt="QR Code de Pagamento" /></div>
-                                <div class="flex flex-wrap content-center">
-                                    <div class="w-full text-center"><span class="flex justify-center text-muted"><?= icon('camera', ['class' => 'size-5']) ?></span>Escaneie o QRCode ao lado para pagar por Pix</div>
-                                    <div class="mt-2 w-full break-words text-center">Chave Pix: <b><?= e($chaveFormatada) ?></b></div>
+                                <div><img width="130px" src="<?= $qrCode ?>" alt="QR Code de Pagamento" /></div>
+                                <div style="display: flex; flex-wrap: wrap; align-content: center;">
+                                    <div style="width: 100%; text-align:center;"><i class="fas fa-camera"></i><br />Escaneie o QRCode ao lado para pagar por Pix</div>
+                                    <div class="chavePix">Chave Pix: <b><?= $chaveFormatada ?></b></div>
                                 </div>
                             <?php else: ?>
                                 <div></div>
                                 <div></div>
                             <?php endif; ?>
                         </div>
-                        <div class="w-[400px] text-right">
-                            <div>
-                                <table class="doc-tabela">
+                        <div>
+                            <div class="tabela">
+                                <table class="table table-bordered">
                                     <thead>
-                                        <tr>
+                                        <tr class="table-secondary">
                                             <th colspan="2">RESUMO DOS VALORES</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="font-bold">
+                                    <tbody>
                                         <?php if ($result->valor_desconto != 0) : ?>
                                             <tr>
-                                                <td class="w-[65%]">SUBTOTAL</td>
+                                                <td width="65%">SUBTOTAL</td>
                                                 <td>R$ <b><?= number_format($totalProdutos + $totalServico, 2, ',', '.') ?></b></td>
                                             </tr>
                                             <tr>
@@ -239,7 +254,7 @@ $totalProdutos = 0;
                                             </tr>
                                         <?php else : ?>
                                             <tr>
-                                                <td class="w-[290px]">TOTAL</td>
+                                                <td style="width:290px">TOTAL</td>
                                                 <td>R$ <?= number_format($totalProdutos + $totalServico, 2, ',', '.') ?></td>
                                             </tr>
                                         <?php endif; ?>
@@ -250,83 +265,83 @@ $totalProdutos = 0;
                     </div>
                 <?php endif; ?>
             </section>
-            <footer class="doc-rodape">
-                <div class="flex justify-between">
+            <footer>
+                <div class="detalhes">
                     <span>Data inicial: <b><?= date('d/m/Y', strtotime($result->dataInicial)) ?></b></span>
-                    <span>ORDEM DE SERVIÇO <b>#<?= e(str_pad($result->idOs, 4, 0, STR_PAD_LEFT)) ?></b></span>
+                    <span>ORDEM DE SERVIÇO <b>#<?= str_pad($result->idOs, 4, 0, STR_PAD_LEFT) ?></b></span>
                     <span>Data final: <b><?= $result->dataFinal ? date('d/m/Y', strtotime($result->dataFinal)) : '' ?></b></span>
                 </div>
-                <div class="flex justify-around">
-                    <span class="doc-assinatura">Assinatura do cliente</span>
-                    <span class="doc-assinatura">Assinatura do técnico</span>
+                <div class="assinaturas">
+                    <span>Assinatura do cliente</span>
+                    <span>Assinatura do técnico</span>
                 </div>
             </footer>
         </div>
 
         <?php if ($configuration['control_2vias']) : ?>
-            <div class="doc-so-impressao break-before-page">
-                <header class="doc-cabecalho">
+            <div class="sub-page novaPagina">
+                <header>
                     <?php if ($emitente == null) : ?>
-                        <div class="w-full bg-danger-soft p-2 text-danger-ink" role="alert">
+                        <div class="alert alert-danger" role="alert">
                             Você precisa configurar os dados do emitente. >>> <a href="<?=base_url()?>index.php/mapos/emitente">Configurar</a>
                         </div>
                     <?php else : ?>
-                        <div class="flex items-center">
-                            <img src="<?= e($emitente->url_logo) ?>" class="h-auto w-[140px] max-w-full" alt="">
+                        <div class="imgLogo" class="align-middle">
+                            <img src="<?= convertUrlToUploadsPath($emitente->url_logo) ?>" class="img-fluid" style="width:140px;">
                         </div>
-                        <div class="mt-0.5 px-2.5">
-                            <span class="text-base"><b><?= e($emitente->nome) ?></b></span><br>
+                        <div class="emitente">
+                            <span style="font-size: 16px;"><b><?= $emitente->nome ?></b></span></br>
                             <?php if ($emitente->cnpj != "00.000.000/0000-00") : ?>
-                                <span>CNPJ: <?= e($emitente->cnpj) ?></span><br>
+                                <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span></br>
                             <?php endif; ?>
-                            <span>
-                                <?= e($emitente->rua.', '.$emitente->numero.', '.$emitente->bairro) ?><br>
-                                <?= e($emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep) ?>
+                            <span class="align-middle">
+                                <?= $emitente->rua.', '.$emitente->numero.', '.$emitente->bairro ?><br>
+                                <?= $emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep ?>
                             </span>
                         </div>
-                        <div class="mt-2.5 max-w-[230px] text-right">
-                            <span class="font-bold">Tel: <?= e($emitente->telefone) ?></span><br>
-                            <span class="font-bold"><?= e($emitente->email) ?></span><br>
-                            <span class="break-words">Responsável: <b><?= e($result->nome) ?></b></span>
+                        <div class="contatoEmitente">
+                            <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span></br>
+                            <span style="font-weight: bold;"><?= $emitente->email ?></span></br>
+                            <span style="word-break: break-word;">Responsável: <b><?= $result->nome ?></b></span>
                         </div>
                     <?php endif; ?>
                 </header>
-                <section class="w-full py-2.5">
-                    <div class="doc-titulo">
+                <section>
+                    <div class="title">
                         <!-- VIA EMPRESA  -->
                         <?php $totalServico = 0;
 $totalProdutos = 0; ?>
-                        <?php if ($configuration['control_2vias']) : ?><span class="doc-so-impressao absolute left-1 text-[13px]">Via Empresa</span><?php endif; ?>
-                        ORDEM DE SERVIÇO #<?= e(str_pad($result->idOs, 4, 0, STR_PAD_LEFT)) ?>
-                        <span class="absolute right-1 text-[13px]">Emissão: <?= date('d/m/Y') ?></span>
+                        <?php if ($configuration['control_2vias']) : ?><span class="via">Via Empresa</span><?php endif; ?>
+                        ORDEM DE SERVIÇO #<?= str_pad($result->idOs, 4, 0, STR_PAD_LEFT) ?>
+                        <span class="emissao">Emissão: <?= date('d/m/Y') ?></span>
                     </div>
 
                     <?php if ($result->dataInicial != null): ?>
-                        <div>
-                            <table class="doc-tabela">
+                        <div class="tabela">
+                            <table class="table table-bordered">
                                 <thead>
-                                    <tr>
+                                    <tr class="table-secondary">
                                         <th class="text-center">STATUS</th>
                                         <th class="text-center">DATA INICIAL</th>
                                         <th class="text-center">DATA FINAL</th>
                                         <?php if ($result->garantia) : ?>
                                             <th class="text-center">GARANTIA</th>
                                         <?php endif; ?>
-                                        <?php if (in_array($result->status, ['Finalizado', 'Faturado'])) : ?>
+                                        <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
                                             <th class="text-center">VENC. GARANTIA</th>
                                         <?php endif; ?>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td class="text-center"><?= e($result->status) ?></td>
+                                        <td class="text-center"><?= $result->status ?></td>
                                         <td class="text-center"><?= date('d/m/Y', strtotime($result->dataInicial)) ?></td>
                                         <td class="text-center"><?= $result->dataFinal ? date('d/m/Y', strtotime($result->dataFinal)) : '' ?></td>
                                         <?php if ($result->garantia) : ?>
-                                            <td class="text-center"><?= e($result->garantia . ' dia(s)') ?></td>
+                                            <td class="text-center"><?= $result->garantia . ' dia(s)' ?></td>
                                         <?php endif; ?>
-                                        <?php if (in_array($result->status, ['Finalizado', 'Faturado'])) : ?>
-                                            <td class="text-center"><?= e(dateInterval($result->dataFinal, $result->garantia)) ?></td>
+                                        <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
+                                            <td class="text-center"><?= $garantiaAte ? date('d/m/Y', strtotime($garantiaAte)) : '' ?></td>
                                         <?php endif; ?>
                                     </tr>
                                 </tbody>
@@ -334,24 +349,24 @@ $totalProdutos = 0; ?>
                         </div>
                     <?php endif; ?>
 
-                    <div class="doc-subtitulo">DADOS DO CLIENTE</div>
-                    <div class="doc-dados">
+                    <div class="subtitle">DADOS DO CLIENTE</div>
+                    <div class="dados">
                         <div>
-                            <span><b><?= e($result->nomeCliente) ?></b></span><br />
-                            <span>CPF/CNPJ: <?= e($result->documento) ?></span><br />
-                            <span><?= e($result->contato_cliente.' '.$result->telefone) ?><?= e($result->telefone && $result->celular ? ' / '.$result->celular : $result->celular) ?></span><br />
-                            <span><?= e($result->email) ?></span><br />
+                            <span><b><?= $result->nomeCliente ?></b></span><br />
+                            <span>CPF/CNPJ: <?= $result->documento ?></span><br />
+                            <span><?= $result->contato_cliente.' '.$result->telefone ?><?= $result->telefone && $result->celular ? ' / '.$result->celular : $result->celular ?></span><br />
+                            <span><?= $result->email ?></span><br />
                         </div>
-                        <div class="text-right">
-                            <span><?= e($result->rua.', '.$result->numero.', '.$result->bairro) ?></span><br />
-                            <span><?= e($result->complemento.' - '.$result->cidade.' - '.$result->estado) ?></span><br />
-                            <span>CEP: <?= e($result->cep) ?></span><br />
+                        <div style="text-align: right;">
+                            <span><?= $result->rua.', '.$result->numero.', '.$result->bairro ?></span><br />
+                            <span><?= $result->complemento.' - '.$result->cidade.' - '.$result->estado ?></span><br />
+                            <span>CEP: <?= $result->cep ?></span><br />
                         </div>
                     </div>
 
                     <?php if ($result->descricaoProduto) : ?>
-                        <div class="doc-subtitulo">DESCRIÇÃO</div>
-                        <div class="doc-dados">
+                        <div class="subtitle">DESCRIÇÃO</div>
+                        <div class="dados">
                             <div>
                                 <?= printSafeHtml($result->descricaoProduto) ?>
                             </div>
@@ -359,8 +374,8 @@ $totalProdutos = 0; ?>
                     <?php endif; ?>
 
                     <?php if ($result->defeito) : ?>
-                        <div class="doc-subtitulo">DEFEITO APRESENTADO</div>
-                        <div class="doc-dados">
+                        <div class="subtitle">DEFEITO APRESENTADO</div>
+                        <div class="dados">
                             <div>
                                 <?= printSafeHtml($result->defeito) ?>
                             </div>
@@ -368,8 +383,8 @@ $totalProdutos = 0; ?>
                     <?php endif; ?>
 
                     <?php if ($result->observacoes) : ?>
-                        <div class="doc-subtitulo">OBSERVAÇÕES</div>
-                        <div class="doc-dados">
+                        <div class="subtitle">OBSERVAÇÕES</div>
+                        <div class="dados">
                             <div>
                                 <?= printSafeHtml($result->observacoes) ?>
                             </div>
@@ -377,8 +392,8 @@ $totalProdutos = 0; ?>
                     <?php endif; ?>
 
                     <?php if ($result->laudoTecnico) : ?>
-                        <div class="doc-subtitulo">PARECER TÉCNICO</div>
-                        <div class="doc-dados">
+                        <div class="subtitle">PARECER TÉCNICO</div>
+                        <div class="dados">
                             <div>
                                 <?= printSafeHtml($result->laudoTecnico) ?>
                             </div>
@@ -386,36 +401,36 @@ $totalProdutos = 0; ?>
                     <?php endif; ?>
 
                     <?php if ($result->garantias_id) : ?>
-                        <div class="doc-subtitulo">TERMO DE GARANTIA</div>
-                        <div class="doc-dados">
-                            <div class="text-justify"><?= printSafeHtml($result->textoGarantia) ?></div>
+                        <div class="subtitle">TERMO DE GARANTIA</div>
+                        <div class="dados">
+                            <div style="text-align: justify;"><?= printSafeHtml($result->textoGarantia) ?></div>
                         </div>
                     <?php endif; ?>
 
                     <?php if ($produtos) : ?>
-                        <div>
-                            <table class="doc-tabela">
+                        <div class="tabela">
+                            <table class="table table-bordered">
                                 <thead>
-                                    <tr>
+                                    <tr class="table-secondary">
                                         <th>PRODUTO(S)</th>
-                                        <th class="w-[10%] text-center">QTD</th>
-                                        <th class="w-[10%] text-center">UNT</th>
-                                        <th class="w-[15%] text-right">SUBTOTAL</th>
+                                        <th class="text-center" width="10%">QTD</th>
+                                        <th class="text-center" width="10%">UNT</th>
+                                        <th class="text-end" width="15%" >SUBTOTAL</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($produtos as $p) :
                                         $totalProdutos = $totalProdutos + $p->subTotal;
                                         echo '<tr>';
-                                        echo '  <td>' . e($p->descricao) . osDescontoItemNota($p) . '</td>';
-                                        echo '  <td class="text-center">' . e($p->quantidade) . '</td>';
+                                        echo '  <td>' . $p->descricao . '</td>';
+                                        echo '  <td class="text-center">' . $p->quantidade . '</td>';
                                         echo '  <td class="text-center">' . number_format($p->preco ?: $p->precoVenda, 2, ',', '.') . '</td>';
-                                        echo '  <td class="text-right">R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
+                                        echo '  <td class="text-end">R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                         echo '</tr>';
                                     endforeach; ?>
                                     <tr>
-                                        <td colspan="3" class="text-right"><b>TOTAL PRODUTOS:</b></td>
-                                        <td class="text-right"><b>R$ <?= number_format($totalProdutos, 2, ',', '.') ?></b></td>
+                                        <td colspan="3" class="text-end"><b>TOTAL PRODUTOS:</b></td>
+                                        <td class="text-end"><b>R$ <?= number_format($totalProdutos, 2, ',', '.') ?></b></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -423,14 +438,14 @@ $totalProdutos = 0; ?>
                     <?php endif; ?>
 
                     <?php if ($servicos) : ?>
-                        <div>
-                            <table class="doc-tabela">
+                        <div class="tabela">
+                            <table class="table table-bordered">
                                 <thead>
-                                    <tr>
+                                    <tr class="table-secondary">
                                         <th>SERVIÇO(S)</th>
-                                        <th class="w-[10%] text-center">QTD</th>
-                                        <th class="w-[10%] text-center">UNT</th>
-                                        <th class="w-[15%] text-right">SUBTOTAL</th>
+                                        <th class="text-center" width="10%">QTD</th>
+                                        <th class="text-center" width="10%">UNT</th>
+                                        <th class="text-end" width="15%" >SUBTOTAL</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -438,18 +453,18 @@ $totalProdutos = 0; ?>
                                         setlocale(LC_MONETARY, 'en_US');
                         foreach ($servicos as $s) :
                             $preco = $s->preco ?: $s->precoVenda;
-                            $subtotal = osValorDoItem($s);
+                            $subtotal = $preco * ($s->quantidade ?: 1);
                             $totalServico = $totalServico + $subtotal;
                             echo '<tr>';
-                            echo '  <td>' . e($s->nome) . osDescontoItemNota($s) . '</td>';
-                            echo '  <td class="text-center">' . e(($s->quantidade ?: 1)) . '</td>';
+                            echo '  <td>' . $s->nome . '</td>';
+                            echo '  <td class="text-center">' . ($s->quantidade ?: 1) . '</td>';
                             echo '  <td class="text-center">' . number_format($preco, 2, ',', '.') . '</td>';
-                            echo '  <td class="text-right">R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
+                            echo '  <td class="text-end">R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
                             echo '</tr>';
                         endforeach; ?>
                                     <tr>
-                                        <td colspan="3" class="text-right"><b>TOTAL SERVIÇOS:</b></td>
-                                        <td class="text-right"><b>R$ <?= number_format($totalServico, 2, ',', '.') ?></b></td>
+                                        <td colspan="3" class="text-end"><b>TOTAL SERVIÇOS:</b></td>
+                                        <td class="text-end"><b>R$ <?= number_format($totalServico, 2, ',', '.') ?></b></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -457,31 +472,31 @@ $totalProdutos = 0; ?>
                     <?php endif; ?>
 
                     <?php if ($totalProdutos != 0 || $totalServico != 0) : ?>
-                        <div class="flex items-center justify-between">
-                            <div class="flex justify-between">
+                        <div class="pagamento">
+                            <div class="qrcode">
                                 <?php if ($this->data['configuration']['pix_key']) : ?>
-                                    <div><img class="w-[130px]" src="<?= e($qrCode) ?>" alt="QR Code de Pagamento" /></div>
-                                    <div class="flex flex-wrap content-center">
-                                        <div class="w-full text-center"><span class="flex justify-center text-muted"><?= icon('camera', ['class' => 'size-5']) ?></span>Escaneie o QRCode ao lado para pagar por Pix</div>
-                                        <div class="mt-2 w-full break-words text-center">Chave Pix: <b><?= e($chaveFormatada) ?></b></div>
+                                    <div><img width="130px" src="<?= $qrCode ?>" alt="QR Code de Pagamento" /></div>
+                                    <div style="display: flex; flex-wrap: wrap; align-content: center;">
+                                        <div style="width: 100%; text-align:center;"><i class="fas fa-camera"></i><br />Escaneie o QRCode ao lado para pagar por Pix</div>
+                                        <div class="chavePix">Chave Pix: <b><?= $chaveFormatada ?></b></div>
                                     </div>
                                 <?php else: ?>
                                     <div></div>
                                     <div></div>
                                 <?php endif; ?>
                             </div>
-                            <div class="w-[400px] text-right">
-                                <div>
-                                    <table class="doc-tabela">
+                            <div>
+                                <div class="tabela">
+                                    <table class="table table-bordered">
                                         <thead>
-                                            <tr>
+                                            <tr class="table-secondary">
                                                 <th colspan="2">RESUMO DOS VALORES</th>
                                             </tr>
                                         </thead>
-                                        <tbody class="font-bold">
+                                        <tbody>
                                             <?php if ($result->valor_desconto != 0) : ?>
                                                 <tr>
-                                                    <td class="w-[65%]">SUBTOTAL</td>
+                                                    <td width="65%">SUBTOTAL</td>
                                                     <td>R$ <b><?= number_format($totalProdutos + $totalServico, 2, ',', '.') ?></b></td>
                                                 </tr>
                                                 <tr>
@@ -494,7 +509,7 @@ $totalProdutos = 0; ?>
                                                 </tr>
                                             <?php else : ?>
                                                 <tr>
-                                                    <td class="w-[290px]">TOTAL</td>
+                                                    <td style="width:290px">TOTAL</td>
                                                     <td>R$ <?= number_format($totalProdutos + $totalServico, 2, ',', '.') ?></td>
                                                 </tr>
                                             <?php endif; ?>
@@ -505,73 +520,73 @@ $totalProdutos = 0; ?>
                         </div>
                     <?php endif; ?>
                 </section>
-                <footer class="doc-rodape">
-                    <div class="flex justify-between">
+                <footer>
+                    <div class="detalhes">
                         <span>Data inicial: <b><?= date('d/m/Y', strtotime($result->dataInicial)) ?></b></span>
-                        <span>ORDEM DE SERVIÇO <b>#<?= e(str_pad($result->idOs, 4, 0, STR_PAD_LEFT)) ?></b></span>
+                        <span>ORDEM DE SERVIÇO <b>#<?= str_pad($result->idOs, 4, 0, STR_PAD_LEFT) ?></b></span>
                         <span>Data final: <b><?= $result->dataFinal ? date('d/m/Y', strtotime($result->dataFinal)) : '' ?></b></span>
                     </div>
-                    <div class="flex justify-around">
-                        <span class="doc-assinatura">Assinatura do cliente</span>
-                        <span class="doc-assinatura">Assinatura do técnico</span>
+                    <div class="assinaturas">
+                        <span>Assinatura do cliente</span>
+                        <span>Assinatura do técnico</span>
                     </div>
                 </footer>
             </div>
         <?php endif; ?>
 
         <?php if ($anexos && $imprimirAnexo) : ?>
-            <div class="doc-so-impressao break-before-page" id="anexos">
-                <header class="doc-cabecalho">
+            <div class="sub-page" id="anexos">
+                <header style="border: 1px solid #cdcdcd">
                     <?php if ($emitente == null) : ?>
-                        <div class="w-full bg-danger-soft p-2 text-danger-ink" role="alert">
+                        <div class="alert alert-danger" role="alert">
                             Você precisa configurar os dados do emitente. >>> <a href="<?= base_url() ?>index.php/mapos/emitente">Configurar</a>
                         </div>
                     <?php else : ?>
-                        <div class="flex items-center">
-                            <img src="<?= e($emitente->url_logo) ?>" class="h-auto w-[140px] max-w-full" alt="">
+                        <div id="imgLogo" class="align-middle">
+                            <img src="<?= convertUrlToUploadsPath($emitente->url_logo) ?>" class="img-fluid" style="width:140px;">
                         </div>
-                        <div class="mt-0.5 px-2.5">
-                            <span class="text-base"><b><?= e($emitente->nome) ?></b></span><br>
+                        <div style="padding-left: 10px; padding-right: 10px; margin-top: 3px;">
+                            <span style="font-size: 16px;"><b><?= $emitente->nome ?></b></span></br>
                             <?php if ($emitente->cnpj != "00.000.000/0000-00") : ?>
-                                <span>CNPJ: <?= e($emitente->cnpj) ?></span><br>
+                                <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span></br>
                             <?php endif; ?>
-                            <span>
-                                <?= e($emitente->rua.', '.$emitente->numero.', '.$emitente->bairro) ?><br>
-                                <?= e($emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep) ?>
+                            <span class="align-middle">
+                                <?= $emitente->rua.', '.$emitente->numero.', '.$emitente->bairro ?><br>
+                                <?= $emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep ?>
                             </span>
                         </div>
-                        <div class="mt-2.5 max-w-[230px] text-right">
-                            <span class="font-bold">Tel: <?= e($emitente->telefone) ?></span><br>
-                            <span class="font-bold"><?= e($emitente->email) ?></span><br>
-                            <span class="break-words">Responsável: <b><?= e($result->nome) ?></b></span>
+                        <div style="text-align: right; max-width: 230px; margin-top: 10px;">
+                            <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span></br>
+                            <span style="font-weight: bold;"><?= $emitente->email ?></span></br>
+                            <span style="word-break: break-word;">Responsável: <b><?= $result->nome ?></b></span>
                         </div>
                     <?php endif; ?>
                 </header>
-                <section class="w-full py-2.5">
-                    <div class="doc-titulo">
-                        ORDEM DE SERVIÇO #<?= e(str_pad($result->idOs, 4, 0, STR_PAD_LEFT)) ?>
-                        <span class="absolute right-1 text-[13px]">Emissão: <?= date('d/m/Y') ?></span>
+                <section>
+                    <div class="title">
+                        ORDEM DE SERVIÇO #<?= str_pad($result->idOs, 4, 0, STR_PAD_LEFT) ?>
+                        <span class="emissao">Emissão: <?= date('d/m/Y') ?></span>
                     </div>
-                    <div class="doc-subtitulo">ANEXO(S)</div>
-                    <div class="doc-dados">
-                        <div class="flex w-full flex-wrap items-center justify-around">
+                    <div class="subtitle">ANEXO(S)</div>
+                    <div class="dados">
+                        <div style="width: 100%; display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap;">
                             <?php
                                 $contaAnexos = 0;
 foreach ($anexos as $a) :
     if ($a->thumb) :
-        $link  = site_url('os/anexo/'.(int) $a->idAnexos);
+        $thumb = $a->url.'/thumbs/'.$a->thumb;
+        $link  = $a->url.'/'.$a->anexo;
         ?>
-                                        <img class="m-1 h-auto max-w-[150px] flex-[1_0_30%] object-cover" src="<?= e($link) ?>" alt="">
+                                        <img src="<?= $link ?>" alt="">
                             <?php
     endif;
 endforeach;
 ?>
                         </div>
                     </div>
-                <section class="w-full py-2.5">
+                <section>
             </div>
         <?php endif; ?>
     </div>
-<script src="<?= e(base_url('assets/js/imprimir.js')) ?>"></script>
 </body>
 </html>

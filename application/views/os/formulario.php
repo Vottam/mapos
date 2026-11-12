@@ -74,7 +74,7 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
             <p class="text-caption text-muted"><?= e($editando ? $os->nomeCliente : 'Os produtos e serviços são adicionados depois de criar a OS.') ?></p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <?php if ($pode['ver_os']) { ?>
+            <?php if ($editando && $pode['ver_os']) { ?>
                 <?= component('button', [
                     'label' => 'Ver OS, itens e faturamento',
                     'icon' => 'eye',
@@ -93,6 +93,10 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
 
     <form method="post" action="<?= e(current_url()) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <input type="hidden" name="os_create_token" value="<?= e($os_create_token ?? '') ?>">
+        <?php if ($editando) { ?>
+            <input type="hidden" name="idOs" value="<?= (int) $os->idOs ?>">
+        <?php } ?>
 
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-responsaveis">
             <h2 id="secao-responsaveis" class="text-heading-sm text-text">Cliente e responsável</h2>
@@ -173,13 +177,21 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
                 ]) ?>
                 <?= component('input', [
                     'name' => 'dataFinal',
-                    'label' => 'Data final',
+                    'label' => 'Data final prevista',
                     'type' => 'date',
-                    'required' => true,
+                    'required' => false,
                     'value' => $valores['dataFinal'] !== '' ? $valores['dataFinal'] : null,
                     'error' => $errosDeCampo['dataFinal'] ?? null,
-                    'help' => 'Previsão de entrega ao cliente.',
-                    'attrs' => ['data-msg-vazio' => 'Informe a data final.'],
+                    'help' => 'Opcional: previsão de entrega ao cliente. A data efetiva é registrada pelo status Entregue.',
+                    'attrs' => ['data-msg-invalido' => 'Informe uma data final válida.'],
+                ]) ?>
+                <?= component('input', [
+                    'name' => 'dataEntrega',
+                    'label' => 'Data efetiva da entrega',
+                    'type' => 'date',
+                    'value' => $valores['dataEntrega'] !== '' ? $valores['dataEntrega'] : null,
+                    'help' => 'Preenchida automaticamente na transição para Entregue; não é editável.',
+                    'attrs' => ['readonly' => true, 'aria-readonly' => 'true', 'data-data-entrega-efetiva' => true],
                 ]) ?>
                 <?= component('input', [
                     'name' => 'garantia',

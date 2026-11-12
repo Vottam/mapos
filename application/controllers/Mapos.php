@@ -75,6 +75,30 @@ class Mapos extends MY_Controller
             $painel['estoque_lista'] = $this->mapos_model->produtosEstoqueBaixo(8);
         }
 
+        // Radar de Rentabilidade — Inteligência de Tickets (STAGING only).
+        // Somente leitura; não altera dados. Exige visualização de OS e financeira.
+        if (($pode['os'] ?? false) && ($pode['balanco'] ?? false)) {
+            $this->load->model('financeiro_model');
+            $radarPeriodo = (string) $this->input->get('radar_periodo');
+            $radarMes = (string) $this->input->get('radar_mes');
+            $radarAno = (int) $this->input->get('radar_ano');
+            $mesSelecionado = preg_match('/^\\d{4}-(0[1-9]|1[0-2])$/', $radarMes) ? $radarMes : date('Y-m');
+            if ($radarPeriodo === 'mes') {
+                $radarDe = $mesSelecionado . '-01';
+                $radarAte = (new DateTimeImmutable($radarDe))->modify('last day of this month')->format('Y-m-d');
+            } elseif ($radarPeriodo === '3m') {
+                $radarDe = date('Y-m-01', strtotime('-2 months', strtotime($hoje)));
+                $radarAte = $hoje;
+            } else {
+                $radarPeriodo = '12m';
+                $radarDe = date('Y-m-01', strtotime('-11 months', strtotime($hoje)));
+                $radarAte = $hoje;
+            }
+            $painel['radar'] = $this->financeiro_model->radarRentabilidade($radarDe, $radarAte);
+            $painel['radar_periodo'] = $radarPeriodo;
+            $painel['radar_mes'] = $mesSelecionado;
+        }
+
         $this->data = array_merge($this->data, $painel);
 
         if ($this->permite('aOs')) {
@@ -876,5 +900,116 @@ class Mapos extends MY_Controller
             ->set_content_type('application/json')
             ->set_status_header(200)
             ->set_output(json_encode($events));
+    }
+
+    /** Normaliza as janelas temporais do Radar sem manter estado ou cache. */
+    private function periodoRadarDetalhado(?string $janela, int $ano, ?string $mes, string $hoje): array
+    {
+        $janela = (string) $janela;
+        $mes = (string) $mes;
+        if ($janela === 'civil' && $ano > 1900) {
+            return [sprintf('%s-01-01', $ano), sprintf('%s-12-31', $ano), 'civil', $ano, sprintf('%s-01', $ano)];
+        }
+        if ($janela === 'mes' && preg_match('/^\\d{4}-(0[1-9]|1[0-2])$/', $mes)) {
+            $de = $mes . '-01';
+            return [$de, (new DateTimeImmutable($de))->modify('last day of this month')->format('Y-m-d'), 'mes', (int) substr($mes, 0, 4), $mes];
+        }
+        if ($janela === '3m') {
+            return [date('Y-m-01', strtotime('-2 months', strtotime($hoje))), $hoje, '3m', (int) date('Y', strtotime($hoje)), date('Y-m', strtotime($hoje))];
+        }
+        return [date('Y-m-01', strtotime('-11 months', strtotime($hoje))), $hoje, '12m', (int) date('Y', strtotime($hoje)), date('Y-m', strtotime($hoje))];
+    }
+
+    /**
+     * Radar de Rentabilidade — dados para o bloco do Painel e para a página
+     * detalhada "Inteligência de Tickets". Somente leitura.
+     *
+     * GET mapos/radarDados?de=AAAA-MM-DD&ate=AAAA-MM-DD
+     */
+    public function radarDados()
+    {
+        if (! $this->permite('rFinanceiro') || ! $this->permite('vOs')) {
+            return $this->output
+                ->set_status_header(403)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'Sem permissão para acessar os indicadores financeiros.']));
+        }
+
+        $this->load->model('financeiro_model');
+        $de = $this->input->get('de');
+        $ate = $this->input->get('ate');
+        if ($de === null) {
+            $de = date('Y-m-01', strtotime('-11 months'));
+        }
+        if ($ate === null) {
+            $ate = date('Y-m-d');
+        }
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'success' => true,
+                'radar' => $this->financeiro_model->radarRentabilidade($de, $ate),
+            ]));
+    }
+
+    /**
+     * Página detalhada "Inteligência de Tickets" (grupo Financeiro do menu).
+     *
+     * GET mapos/inteligenciaTickets?janela=12m|3m|mes|civil&ano=AAAA&mes=AAAA-MM
+     */
+    public function inteligenciaTickets()
+    {
+        if (! $this->permite('rFinanceiro') || ! $this->permite('vOs')) {
+            return show_error('Sem permissão para acessar a Inteligência de Tickets.', 403);
+        }
+
+        $this->load->model('financeiro_model');
+        $janela = (string) $this->input->get('janela');
+        $ano = (int) $this->input->get('ano');
+        $mes = (string) $this->input->get('mes');
+        $hoje = date('Y-m-d');
+        [$de, $ate, $janela, $ano, $mesSelecionado] = $this->periodoRadarDetalhado($janela, $ano, $mes, $hoje);
+
+        $this->data['radar'] = $this->financeiro_model->radarRentabilidade($de, $ate);
+        $this->data['janela'] = $janela;
+        $this->data['ano'] = $ano;
+        $this->data['mes'] = $mesSelecionado;
+        $this->data['hoje'] = $hoje;
+        $this->data['view'] = 'mapos/inteligencia_tickets';
+
+        return $this->layout();
+    }
+
+    /**
+     * Dados JSON da página detalhada (atualização da página sem recarregar).
+     *
+     * GET mapos/inteligenciaTicketsDados?janela=12m|3m|mes|civil&ano=AAAA&mes=AAAA-MM
+     */
+    public function inteligenciaTicketsDados()
+    {
+        if (! $this->permite('rFinanceiro') || ! $this->permite('vOs')) {
+            return $this->output
+                ->set_status_header(403)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'Sem permissão para acessar os indicadores financeiros.']));
+        }
+
+        $this->load->model('financeiro_model');
+        $janela = (string) $this->input->get('janela');
+        $ano = (int) $this->input->get('ano');
+        $mes = (string) $this->input->get('mes');
+        $hoje = date('Y-m-d');
+        [$de, $ate, $janela, $ano, $mesSelecionado] = $this->periodoRadarDetalhado($janela, $ano, $mes, $hoje);
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'success' => true,
+                'janela' => $janela,
+                'ano' => $ano,
+                'mes' => $mesSelecionado,
+                'radar' => $this->financeiro_model->radarRentabilidade($de, $ate),
+            ]));
     }
 }

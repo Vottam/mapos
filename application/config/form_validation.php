@@ -6,12 +6,12 @@ $config = [
     'clientes' => [
         [
             'field' => 'nomeCliente',
-            'label' => 'Nome ou razão social',
+            'label' => 'Nome',
             'rules' => 'required|trim',
         ],
         [
             'field' => 'documento',
-            'label' => 'CPF ou CNPJ',
+            'label' => 'CPF/CNPJ',
             'rules' => 'trim|verific_cpf_cnpj|unique[clientes.documento.' . get_instance()->uri->segment(3) . '.idClientes]',
             'errors' => [
                 'verific_cpf_cnpj' => 'O campo %s não é um CPF ou CNPJ válido.',
@@ -24,7 +24,7 @@ $config = [
         ],
         [
             'field' => 'email',
-            'label' => 'E-mail',
+            'label' => 'Email',
             'rules' => 'trim|valid_email|unique[clientes.email.' . get_instance()->uri->segment(3) . '.idClientes]',
         ],
         [
@@ -62,54 +62,49 @@ $config = [
         [
             'field' => 'nome',
             'label' => 'Nome',
-            'rules' => 'required|trim|max_length[45]',
+            'rules' => 'required|trim',
         ],
         [
             'field' => 'descricao',
-            'label' => 'Descrição',
-            'rules' => 'trim|max_length[45]',
+            'label' => '',
+            'rules' => 'trim',
         ],
         [
             'field' => 'preco',
-            'label' => 'Preço',
+            'label' => '',
             'rules' => 'required|trim',
         ],
     ],
     'produtos' => [
         [
-            'field' => 'codDeBarra',
-            'label' => 'Código de barras',
-            'rules' => 'trim|max_length[70]',
-        ],
-        [
             'field' => 'descricao',
-            'label' => 'Descrição',
-            'rules' => 'required|trim|max_length[80]',
+            'label' => '',
+            'rules' => 'required|trim',
         ],
         [
             'field' => 'unidade',
             'label' => 'Unidade',
-            'rules' => 'required|trim|max_length[10]',
+            'rules' => 'required|trim',
         ],
         [
             'field' => 'precoCompra',
-            'label' => 'Preço de compra',
+            'label' => 'Preço de Compra',
             'rules' => 'required|trim',
         ],
         [
             'field' => 'precoVenda',
-            'label' => 'Preço de venda',
+            'label' => 'Preço de Venda',
             'rules' => 'required|trim',
         ],
         [
             'field' => 'estoque',
             'label' => 'Estoque',
-            'rules' => 'required|trim|integer|greater_than_equal_to[0]|less_than_equal_to[99999999]',
+            'rules' => 'required|trim',
         ],
         [
             'field' => 'estoqueMinimo',
-            'label' => 'Estoque mínimo',
-            'rules' => 'trim|integer|greater_than_equal_to[0]|less_than_equal_to[99999999]',
+            'label' => 'Estoque Minimo',
+            'rules' => 'trim',
         ],
     ],
     'usuarios' => [
@@ -185,30 +180,30 @@ $config = [
     'os' => [
         [
             'field' => 'dataInicial',
-            'label' => 'Data inicial',
+            'label' => 'DataInicial',
             'rules' => 'required|trim',
         ],
         [
             'field' => 'dataFinal',
-            'label' => 'Data final',
-            'rules' => 'trim|required',
+            'label' => 'DataFinal',
+            'rules' => 'trim',
         ],
         [
             'field' => 'garantia',
             'label' => 'Garantia',
             'rules' => 'trim|numeric',
             'errors' => [
-                'numeric' => 'Informe a garantia em dias, só com números.',
+                'numeric' => 'Por favor digite apenas número.',
             ],
         ],
         [
             'field' => 'termoGarantia',
-            'label' => 'Termo de garantia',
+            'label' => 'Termo Garantia',
             'rules' => 'trim',
         ],
         [
             'field' => 'descricaoProduto',
-            'label' => 'Descrição do produto ou serviço',
+            'label' => 'DescricaoProduto',
             'rules' => 'trim',
         ],
         [
@@ -223,80 +218,23 @@ $config = [
         ],
         [
             'field' => 'observacoes',
-            'label' => 'Observações',
+            'label' => 'Observacoes',
             'rules' => 'trim',
         ],
         [
             'field' => 'clientes_id',
-            'label' => 'Cliente',
+            'label' => 'clientes',
             'rules' => 'trim|required',
         ],
         [
             'field' => 'usuarios_id',
-            'label' => 'Técnico responsável',
+            'label' => 'usuarios_id',
             'rules' => 'trim|required',
         ],
         [
             'field' => 'laudoTecnico',
-            'label' => 'Laudo técnico',
+            'label' => 'Laudo Tecnico',
             'rules' => 'trim',
-        ],
-    ],
-    'equipamentos' => [
-        [
-            'field' => 'equipamento',
-            'label' => 'Tipo de equipamento',
-            'rules' => 'required|trim|max_length[150]',
-        ],
-        [
-            'field' => 'num_serie',
-            'label' => 'Número de série',
-            'rules' => 'trim|max_length[80]',
-        ],
-        [
-            'field' => 'modelo',
-            'label' => 'Modelo',
-            'rules' => 'trim|max_length[80]',
-        ],
-        [
-            'field' => 'cor',
-            'label' => 'Cor',
-            'rules' => 'trim|max_length[45]',
-        ],
-        [
-            'field' => 'descricao',
-            'label' => 'Descrição',
-            'rules' => 'trim|max_length[150]',
-        ],
-        [
-            'field' => 'tensao',
-            'label' => 'Tensão',
-            'rules' => 'trim|max_length[45]',
-        ],
-        [
-            'field' => 'potencia',
-            'label' => 'Potência',
-            'rules' => 'trim|max_length[45]',
-        ],
-        [
-            'field' => 'voltagem',
-            'label' => 'Voltagem',
-            'rules' => 'trim|max_length[45]',
-        ],
-        [
-            'field' => 'data_fabricacao',
-            'label' => 'Data de fabricação',
-            'rules' => 'trim|max_length[10]',
-        ],
-        [
-            'field' => 'marca',
-            'label' => 'Marca',
-            'rules' => 'trim|max_length[100]',
-        ],
-        [
-            'field' => 'clientes_id',
-            'label' => 'Cliente',
-            'rules' => 'required|trim|integer|greater_than[0]',
         ],
     ],
     'tiposUsuario' => [
@@ -339,36 +277,31 @@ $config = [
             'rules' => 'required|trim',
         ],
     ],
-    'alterar_senha' => [
-        [
-            'field' => 'oldSenha',
-            'label' => 'Senha atual',
-            'rules' => 'required',
-        ],
-        [
-            'field' => 'novaSenha',
-            'label' => 'Nova senha',
-            'rules' => 'required|min_length[8]|max_length[72]',
-        ],
-        [
-            'field' => 'confirmarSenha',
-            'label' => 'Confirmação da senha',
-            'rules' => 'required|matches[novaSenha]',
-            'errors' => [
-                'matches' => 'A confirmação não é igual à nova senha.',
-            ],
-        ],
-    ],
-    'arquivos' => [
-        [
-            'field' => 'nome',
-            'label' => 'Nome',
-            'rules' => 'required|trim|max_length[70]',
-        ],
+    'despesa' => [
         [
             'field' => 'descricao',
             'label' => 'Descrição',
-            'rules' => 'trim|max_length[2000]',
+            'rules' => 'required|trim',
+        ],
+        [
+            'field' => 'valor',
+            'label' => 'Valor',
+            'rules' => 'required|trim',
+        ],
+        [
+            'field' => 'vencimento',
+            'label' => 'Data Vencimento',
+            'rules' => 'required|trim',
+        ],
+        [
+            'field' => 'fornecedor',
+            'label' => 'Fornecedor',
+            'rules' => 'required|trim',
+        ],
+        [
+            'field' => 'tipo',
+            'label' => 'Tipo',
+            'rules' => 'required|trim',
         ],
     ],
     'garantias' => [
@@ -384,13 +317,13 @@ $config = [
         ],
         [
             'field' => 'refGarantia',
-            'label' => 'Referência',
-            'rules' => 'trim|max_length[15]',
+            'label' => 'refGarantia',
+            'rules' => 'trim',
         ],
         [
             'field' => 'textoGarantia',
-            'label' => 'Termo de garantia',
-            'rules' => 'required|trim|max_length[20000]',
+            'label' => 'textoGarantia',
+            'rules' => 'required|trim',
         ],
     ],
     'pagamentos' => [
@@ -420,118 +353,25 @@ $config = [
             'rules' => 'trim',
         ],
     ],
-    // Formulário de usuário da v5 (#2846). O grupo "usuarios", com is_unique,
-    // continua para a API. Endereço e RG passam a ser opcionais; a senha é
-    // conferida em usuarioDadosDoFormulario() (obrigatória só ao cadastrar).
-    'usuarios_formulario' => [
-        [
-            'field' => 'nome',
-            'label' => 'Nome',
-            'rules' => 'required|trim|max_length[80]',
-        ],
-        [
-            'field' => 'cpf',
-            'label' => 'CPF',
-            // CPF único é conferido no controller, com o CPF já normalizado
-            // (usuarioCpfFormatado()): o banco guarda com a máscara.
-            'rules' => 'required|trim|max_length[20]|verific_cpf_cnpj',
-            'errors' => [
-                'verific_cpf_cnpj' => 'Informe um CPF válido.',
-            ],
-        ],
-        [
-            'field' => 'email',
-            'label' => 'E-mail',
-            'rules' => 'required|trim|max_length[80]|valid_email|unique[usuarios.email.' . get_instance()->uri->segment(3) . '.idUsuarios]',
-        ],
-        [
-            'field' => 'telefone',
-            'label' => 'Telefone',
-            'rules' => 'required|trim|max_length[20]',
-        ],
-        [
-            'field' => 'celular',
-            'label' => 'Celular',
-            'rules' => 'trim|max_length[20]',
-        ],
-        [
-            'field' => 'rg',
-            'label' => 'RG',
-            'rules' => 'trim|max_length[20]',
-        ],
-        [
-            'field' => 'cep',
-            'label' => 'CEP',
-            'rules' => 'trim|max_length[9]',
-        ],
-        [
-            'field' => 'rua',
-            'label' => 'Rua',
-            'rules' => 'trim|max_length[70]',
-        ],
-        [
-            'field' => 'numero',
-            'label' => 'Número',
-            'rules' => 'trim|max_length[15]',
-        ],
-        [
-            'field' => 'bairro',
-            'label' => 'Bairro',
-            'rules' => 'trim|max_length[45]',
-        ],
-        [
-            'field' => 'cidade',
-            'label' => 'Cidade',
-            'rules' => 'trim|max_length[45]',
-        ],
-        [
-            'field' => 'situacao',
-            'label' => 'Situação',
-            'rules' => 'required|trim',
-        ],
-        [
-            'field' => 'permissoes_id',
-            'label' => 'Grupo de permissão',
-            'rules' => 'required|trim',
-        ],
-    ],
     'vendas' => [
         [
             'field' => 'dataVenda',
-            'label' => 'Data da venda',
-            'rules' => 'required|trim',
-        ],
-        [
-            'field' => 'garantia',
-            'label' => 'Garantia',
-            'rules' => 'trim|numeric',
-            'errors' => [
-                'numeric' => 'Informe a garantia em dias, só com números.',
-            ],
-        ],
-        [
-            'field' => 'status',
-            'label' => 'Status',
+            'label' => 'Data da Venda',
             'rules' => 'required|trim',
         ],
         [
             'field' => 'observacoes',
-            'label' => 'Observações internas',
-            'rules' => 'trim',
-        ],
-        [
-            'field' => 'observacoes_cliente',
-            'label' => 'Observações ao cliente',
+            'label' => 'Observacoes',
             'rules' => 'trim',
         ],
         [
             'field' => 'clientes_id',
-            'label' => 'Cliente',
+            'label' => 'clientes',
             'rules' => 'trim|required',
         ],
         [
             'field' => 'usuarios_id',
-            'label' => 'Vendedor',
+            'label' => 'usuarios_id',
             'rules' => 'trim|required',
         ],
     ],

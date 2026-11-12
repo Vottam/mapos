@@ -110,10 +110,10 @@
                     <table>
                         <tr>
                             <td class="title">
-                                <img src="<?= e($emitente->url_logo) ?>" style="width:100%; max-width:120px;">
+                                <img src="<?= $emitente->url_logo; ?>" style="width:100%; max-width:120px;">
                             </td>
                             <td style="text-align: right">
-                                Cobrança #<?= e($cobranca->idCobranca) ?><br>
+                                Cobrança #<?= $cobranca->idCobranca ?><br>
                                 Expiração: <?= $cobranca->expire_at ? date('d/m/Y', strtotime($cobranca->expire_at)) : ''; ?>
                             </td>
                         </tr>
@@ -126,14 +126,14 @@
                     <table>
                         <tr>
                             <td>
-                                Cliente: <?= e($cobranca->nomeCliente) ?><br>
-                                <?= e($cobranca->rua) ?>, <?= e($cobranca->numero) ?>, <?= e($cobranca->bairro) ?><br>
-                                <?= e($cobranca->cidade) ?> - <?= e($cobranca->estado) ?> <br>
-                                <?= e($cobranca->email) ?> <br>
+                                Cliente: <?= $cobranca->nomeCliente ?><br>
+                                <?= $cobranca->rua ?>, <?= $cobranca->numero ?>, <?= $cobranca->bairro ?><br>
+                                <?= $cobranca->cidade ?> - <?= $cobranca->estado ?> <br>
+                                <?= $cobranca->email ?> <br>
                             </td>
 
                             <td style="text-align: right">
-                                <?= e($emitente->nome) ?> <br>
+                                <?= $emitente->nome; ?> <br>
                             </td>
                         </tr>
                     </table>
@@ -152,7 +152,7 @@
                         PDF
                     </td>
                     <td colspan="3">
-                        <a href="<?= e(componenteUrl($cobranca->pdf)) ?>" target="_blank">Abrir em outra aba</a>
+                        <a href="<?= $cobranca->pdf ?>" target="_blank">Abrir em outra aba</a>
                     </td>
                 </tr>
             <?php endif ?>
@@ -163,7 +163,7 @@
                         Link
                     </td>
                     <td colspan="3">
-                        <a href="<?= e(componenteUrl($cobranca->link)) ?>" target="_blank">Abrir em outra aba</a>
+                        <a href="<?= $cobranca->link ?>" target="_blank">Abrir em outra aba</a>
                     </td>
                 </tr>
             <?php endif ?>
@@ -174,7 +174,7 @@
                         Código de Barras
                     </td>
                     <td colspan="3">
-                        <?= e($cobranca->barcode) ?>
+                        <?= $cobranca->barcode ?>
                     </td>
                 </tr>
             <?php endif ?>

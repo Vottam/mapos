@@ -17,6 +17,9 @@ $campo = static fn (string $nome, string $padrao = '') => $result && isset($resu
 
     <form method="post" action="<?= e(site_url($action)) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <?php if ($result !== null) { ?>
+            <input type="hidden" name="idCustoFixo" value="<?= (int) $result->idCustoFixo ?>">
+        <?php } ?>
         <section class="<?= e($caixa) ?>" aria-labelledby="dados-custo-fixo">
             <h2 id="dados-custo-fixo" class="text-heading-sm text-text">Dados do custo fixo</h2>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">

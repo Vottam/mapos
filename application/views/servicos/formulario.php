@@ -26,6 +26,9 @@ $errosDeCampo = array_diff_key($erros, ['_geral' => true]);
 
     <form method="post" action="<?= e(current_url()) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <?php if ($editando) { ?>
+            <input type="hidden" name="idServicos" value="<?= (int) $servico->idServicos ?>">
+        <?php } ?>
 
         <section class="grid gap-4 rounded-xl border border-border bg-surface p-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:p-6" aria-label="Dados do serviço">
             <?= component('input', [

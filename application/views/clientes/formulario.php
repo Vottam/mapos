@@ -45,6 +45,9 @@ $urlPath = static fn (string $url): string => (string) (parse_url($url, PHP_URL_
 
     <form method="post" action="<?= e($urlPath(current_url())) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <?php if ($editando) { ?>
+            <input type="hidden" name="idClientes" value="<?= (int) $cliente->idClientes ?>">
+        <?php } ?>
 
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-identificacao">
             <h2 id="secao-identificacao" class="text-heading-sm text-text">Identificação</h2>

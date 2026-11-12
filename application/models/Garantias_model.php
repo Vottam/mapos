@@ -30,10 +30,9 @@ class Garantias_model extends CI_Model
     }
 
     /**
-     * Termos da listagem (#2845), do mais novo para o mais antigo, com o nome
-     * do responsável. A busca olha a referência e o texto do termo.
+     * Termos da listagem, com busca por referência ou texto.
      *
-     * @param  array<string, string>  $filtros  listagemFiltros()
+     * @param array<string, string> $filtros
      * @return list<object>
      */
     public function listar(array $filtros, int $limite, int $offset): array
@@ -48,10 +47,6 @@ class Garantias_model extends CI_Model
             ->get()->result();
     }
 
-    /**
-     * Quantas OS usam o termo. O banco não tem a chave estrangeira
-     * os.garantias_id (só o índice), então o DELETE não é recusado sozinho.
-     */
     public function osVinculadas(int $id): int
     {
         return (int) $this->db->where('garantias_id', $id)->count_all_results('os');
@@ -87,7 +82,7 @@ class Garantias_model extends CI_Model
 
     public function getByIdOsGarantia($id)
     {
-        $this->db->select('garantias.*, clientes.nomeCliente, os.idOS as idOs, os.dataFinal as osDataFinal,
+        $this->db->select('garantias.*, clientes.nomeCliente, os.idOS as idOs, os.dataFinal as osDataFinal, os.dataEntrega as osDataEntrega, os.status as osStatus,
          usuarios.telefone as tecnicoTelefone, usuarios.email as tecnicoEmail, usuarios.nome as tecnicoName');
         $this->db->from('garantias');
         $this->db->join('os', 'os.garantias_id = garantias.idGarantias');
@@ -139,6 +134,49 @@ class Garantias_model extends CI_Model
     public function count($table)
     {
         return $this->db->count_all($table);
+    }
+
+    public function autoCompleteProduto($q)
+    {
+        $this->db->select('*');
+        $this->db->limit(5);
+        $this->db->like('descricao', $q);
+        $query = $this->db->get('produtos');
+        if ($query->num_rows() > 0) {
+            foreach ($query->result_array() as $row) {
+                $row_set[] = ['label' => $row['descricao'] . ' | Preço: R$ ' . $row['precoVenda'] . ' | Estoque: ' . $row['estoque'], 'estoque' => $row['estoque'], 'id' => $row['idProdutos'], 'preco' => $row['precoVenda']];
+            }
+            echo json_encode($row_set);
+        }
+    }
+
+    public function autoCompleteCliente($q)
+    {
+        $this->db->select('*');
+        $this->db->limit(5);
+        $this->db->like('nomeCliente', $q);
+        $query = $this->db->get('clientes');
+        if ($query->num_rows() > 0) {
+            foreach ($query->result_array() as $row) {
+                $row_set[] = ['label' => $row['nomeCliente'] . ' | Telefone: ' . $row['telefone'], 'id' => $row['idClientes']];
+            }
+            echo json_encode($row_set);
+        }
+    }
+
+    public function autoCompleteUsuario($q)
+    {
+        $this->db->select('*');
+        $this->db->limit(5);
+        $this->db->like('nome', $q);
+        $this->db->where('situacao', 1);
+        $query = $this->db->get('usuarios');
+        if ($query->num_rows() > 0) {
+            foreach ($query->result_array() as $row) {
+                $row_set[] = ['label' => $row['nome'] . ' | Telefone: ' . $row['telefone'], 'id' => $row['idUsuarios']];
+            }
+            echo json_encode($row_set);
+        }
     }
 }
 

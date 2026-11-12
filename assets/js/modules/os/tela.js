@@ -5,14 +5,18 @@
 // faturar e gerar cobrança) são enviados sem recarregar a página, pelo post()
 // de lib/http.js (token CSRF, X-Requested-With). O servidor responde JSON:
 //
-//     {result, message, erros?: {campo: mensagem}, html?: {parte: html}, redirecionar?}
-//
-// - html: trechos da tela renderizados de novo (views/os/partes/*), que
-//   entram no lugar do conteúdo de [data-os-parte="<parte>"];
-// - erros: mensagens por campo (o name do campo no formulário), mostradas com
-//   a mesma marcação do erro do servidor (lib/formulario.js); _geral vira
-//   toast;
+// - html: trechos da tela renderizados de novo (views/os/partes/*), aplicados
+//   às regiões [data-os-parte="<parte>"] sem recarregar a página; se nenhum
+//   trecho puder ser aplicado, um único recarregamento com a URL atual (OS e
+//   aba ficam na URL) garante que a tela reflete a operação confirmada;
+// - erros: mensagens por campo (o name do campo no formulário);
 // - redirecionar: depois de faturar a tela é recarregada (o status muda).
+//
+// Esse recarregamento automático só acontece DEPOIS do sucesso confirmado
+// pelo servidor — nunca antes, nunca numa falha — e é o caminho raro:
+// com os trechos de partes/ aplicados, a tela responde sem recarregar.
+//
+// Contrato: {result, message, erros?: {campo: mensagem}, html?: {parte: html}, redirecionar?}
 //
 // Também liga o autocomplete de produto/serviço (o preço sugerido entra no
 // campo de preço, que continua editável), o botão de copiar o PIX copia e
@@ -171,6 +175,14 @@ export default function iniciar(raiz, { post = postPadrao, doc = document, naveg
         const botao = botaoDeEnvio(form, evento, doc);
         const dialogo = botao?.closest('dialog') ?? null;
 
+        // Trava de reentrada: enquanto a primeira requisição está em curso,
+        // todo envio deste formulário é ignorado (sem captura dupla de
+        // estoque, sem cliques em dobro válidos nos botões de modal).
+        if (form.dataset.osEnviando === '1') {
+            evento.preventDefault();
+            return;
+        }
+
         if (!validar(form, doc)) {
             return;
         }
@@ -188,10 +200,22 @@ export default function iniciar(raiz, { post = postPadrao, doc = document, naveg
             dados.delete('cobranca');
         }
 
+        form.dataset.osEnviando = '1';
         marcarCarregando(botao, true);
 
         try {
             const resposta = await post(form.action, dados);
+
+            if (resposta?.result === false) {
+                const erros = errosDaResposta(resposta);
+                const marcouCampo = Object.keys(erros).length > 0 && mostrarErrosDoServidor(form, erros, doc);
+                if (!marcouCampo) {
+                    const mensagem = textoSemHtml(erros._geral ?? resposta?.message) || 'Não foi possível concluir. Tente de novo.';
+                    mostrarToast({ mensagem, variante: 'danger', duracao: 8000 }, doc);
+                }
+                // O modal continua aberto para a pessoa poder corrigir/desistir.
+                return;
+            }
 
             if (form.dataset.osAcao === 'cobranca' && resposta?.idCobranca) {
                 navegar(urlDaCobranca(form.action, resposta.idCobranca));
@@ -203,7 +227,16 @@ export default function iniciar(raiz, { post = postPadrao, doc = document, naveg
                 return;
             }
 
-            aplicarTrechos(raiz, resposta?.html, trocar);
+            const trocadas = aplicarTrechos(raiz, resposta?.html, trocar);
+            const temTrechosDaOs = ['produto', 'servico', 'anexo', 'anotacao', 'desconto', 'desconto-item'].includes(form.dataset.osAcao);
+            if (trocadas.length === 0 && temTrechosDaOs) {
+                // O servidor mandou trechos mas nenhum se aplicou à tela: um
+                // recarregamento com a URL atual (OS e aba na URL) é mais
+                // confiável do que deixar a tela desatualizada.
+                navegar(window.location.href);
+                return;
+            }
+
             dialogo?.close();
 
             if (form.hasAttribute('data-os-limpar')) {
@@ -227,13 +260,15 @@ export default function iniciar(raiz, { post = postPadrao, doc = document, naveg
                 const erros = errosDaResposta(erro.corpo);
                 const marcouCampo = erro.status === 422 && mostrarErrosDoServidor(form, erros, doc);
                 if (!marcouCampo) {
-                    dialogo?.close();
+                    // Sem campo para destacar, o erro vai no toast e o modal
+                    // continua aberto: nunca fecha em silêncio sobre uma falha.
                     mostrarToast({ mensagem: mensagemDeErro(erro, erros), variante: 'danger', duracao: 8000 }, doc);
                 }
             } else {
                 mostrarToast({ mensagem: 'Sem conexão com o servidor. Confira a internet e tente de novo.', variante: 'danger', duracao: 8000 }, doc);
             }
         } finally {
+            delete form.dataset.osEnviando;
             marcarCarregando(botao, false);
         }
     }

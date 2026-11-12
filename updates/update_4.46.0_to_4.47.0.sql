@@ -1,0 +1,21 @@
+CREATE TABLE `custos_fixos` (
+  `idCustoFixo` int(11) NOT NULL AUTO_INCREMENT,
+  `titulo` varchar(150) NOT NULL,
+  `categoria` varchar(100) NOT NULL,
+  `valor` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `periodicidade` varchar(20) NOT NULL DEFAULT 'mensal',
+  `dia_vencimento` tinyint(3) unsigned NOT NULL DEFAULT 1,
+  `forma_pagamento` varchar(80) NOT NULL,
+  `ativo` tinyint(1) NOT NULL DEFAULT 1,
+  `data_inicio` date DEFAULT NULL,
+  `data_fim` date DEFAULT NULL,
+  `observacoes` text DEFAULT NULL,
+  `usuarios_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`idCustoFixo`),
+  KEY `idx_custos_fixos_categoria` (`categoria`),
+  KEY `idx_custos_fixos_ativo` (`ativo`),
+  KEY `idx_custos_fixos_usuarios` (`usuarios_id`),
+  CONSTRAINT `fk_custos_fixos_usuarios` FOREIGN KEY (`usuarios_id`) REFERENCES `usuarios` (`idUsuarios`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

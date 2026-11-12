@@ -12,7 +12,7 @@ class OsController extends REST_Controller
 
         $this->load->model('os_model');
         $this->load->model('Api_model');
-        $this->load->helper(['os', 'api']);
+        $this->load->helper('os');
     }
 
     public function index_get($id = '')
@@ -27,7 +27,7 @@ class OsController extends REST_Controller
 
         $where_array = [];
 
-        $pesquisa = trim((string) $this->get('search', true));
+        $pesquisa = trim($this->get('search', true));
         $status = $this->get('status', true);
         $de = $this->get('from', true);
         $ate = $this->get('to', true);
@@ -56,19 +56,11 @@ class OsController extends REST_Controller
             $page = $this->get('page', true) ? ($this->get('page', true) * $perPage) : 0;
             $start = $page ? ($perPage * $page) : 0;
 
-            // Com o desconto individual dos itens (#2880), o valor do item é o subTotal gravado.
-            $valorProduto = 'produtos_os.preco * produtos_os.quantidade';
-            $valorServico = 'servicos_os.preco * servicos_os.quantidade';
-            if ($this->os_model->descontoPorItemDisponivel()) {
-                $valorProduto = "CASE WHEN produtos_os.desconto > 0 THEN produtos_os.subTotal ELSE {$valorProduto} END";
-                $valorServico = "CASE WHEN servicos_os.desconto > 0 THEN servicos_os.subTotal ELSE {$valorServico} END";
-            }
-
             $oss = $this->os_model->getOs(
                 'os',
-                "os.*,
-                COALESCE((SELECT SUM({$valorProduto}) FROM produtos_os WHERE produtos_os.os_id = os.idOs), 0) totalProdutos,
-                COALESCE((SELECT SUM({$valorServico}) FROM servicos_os WHERE servicos_os.os_id = os.idOs), 0) totalServicos",
+                'os.*,
+                COALESCE((SELECT SUM(produtos_os.preco * produtos_os.quantidade ) FROM produtos_os WHERE produtos_os.os_id = os.idOs), 0) totalProdutos,
+                COALESCE((SELECT SUM(servicos_os.preco * servicos_os.quantidade ) FROM servicos_os WHERE servicos_os.os_id = os.idOs), 0) totalServicos',
                 $where_array,
                 $perPage,
                 $page
@@ -82,21 +74,14 @@ class OsController extends REST_Controller
         }
 
         $os = $this->os_model->getById($id);
-        if (! $os) {
-            $this->response([
-                'status' => false,
-                'message' => 'OS não encontrada.',
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
-
         $os->produtos = $this->os_model->getProdutos($id);
         $os->servicos = $this->os_model->getServicos($id);
-        $os->anexos = osAnexosParaApi($this->os_model->getAnexos($id), site_url('api/v1/os/' . (int) $id . '/anexos'));
+        $os->anexos = $this->os_model->getAnexos($id);
         $os->anotacoes = $this->os_model->getAnotacoes($id);
         $os->calcTotal = $this->calcTotal($id);
         unset($os->senha);
-        $os->totalProdutos = array_sum(array_map(fn ($p) => ((float) ($p->desconto ?? 0) > 0 ? $p->subTotal : $p->preco * $p->quantidade), $os->produtos));
-        $os->totalServicos = array_sum(array_map(fn ($s) => ((float) ($s->desconto ?? 0) > 0 ? $s->subTotal : $s->preco * $s->quantidade), $os->servicos));
+        $os->totalProdutos = array_sum(array_map(fn ($p) => $p->preco * $p->quantidade, $os->produtos));
+        $os->totalServicos = array_sum(array_map(fn ($p) => $p->preco * $p->quantidade, $os->servicos));
 
         // Montando texto para whatsapp
         if ($return = $this->os_model->valorTotalOS($id)) {
@@ -134,26 +119,16 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        $dataInicial = $this->post('dataInicial', true);
-        $dataFinal = $this->post('dataFinal', true);
-        $termoGarantiaId = $this->post('termoGarantia', true);
-
-        try {
-            $dataInicial = explode('/', $dataInicial);
-            $dataInicial = $dataInicial[2] . '-' . $dataInicial[1] . '-' . $dataInicial[0];
-
-            if ($dataFinal) {
-                $dataFinal = explode('/', $dataFinal);
-                $dataFinal = $dataFinal[2] . '-' . $dataFinal[1] . '-' . $dataFinal[0];
-            } else {
-                $dataFinal = date('Y/m/d');
-            }
-
-            $termoGarantiaId = (! $termoGarantiaId == null || ! $termoGarantiaId == '') ? $this->post('garantias_id', true) : null;
-        } catch (Exception $e) {
-            $dataInicial = date('Y/m/d');
-            $dataFinal = date('Y/m/d');
+        $dataInicial = osDataParaBanco($this->post('dataInicial', true));
+        $dataFinal = osDataParaBanco($this->post('dataFinal', true));
+        if ($dataInicial === null || ($dataFinal !== null && $dataFinal < $dataInicial)) {
+            $this->response([
+                'status' => false,
+                'message' => 'Informe datas válidas para a OS.',
+            ], REST_Controller::HTTP_BAD_REQUEST);
         }
+        $termoGarantiaId = $this->post('termoGarantia', true);
+        $termoGarantiaId = ($termoGarantiaId !== null && $termoGarantiaId !== '') ? $this->post('garantias_id', true) : null;
 
         $data = [
             'dataInicial' => $dataInicial,
@@ -169,6 +144,10 @@ class OsController extends REST_Controller
             'laudoTecnico' => $this->post('laudoTecnico', true),
             'faturado' => 0,
         ];
+        $data = $this->os_model->dadosDaTransicaoDeEntrega($data, (object) [
+            'status' => null,
+            'dataEntrega' => null,
+        ]);
 
         if (is_numeric($id = $this->os_model->add('os', $data, true))) {
             $this->load->model('mapos_model');
@@ -209,7 +188,7 @@ class OsController extends REST_Controller
             $this->response([
                 'status' => true,
                 'message' => 'OS adicionada com sucesso!',
-                'result' => apiSemSenha($os),
+                'result' => $os,
             ], REST_Controller::HTTP_CREATED);
         }
 
@@ -221,8 +200,8 @@ class OsController extends REST_Controller
 
     public function index_put($id)
     {
-        $this->logged_user();
-        if (! $this->permission->checkPermission($this->logged_user()->level, 'eOs')) {
+        $usuarioApi = $this->logged_user();
+        if (! $this->permission->checkPermission($usuarioApi->level, 'eOs')) {
             $this->response([
                 'status' => false,
                 'message' => 'Você não está autorizado a Adicionar OS!',
@@ -252,26 +231,16 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        $dataInicial = $this->put('dataInicial', true);
-        $dataFinal = $this->put('dataFinal', true);
-        $termoGarantiaId = $this->put('termoGarantia', true);
-
-        try {
-            $dataInicial = explode('/', $dataInicial);
-            $dataInicial = $dataInicial[2] . '-' . $dataInicial[1] . '-' . $dataInicial[0];
-
-            if ($dataFinal) {
-                $dataFinal = explode('/', $dataFinal);
-                $dataFinal = $dataFinal[2] . '-' . $dataFinal[1] . '-' . $dataFinal[0];
-            } else {
-                $dataFinal = date('Y/m/d');
-            }
-
-            $termoGarantiaId = (! $termoGarantiaId == null || ! $termoGarantiaId == '') ? $this->put('garantias_id') : null;
-        } catch (Exception $e) {
-            $dataInicial = date('Y/m/d');
-            $dataFinal = date('Y/m/d');
+        $dataInicial = osDataParaBanco($this->put('dataInicial', true));
+        $dataFinal = osDataParaBanco($this->put('dataFinal', true));
+        if ($dataInicial === null || ($dataFinal !== null && $dataFinal < $dataInicial)) {
+            $this->response([
+                'status' => false,
+                'message' => 'Informe datas válidas para a OS.',
+            ], REST_Controller::HTTP_BAD_REQUEST);
         }
+        $termoGarantiaId = $this->put('termoGarantia', true);
+        $termoGarantiaId = ($termoGarantiaId !== null && $termoGarantiaId !== '') ? $this->put('garantias_id') : null;
 
         $data = [
             'dataInicial' => $dataInicial,
@@ -285,9 +254,14 @@ class OsController extends REST_Controller
             'status' => $this->put('status', true),
             'observacoes' => $this->put('observacoes', true),
             'laudoTecnico' => $this->put('laudoTecnico', true),
-            'faturado' => 0,
+            // Atualização de status não pode apagar o faturamento existente.
+            'faturado' => (int) $os->faturado,
         ];
+        $statusAnterior = (string) $os->status;
+        $statusNovo = (string) $data['status'];
+        $data = $this->os_model->dadosDaTransicaoDeEntrega($data, $os);
 
+        $this->db->trans_begin();
         if (strtolower($this->put('status')) == 'cancelado' && strtolower($os->status) != 'cancelado') {
             $this->devolucaoEstoque($id);
         }
@@ -296,6 +270,17 @@ class OsController extends REST_Controller
         }
 
         if ($this->os_model->edit('os', $data, 'idOs', $id)) {
+            $usuarioId = isset($usuarioApi->usuario->idUsuarios) ? (int) $usuarioApi->usuario->idUsuarios : null;
+            $this->os_model->registrarStatus($id, $statusAnterior, $statusNovo, $usuarioId);
+            if ($this->db->trans_status() === false) {
+                $this->db->trans_rollback();
+                $this->response([
+                    'status' => false,
+                    'message' => 'Não foi possível concluir a transição da OS.',
+                ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR);
+            }
+            $this->db->trans_commit();
+
             $this->load->model('mapos_model');
             $this->load->model('usuarios_model');
 
@@ -334,10 +319,11 @@ class OsController extends REST_Controller
             $this->response([
                 'status' => true,
                 'message' => 'OS editada com sucesso!',
-                'result' => apiSemSenha($os),
+                'result' => $os,
             ], REST_Controller::HTTP_OK);
         }
 
+        $this->db->trans_rollback();
         $this->response([
             'status' => false,
             'message' => 'Não foi possível editar a OS.',
@@ -413,39 +399,29 @@ class OsController extends REST_Controller
 
     public function desconto_post($id)
     {
-        $this->logged_user();
-        if (! $this->permission->checkPermission($this->logged_user()->level, 'eOs')) {
+        if (empty($this->post('desconto', true)) || empty($this->post('valor_desconto', true))) {
             $this->response([
                 'status' => false,
-                'message' => 'Você não está autorizado a Editar OS!',
+                'message' => 'Campos Desconto e Valor com desconto obrigatórios',
+            ], REST_Controller::HTTP_BAD_REQUEST);
+        }
+
+        $data = [
+            'tipo_desconto' => $this->post('tipoDesconto', true) ?: 'real',
+            'desconto' => $this->post('desconto', true),
+            'valor_desconto' => $this->post('valor_desconto', true),
+        ];
+
+        $editavel = $this->isEditable($id);
+
+        if (! $editavel) {
+            $this->response([
+                'status' => false,
+                'message' => 'Desconto não pode ser adiciona. Os não ja Faturada/Cancelada',
             ], REST_Controller::HTTP_UNAUTHORIZED);
         }
 
-        $os = $this->osParaEditar($id, 'Desconto não pode ser adicionado. OS Faturada/Cancelada');
-
-        $tipo = $this->post('tipoDesconto', true) ?: 'real';
-        $desconto = $this->post('desconto', true);
-        if ($desconto === null || $desconto === '') {
-            $this->response([
-                'status' => false,
-                'message' => 'Campo Desconto obrigatório',
-            ], REST_Controller::HTTP_BAD_REQUEST);
-        }
-
-        // O valor com desconto é sempre calculado aqui, sobre o total dos
-        // itens; o valor_desconto que o app enviava não é mais usado.
-        $totais = $this->os_model->totais($os);
-        [$data, $erros] = osCalcularDesconto($totais['bruto'], $tipo, $desconto);
-
-        if ($erros !== []) {
-            $this->response([
-                'status' => false,
-                'message' => reset($erros),
-                'errors' => $erros,
-            ], REST_Controller::HTTP_BAD_REQUEST);
-        }
-
-        if ($this->os_model->edit('os', $data, 'idOs', (int) $os->idOs)) {
+        if ($this->os_model->edit('os', $data, 'idOs', $id)) {
             $this->log_app('Adicionou um desconto na OS. ID: ' . $id);
             $this->response([
                 'status' => true,
@@ -481,36 +457,21 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.', 'Erro ao tentar inserir produto na OS. OS Não encontrada!');
-        $this->validarValoresDoItem($this->post('preco', true), $this->post('quantidade', true));
-
-        $cadastro = $this->os_model->getProdutoCadastro((int) $this->post('idProduto', true));
-        if (! $cadastro) {
-            $this->response([
-                'status' => false,
-                'message' => 'Produto não encontrado.',
-            ], REST_Controller::HTTP_BAD_REQUEST);
-        }
-
-        $custoUnitario = osCustoHistoricoDoProduto($cadastro);
-        if ($custoUnitario === null) {
-            $this->response([
-                'status' => false,
-                'message' => 'Custo de aquisição não confirmado no cadastro do produto.',
-            ], REST_Controller::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        $preco = round((float) $this->post('preco', true), 2);
-        $quantidade = (int) $this->post('quantidade', true);
         $data = [
-            'produtos_id' => (int) $this->post('idProduto', true),
-            'preco' => $preco,
-            'quantidade' => $quantidade,
-            'custo_unitario' => $custoUnitario,
-            'custo_total' => round($custoUnitario * $quantidade, 2),
-            'subTotal' => round($preco * $quantidade, 2),
+            'produtos_id' => $this->post('idProduto', true),
+            'preco' => $this->post('preco', true),
+            'quantidade' => $this->post('quantidade', true),
+            'subTotal' => $this->post('preco', true) * $this->post('quantidade', true),
             'os_id' => $id,
         ];
+
+        $os = $this->os_model->getById($id);
+        if ($os == null) {
+            $this->response([
+                'status' => false,
+                'message' => 'Erro ao tentar inserir produto na OS. OS Não encontrada!',
+            ], REST_Controller::HTTP_BAD_REQUEST);
+        }
 
         if ($this->os_model->add('produtos_os', $data)) {
             $lastProdutoOs = $this->Api_model->lastRow('produtos_os', 'idProdutos_os');
@@ -561,35 +522,15 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.');
-        $ddAntigo = $this->os_model->getProdutoDaOs((int) $id, (int) $idProdutos_os);
-        if (! $ddAntigo) {
-            $this->response([
-                'status' => false,
-                'message' => 'Não foi encontrado esse Produto na OS.',
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
+        $ddAntigo = $this->Api_model->getRowById('produtos_os', 'idProdutos_os', $idProdutos_os);
 
-        $this->validarValoresDoItem($this->put('preco', true), $this->put('quantidade', true));
-        $preco = round((float) $this->put('preco', true), 2);
-        $quantidade = (int) $this->put('quantidade', true);
-        $custoUnitario = round((float) $ddAntigo->custo_unitario, 2);
+        $subTotal = $this->put('preco', true) * $this->put('quantidade', true);
 
         $data = [
-            'quantidade' => $quantidade,
-            'preco' => $preco,
-            // Edição de preço/quantidade preserva o snapshot original e só
-            // recalcula o total da linha, sem consultar o cadastro atual.
-            'custo_unitario' => $custoUnitario,
-            'custo_total' => round($custoUnitario * $quantidade, 2),
-            'subTotal' => round($preco * $quantidade, 2),
+            'quantidade' => $this->put('quantidade', true),
+            'preco' => $this->put('preco', true),
+            'subTotal' => $subTotal,
         ];
-
-        // Preço ou quantidade novos invalidam o desconto individual do item
-        // (#2880), que a API não mexe: o item volta a valer preço x quantidade.
-        if ($this->os_model->descontoPorItemDisponivel()) {
-            $data += ['desconto' => 0, 'tipo_desconto' => null];
-        }
 
         if ($this->os_model->edit('produtos_os', $data, 'idProdutos_os', $idProdutos_os)) {
             $operacao = $ddAntigo->quantidade > $this->put('quantidade', true) ? '+' : '-';
@@ -626,15 +567,21 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_UNAUTHORIZED);
         }
 
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.', 'Não foi possível excluir o Produto da OS.');
+        $os = $this->os_model->getById($id);
+        if ($os == null) {
+            $this->response([
+                'status' => false,
+                'message' => 'Não foi possível excluir o Produto da OS.',
+            ], REST_Controller::HTTP_BAD_REQUEST);
+        }
 
-        $ddAntigo = $this->os_model->getProdutoDaOs((int) $id, (int) $idProdutos_os);
+        $ddAntigo = $this->Api_model->getRowById('produtos_os', 'idProdutos_os', $idProdutos_os);
 
         if (! $ddAntigo) {
             $this->response([
                 'status' => false,
                 'message' => 'Não foi encontrado esse Produto na OS.',
-            ], REST_Controller::HTTP_NOT_FOUND);
+            ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
         if ($this->os_model->delete('produtos_os', 'idProdutos_os', $idProdutos_os)) {
@@ -679,16 +626,6 @@ class OsController extends REST_Controller
             $this->response([
                 'status' => false,
                 'message' => validation_errors(),
-            ], REST_Controller::HTTP_BAD_REQUEST);
-        }
-
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.', 'Erro ao tentar inserir serviço na OS. OS Não encontrada!');
-        $this->validarValoresDoItem($this->post('preco', true), $this->post('quantidade', true));
-
-        if (! $this->os_model->getServicoCadastro((int) $this->post('idServico', true))) {
-            $this->response([
-                'status' => false,
-                'message' => 'Serviço não encontrado.',
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
@@ -747,16 +684,7 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.');
-        $ddAntigo = $this->os_model->getServicoDaOs((int) $id, (int) $idServicos_os);
-        if (! $ddAntigo) {
-            $this->response([
-                'status' => false,
-                'message' => 'Não foi encontrado esse Serviço na OS.',
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
-
-        $this->validarValoresDoItem($this->put('preco', true), $this->put('quantidade', true));
+        $ddAntigo = $this->Api_model->getRowById('servicos_os', 'idServicos_os', $idServicos_os);
 
         $subTotal = $this->put('preco', true) * $this->put('quantidade', true);
 
@@ -765,12 +693,6 @@ class OsController extends REST_Controller
             'preco' => $this->put('preco', true),
             'subTotal' => $subTotal,
         ];
-
-        // Preço ou quantidade novos invalidam o desconto individual do item
-        // (#2880), que a API não mexe: o item volta a valer preço x quantidade.
-        if ($this->os_model->descontoPorItemDisponivel()) {
-            $data += ['desconto' => 0, 'tipo_desconto' => null];
-        }
 
         if ($this->os_model->edit('servicos_os', $data, 'idServicos_os', $idServicos_os)) {
             $this->log_app("Atualizou a quantidade do Serviço id <b>{$ddAntigo->servicos_id}</b> na OS id <b>{$id}</b> para <b>{$this->put('quantidade', true)}</b>");
@@ -800,17 +722,10 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_UNAUTHORIZED);
         }
 
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.', 'Não foi possível excluir o Serviço da OS.');
-
-        if (! $this->os_model->getServicoDaOs((int) $id, (int) $idServicos_os)) {
-            $this->response([
-                'status' => false,
-                'message' => 'Não foi encontrado esse Serviço na OS.',
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
-
         if ($this->os_model->delete('servicos_os', 'idServicos_os', $idServicos_os)) {
             $this->log_app('Removeu Serviço de uma OS. ID (OS): ' . $id);
+            $this->CI = &get_instance();
+            $this->CI->load->database();
             $this->db->set('desconto', 0.00);
             $this->db->set('valor_desconto', 0.00);
             $this->db->set('tipo_desconto', null);
@@ -851,8 +766,6 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.');
-
         $data = [
             'anotacao' => "[{$this->logged_user()->usuario->nome}] " . $this->post('anotacao', true),
             'data_hora' => date('Y-m-d H:i:s'),
@@ -891,15 +804,6 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_UNAUTHORIZED);
         }
 
-        $this->osParaEditar($id, 'OS Faturada/Cancelada não pode ser alterada.');
-
-        if (! $this->os_model->getAnotacaoDaOs((int) $id, (int) $idAnotacao)) {
-            $this->response([
-                'status' => false,
-                'message' => 'Anotação não encontrada nesta OS.',
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
-
         if ($this->os_model->delete('anotacoes_os', 'idAnotacoes', $idAnotacao)) {
             $this->log_app('Removeu anotação de uma OS. ID (OS): ' . $id);
 
@@ -915,29 +819,6 @@ class OsController extends REST_Controller
         ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR);
     }
 
-    /** Arquivo (ou miniatura com ?miniatura=1) de um anexo da OS, servido de STORAGE_PATH. */
-    public function anexos_get($id, $idAnexo = null)
-    {
-        if (! $this->permission->checkPermission($this->logged_user()->level, 'vOs')) {
-            $this->response([
-                'status' => false,
-                'message' => 'Você não está autorizado a Visualizar Ordens de Serviços',
-            ], REST_Controller::HTTP_UNAUTHORIZED);
-        }
-
-        $anexo = is_numeric($idAnexo) ? $this->os_model->getAnexoDaOs((int) $id, (int) $idAnexo) : null;
-        $arquivo = $anexo ? armazenamentoArquivoDoAnexo($anexo, $this->get('miniatura') !== null) : null;
-
-        if ($arquivo === null) {
-            $this->response([
-                'status' => false,
-                'message' => 'Anexo não encontrado.',
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
-
-        armazenamentoEnviar($arquivo, 'anexo-' . (int) $anexo->idAnexos . '.' . strtolower(pathinfo($arquivo, PATHINFO_EXTENSION)));
-    }
-
     public function anexos_post($id)
     {
         $this->logged_user();
@@ -948,80 +829,79 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_UNAUTHORIZED);
         }
 
-        if (! is_numeric($id) || ! $this->os_model->getById((int) $id)) {
-            $this->response([
-                'status' => false,
-                'message' => 'Ordem de serviço não encontrada.',
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
-
-        $id = (int) $id;
-
         $this->load->library('upload');
         $this->load->library('image_lib');
 
-        // Pasta relativa a STORAGE_PATH, fora de assets/ (#2872).
-        $relativo = 'anexos/' . date('m-Y') . '/OS-' . $id;
-        $directory = armazenamentoPasta($relativo . '/thumbs') !== null ? armazenamentoPasta($relativo) : null;
+        $directory = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'anexos' . DIRECTORY_SEPARATOR . date('m-Y') . DIRECTORY_SEPARATOR . 'OS-' . $id;
 
-        if ($directory === null) {
-            $this->response([
-                'status' => false,
-                'message' => 'Não foi anexar o arquivo.',
-            ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR);
+        // If it exist, check if it's a directory
+        if (! is_dir($directory . DIRECTORY_SEPARATOR . 'thumbs')) {
+            // make directory for images and thumbs
+            try {
+                mkdir($directory . DIRECTORY_SEPARATOR . 'thumbs', 0755, true);
+            } catch (Exception $e) {
+                $this->response([
+                    'status' => false,
+                    'message' => 'Não foi anexar o arquivo.',
+                ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR);
+            }
         }
 
-        $this->upload->initialize(armazenamentoConfigUpload($directory, armazenamentoExtensoesAnexo()));
+        $upload_conf = [
+            'upload_path' => $directory,
+            'allowed_types' => 'jpg|png|gif|jpeg|JPG|PNG|GIF|JPEG|pdf|PDF|cdr|CDR|docx|DOCX|txt', // formatos permitidos para anexos de os
+            'max_size' => 0,
+        ];
+
+        $this->upload->initialize($upload_conf);
 
         $error = [];
-        $ultimo = null;
+        $success = [];
 
         foreach ($_FILES as $field_name => $file) {
-            if (! armazenamentoReceber($this->upload, $field_name)) {
+            if (! $this->upload->do_upload($field_name)) {
                 $error['upload'][] = $this->upload->display_errors();
+            } else {
+                $upload_data = $this->upload->data();
 
-                continue;
-            }
+                // Gera um nome de arquivo aleatório mantendo a extensão original
+                $new_file_name = uniqid() . '.' . pathinfo($upload_data['file_name'], PATHINFO_EXTENSION);
+                $new_file_path = $upload_data['file_path'] . $new_file_name;
+                $url = base_url('assets' . DIRECTORY_SEPARATOR . 'anexos' . DIRECTORY_SEPARATOR . date('m-Y') . DIRECTORY_SEPARATOR . 'OS-' . $id);
 
-            $upload_data = $this->upload->data();
+                rename($upload_data['full_path'], $new_file_path);
 
-            if (($erroConteudo = armazenamentoValidarEnvio($upload_data)) !== null) {
-                $error['upload'][] = $erroConteudo;
+                if ($upload_data['is_image'] == 1) {
+                    $resize_conf = [
+                        'source_image' => $new_file_path,
+                        'new_image' => $upload_data['file_path'] . 'thumbs' . DIRECTORY_SEPARATOR . 'thumb_' . $new_file_name,
+                        'width' => 200,
+                        'height' => 125,
+                    ];
 
-                continue;
-            }
+                    $this->image_lib->initialize($resize_conf);
 
-            $nome = $upload_data['file_name'];
-            $thumb = '';
+                    if (! $this->image_lib->resize()) {
+                        $error['resize'][] = $this->image_lib->display_errors();
+                    } else {
+                        $success[] = $upload_data;
+                        $result = $this->os_model->anexar($id, $new_file_name, $url, 'thumb_' . $new_file_name, $directory);
+                        if (! $result) {
+                            $error['db'][] = 'Erro ao inserir no banco de dados.';
+                        }
+                    }
+                } else {
+                    $success[] = $upload_data;
 
-            if ($upload_data['is_image'] == 1) {
-                $this->image_lib->clear();
-                $this->image_lib->initialize([
-                    'source_image' => $upload_data['full_path'],
-                    'new_image' => $upload_data['file_path'] . 'thumbs' . DIRECTORY_SEPARATOR . 'thumb_' . $nome,
-                    'width' => 200,
-                    'height' => 125,
-                ]);
-
-                if (! $this->image_lib->resize()) {
-                    $error['resize'][] = $this->image_lib->display_errors();
-
-                    continue;
+                    $result = $this->os_model->anexar($id, $new_file_name, $url, '', $directory);
+                    if (! $result) {
+                        $error['db'][] = 'Erro ao inserir no banco de dados.';
+                    }
                 }
-
-                $thumb = 'thumb_' . $nome;
             }
-
-            if (! $this->os_model->anexar($id, $nome, '', $thumb, $relativo)) {
-                $error['db'][] = 'Erro ao inserir no banco de dados.';
-
-                continue;
-            }
-
-            $ultimo = ['idAnexos' => $this->db->insert_id(), 'anexo' => $nome, 'thumb' => $thumb];
         }
 
-        if (count($error) > 0 || $ultimo === null) {
+        if (count($error) > 0) {
             $this->response([
                 'status' => false,
                 'message' => 'Ocorreu um erro ao processar o arquivo.',
@@ -1029,11 +909,13 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR);
         }
 
+        $anexo = $this->Api_model->lastRow('anexos', 'idAnexos');
+
         $retorno = [
-            'idAnexos' => $ultimo['idAnexos'],
-            'url' => site_url('api/v1/os/' . $id . '/anexos/' . $ultimo['idAnexos']),
-            'anexo' => $ultimo['anexo'],
-            'thumb' => $ultimo['thumb'],
+            'idAnexos' => $anexo->idAnexos,
+            'url' => $url,
+            'anexo' => $new_file_name,
+            'thumb' => 'thumb_' . $new_file_name,
         ];
 
         $this->log_app('Adicionou anexo(s) a uma OS. ID (OS): ' . $id);
@@ -1054,19 +936,25 @@ class OsController extends REST_Controller
             ], REST_Controller::HTTP_UNAUTHORIZED);
         }
 
-        if (is_numeric($id) && is_numeric($idAnexo) && ($file = $this->os_model->getAnexoDaOs((int) $id, (int) $idAnexo))) {
-            // Só apaga o que está dentro de STORAGE_PATH (ou da pasta antiga de anexos).
-            foreach (osArquivosDosAnexos([$file], FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'anexos') as $arquivo) {
-                @unlink($arquivo);
-            }
+        if ($idAnexo != null && is_numeric($idAnexo)) {
+            $this->db->where('idAnexos', $idAnexo);
+            $file = $this->db->get('anexos', 1)->row();
 
-            if ($this->os_model->delete('anexos', 'idAnexos', (int) $idAnexo)) {
-                $this->log_app('Removeu anexo de uma OS. ID (OS): ' . $id);
+            if ($file->os_id == $id) {
+                unlink($file->path . DIRECTORY_SEPARATOR . $file->anexo);
 
-                $this->response([
-                    'status' => true,
-                    'message' => 'Anexo excluído com sucesso!',
-                ], REST_Controller::HTTP_OK);
+                if ($file->thumb != null) {
+                    unlink($file->path . DIRECTORY_SEPARATOR . 'thumbs' . DIRECTORY_SEPARATOR . $file->thumb);
+                }
+
+                if ($this->os_model->delete('anexos', 'idAnexos', $idAnexo)) {
+                    $this->log_app('Removeu anexo de uma OS. ID (OS): ' . $id);
+
+                    $this->response([
+                        'status' => true,
+                        'message' => 'Anexo excluído com sucesso!',
+                    ], REST_Controller::HTTP_OK);
+                }
             }
         }
 
@@ -1074,45 +962,6 @@ class OsController extends REST_Controller
             'status' => false,
             'message' => 'Erro ao tentar excluir anexo.',
         ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR);
-    }
-
-    /**
-     * OS da URL para alterar: 404 se não existe e 403 se está faturada ou
-     * cancelada (control_editos desligado), como no painel.
-     */
-    private function osParaEditar($id, string $mensagemFechada, string $mensagemInexistente = 'OS não encontrada.'): object
-    {
-        $os = ctype_digit((string) $id) ? $this->os_model->getById((int) $id) : null;
-        if (! $os) {
-            $this->response([
-                'status' => false,
-                'message' => $mensagemInexistente,
-            ], REST_Controller::HTTP_NOT_FOUND);
-        }
-
-        if (! $this->isEditable((int) $id)) {
-            $this->response([
-                'status' => false,
-                'message' => $mensagemFechada,
-            ], REST_Controller::HTTP_FORBIDDEN);
-        }
-
-        return $os;
-    }
-
-    /** Preço e quantidade de um item: números dentro de limites razoáveis (400 se não). */
-    private function validarValoresDoItem($preco, $quantidade): void
-    {
-        $valido = is_numeric($preco) && is_numeric($quantidade)
-            && (float) $preco >= 0 && (float) $preco <= 99999999.99
-            && (float) $quantidade > 0 && (float) $quantidade <= 999999;
-
-        if (! $valido) {
-            $this->response([
-                'status' => false,
-                'message' => 'Informe um preço (0 ou mais) e uma quantidade (maior que 0) válidos.',
-            ], REST_Controller::HTTP_BAD_REQUEST);
-        }
     }
 
     private function calcTotal($id)
@@ -1129,7 +978,9 @@ class OsController extends REST_Controller
         }
 
         foreach ($servicos as $s) {
-            $totalServicos = $totalServicos + osValorDoItem($s);
+            $preco = $s->preco ?: $s->precoVenda;
+            $subtotal = $preco * ($s->quantidade ?: 1);
+            $totalServicos = $totalServicos + $subtotal;
         }
 
         if ($totalProdutos != 0 || $totalServicos != 0) {
@@ -1259,7 +1110,7 @@ class OsController extends REST_Controller
         }
 
         if ($os = $this->os_model->getById($id)) {
-            $osT = (int) ($os->status === 'Faturado' || $os->status === 'Cancelado' || $os->faturado == 1);
+            $osT = (int) ($os->status === 'Faturado' || $os->status === 'Entregue' || $os->status === 'Cancelado' || $os->status === 'Sem Conserto' || $os->faturado == 1);
             if ($osT) {
                 return $this->getConfig('control_editos') == '1';
             }

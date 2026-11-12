@@ -488,6 +488,41 @@ async function jsonGet(url) {
     return resposta.json();
 }
 
+export function normalizarRespostaDocumento(resposta) {
+    if (!resposta || typeof resposta !== 'object' || typeof resposta.found !== 'boolean') {
+        throw new Error('Resposta inválida do serviço de clientes.');
+    }
+
+    if (!resposta.found) {
+        if (resposta.reason !== 'not_found') {
+            throw new Error('Resposta inválida do serviço de clientes.');
+        }
+        return [];
+    }
+
+    const candidatos = Array.isArray(resposta.clients)
+        ? resposta.clients
+        : resposta.client ? [resposta.client] : [];
+    const normalizados = candidatos.map((cliente) => {
+        const id = String(cliente?.id ?? '');
+        const valor = String(cliente?.valor ?? '');
+        if (!id || !valor) {
+            throw new Error('Resposta inválida do serviço de clientes.');
+        }
+        return {
+            id,
+            valor,
+            detalhe: String(cliente?.detalhe ?? ''),
+        };
+    });
+
+    if (normalizados.length === 0 || (resposta.duplicate && normalizados.length < 2)) {
+        throw new Error('Resposta inválida do serviço de clientes.');
+    }
+
+    return normalizados;
+}
+
 function iniciarBuscaDocumento(raiz) {
     const campo = raiz.querySelector('[name="cliente_documento"]');
     const status = raiz.querySelector('[data-documento-status]');
@@ -500,6 +535,31 @@ function iniciarBuscaDocumento(raiz) {
 
     let ultimoDocumento = '';
     let espera = null;
+    let sequenciaConsulta = 0;
+    let controlador = null;
+
+    const invalidarConsulta = () => {
+        sequenciaConsulta += 1;
+        controlador?.abort();
+        controlador = null;
+        ultimoDocumento = '';
+    };
+
+    const limparSelecaoCliente = () => {
+        const campoCliente = wrapper.querySelector('input:not([type="hidden"])');
+        const campoId = wrapper.querySelector('input[type="hidden"]');
+        if (!campoCliente && !campoId) {
+            return;
+        }
+        if (campoId) {
+            campoId.value = '';
+            campoId.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (campoCliente) {
+            campoCliente.value = '';
+            campoCliente.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    };
 
     const renderizarStatus = (mensagem, variante = 'muted', candidatos = []) => {
         status.replaceChildren();
@@ -559,7 +619,7 @@ function iniciarBuscaDocumento(raiz) {
     const consultar = async () => {
         const documento = somenteDigitos(campo.value);
         if (![11, 14].includes(documento.length)) {
-            ultimoDocumento = '';
+            invalidarConsulta();
             renderizarStatus('');
             if (novo) {
                 novo.classList.add('hidden');
@@ -570,17 +630,20 @@ function iniciarBuscaDocumento(raiz) {
             return;
         }
 
+        const sequencia = ++sequenciaConsulta;
+        controlador?.abort();
+        const novoControlador = new AbortController();
+        controlador = novoControlador;
         ultimoDocumento = documento;
         renderizarStatus('Consultando cadastro local…');
+        const tempoLimite = setTimeout(() => novoControlador.abort(), 10000);
         try {
-            const resposta = await getLocal(`${url}?documento=${encodeURIComponent(documento)}`);
-            if (documento !== ultimoDocumento) {
+            const resposta = await getLocal(`${url}?documento=${encodeURIComponent(documento)}`, { signal: novoControlador.signal });
+            if (sequencia !== sequenciaConsulta || documento !== somenteDigitos(campo.value)) {
                 return;
             }
-            const candidatos = Array.isArray(resposta?.clients)
-                ? resposta.clients
-                : resposta?.client ? [resposta.client] : [];
-            if (resposta?.duplicate || candidatos.length > 1) {
+            const candidatos = normalizarRespostaDocumento(resposta);
+            if (candidatos.length > 1) {
                 renderizarStatus('Há vários clientes com este CPF/CNPJ. Escolha o registro correto:', 'muted', candidatos);
                 return;
             }
@@ -591,19 +654,27 @@ function iniciarBuscaDocumento(raiz) {
 
             renderizarStatus('Cliente não cadastrado.', 'success');
         } catch (erro) {
-            if (documento !== ultimoDocumento) {
+            if (sequencia !== sequenciaConsulta || documento !== somenteDigitos(campo.value)) {
                 return;
             }
+            ultimoDocumento = '';
             renderizarStatus(erro?.status === 403
                 ? 'Você não tem permissão para consultar clientes.'
                 : 'Não foi possível consultar o cliente agora. Tente novamente.', 'danger');
+        } finally {
+            clearTimeout(tempoLimite);
+            if (controlador === novoControlador) {
+                controlador = null;
+            }
         }
     };
 
     campo.addEventListener('input', () => {
         clearTimeout(espera);
-        if (somenteDigitos(campo.value) !== ultimoDocumento && somenteDigitos(campo.value).length < 11) {
-            ultimoDocumento = '';
+        const documento = somenteDigitos(campo.value);
+        if (documento !== ultimoDocumento) {
+            invalidarConsulta();
+            limparSelecaoCliente();
             renderizarStatus('');
         }
         espera = setTimeout(consultar, 300);

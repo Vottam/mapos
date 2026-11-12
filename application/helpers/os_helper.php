@@ -188,6 +188,39 @@ if (! function_exists('osDataParaCampo')) {
     }
 }
 
+if (! function_exists('osPostParaFormulario')) {
+    /** Array vazio do GET do CI_Input não é um POST de formulário. */
+    function osPostParaFormulario($post): ?array
+    {
+        return is_array($post) && $post !== [] ? $post : null;
+    }
+}
+
+if (! function_exists('osDataParaBanco')) {
+    /**
+     * Normaliza datas aceitas pelo formulário para o DATE do banco.
+     * O formulário v5 envia AAAA-MM-DD; a forma DD/MM/AAAA é preservada para
+     * clientes antigos que ainda possam postar esse formato.
+     */
+    function osDataParaBanco($data): ?string
+    {
+        $texto = trim((string) $data);
+        $iso = dataIsoParaYmd($texto);
+        if ($iso !== null) {
+            return $iso;
+        }
+
+        if (! preg_match('/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $texto, $partes)) {
+            return null;
+        }
+        if (! checkdate((int) $partes[2], (int) $partes[1], (int) $partes[3])) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', (int) $partes[3], (int) $partes[2], (int) $partes[1]);
+    }
+}
+
 if (! function_exists('osDadosDoFormulario')) {
     /**
      * Converte e confere o POST do formulário da OS, depois das regras do
@@ -212,9 +245,7 @@ if (! function_exists('osDadosDoFormulario')) {
         if ($dataInicial === null) {
             $erros['dataInicial'] = 'Informe uma data válida.';
         }
-        if ($dataFinal === null) {
-            $erros['dataFinal'] = 'Informe uma data válida.';
-        } elseif ($dataInicial !== null && $dataFinal < $dataInicial) {
+        if ($dataFinal !== null && $dataInicial !== null && $dataFinal < $dataInicial) {
             $erros['dataFinal'] = 'A data final não pode ser anterior à data inicial.';
         }
 
@@ -273,12 +304,14 @@ if (! function_exists('osValoresDoFormulario')) {
      */
     function osValoresDoFormulario(?array $post, ?object $os, array $padrao = []): array
     {
-        $campos = ['cliente_documento', 'cliente', 'clientes_id', 'tecnico', 'usuarios_id', 'status', 'dataInicial', 'dataFinal', 'garantia', 'termoGarantia', 'garantias_id', 'garantia_retorno', 'garantia_origem_os_id', ...OS_CAMPOS_TEXTO];
+        $campos = ['cliente_documento', 'cliente', 'clientes_id', 'tecnico', 'usuarios_id', 'status', 'dataInicial', 'dataFinal', 'dataEntrega', 'garantia', 'termoGarantia', 'garantias_id', 'garantia_retorno', 'garantia_origem_os_id', ...OS_CAMPOS_TEXTO];
 
         if ($post !== null) {
             $valores = [];
             foreach ($campos as $campo) {
-                $valores[$campo] = is_scalar($post[$campo] ?? null) ? trim((string) $post[$campo]) : '';
+                $valores[$campo] = $campo === 'dataEntrega'
+                    ? ''
+                    : (is_scalar($post[$campo] ?? null) ? trim((string) $post[$campo]) : '');
             }
 
             return $valores;
@@ -294,11 +327,14 @@ if (! function_exists('osValoresDoFormulario')) {
                 'status' => (string) ($os->status ?? ''),
                 'dataInicial' => osDataParaCampo($os->dataInicial ?? null),
                 'dataFinal' => osDataParaCampo($os->dataFinal ?? null),
+                'dataEntrega' => osDataParaCampo($os->dataEntrega ?? null),
                 'garantia' => (string) ($os->garantia ?? ''),
                 'termoGarantia' => (string) ($os->refGarantia ?? ''),
                 'garantias_id' => (string) ($os->garantias_id ?? ''),
                 'garantia_retorno' => (string) ((int) ($os->garantia_retorno ?? 0)),
-                'garantia_origem_os_id' => (string) ((int) ($os->garantia_origem_os_id ?? 0)),
+                'garantia_origem_os_id' => is_numeric($os->garantia_origem_os_id ?? null) && (int) $os->garantia_origem_os_id > 0
+                    ? (string) (int) $os->garantia_origem_os_id
+                    : '',
             ];
             foreach (OS_CAMPOS_TEXTO as $campo) {
                 $valores[$campo] = osTextoParaEdicao($os->{$campo} ?? null);
@@ -852,40 +888,111 @@ if (! function_exists('osOpcoesDeCobranca')) {
     }
 }
 
-if (! function_exists('osVencimentoGarantia')) {
+if (! function_exists('osDataEfetivaDaEntrega')) {
     /**
-     * Fim da garantia (data final da OS + dias de garantia), quando a garantia
-     * já corre (OS Finalizada ou Faturada). Sem garantia, null.
+     * Data efetiva gerada exclusivamente por uma transição real para Entregue.
+     * A data prevista (dataFinal) nunca é usada como fonte desta decisão.
      */
-    function osVencimentoGarantia(?string $dataFinal, $dias, ?string $status): ?string
+    function osDataEfetivaDaEntrega(?string $statusAnterior, ?string $statusNovo, ?DateTimeImmutable $agora = null): ?string
     {
-        $dias = is_numeric($dias) ? (int) $dias : 0;
-        $base = dataIsoParaYmd(substr((string) $dataFinal, 0, 10));
-        if ($dias <= 0 || $base === null || ! in_array($status, ['Finalizado', 'Faturado'], true)) {
+        $anterior = mb_strtolower(trim((string) $statusAnterior), 'UTF-8');
+        $novo = mb_strtolower(trim((string) $statusNovo), 'UTF-8');
+        if ($novo !== 'entregue' || $anterior === 'entregue') {
             return null;
         }
 
-        return date('Y-m-d', strtotime($base . ' +' . $dias . ' days'));
+        $fuso = new DateTimeZone('America/Sao_Paulo');
+        return ($agora ?: new DateTimeImmutable('now', $fuso))->setTimezone($fuso)->format('Y-m-d');
+    }
+}
+
+if (! function_exists('osDadosDaTransicaoDeEntrega')) {
+    /**
+     * Aplica a transição sem depender de sessão ou estado do navegador.
+     * dataFinal continua sendo a previsão enviada pelo operador; dataEntrega é
+     * a única data automática e persistente da entrega.
+     */
+    function osDadosDaTransicaoDeEntrega(array $dados, ?object $os, ?DateTimeImmutable $agora = null): array
+    {
+        $statusAnterior = $os->status ?? null;
+        $statusNovo = (string) ($dados['status'] ?? '');
+        $dataEntregaAtual = osDataParaBanco($os->dataEntrega ?? null);
+        $novoEntregue = mb_strtolower(trim($statusNovo), 'UTF-8') === 'entregue';
+        $anteriorEntregue = mb_strtolower(trim((string) $statusAnterior), 'UTF-8') === 'entregue';
+
+        if ($novoEntregue && ! $anteriorEntregue) {
+            $dados['dataEntrega'] = osDataEfetivaDaEntrega($statusAnterior, $statusNovo, $agora);
+        } elseif (! $novoEntregue && $anteriorEntregue) {
+            $dados['dataEntrega'] = null;
+        } elseif (array_key_exists('dataEntrega', (array) $os)) {
+            // Não regrava nem deriva datas em salvamentos sem transição.
+            $dados['dataEntrega'] = $dataEntregaAtual;
+        }
+
+        return $dados;
+    }
+}
+
+if (! function_exists('osDataBaseDaGarantia')) {
+    /**
+     * Usa a data efetiva nova quando disponível. O fallback para dataFinal só
+     * preserva o comportamento de OS históricas sem dataEntrega persistida.
+     */
+    function osDataBaseDaGarantia(?string $dataFinal, ?string $dataEntrega, ?string $status): ?string
+    {
+        if (! in_array($status, ['Finalizado', 'Faturado', 'Entregue'], true)) {
+            return null;
+        }
+
+        $efetiva = dataIsoParaYmd(substr((string) $dataEntrega, 0, 10));
+        if ($efetiva !== null) {
+            return $efetiva;
+        }
+
+        return dataIsoParaYmd(substr((string) $dataFinal, 0, 10));
+    }
+}
+
+if (! function_exists('osVencimentoGarantia')) {
+    /**
+     * Fim da garantia a partir da data efetiva da entrega. O quarto argumento
+     * é opcional para manter compatibilidade com chamadas legadas.
+     */
+    function osVencimentoGarantia(?string $dataFinal, $dias, ?string $status, ?string $dataEntrega = null): ?string
+    {
+        $dias = is_numeric($dias) ? (int) $dias : 0;
+        $base = osDataBaseDaGarantia($dataFinal, $dataEntrega, $status);
+        if ($dias <= 0 || $base === null) {
+            return null;
+        }
+
+        $fuso = new DateTimeZone('America/Sao_Paulo');
+        $dataBase = DateTimeImmutable::createFromFormat('!Y-m-d', $base, $fuso);
+        if (! $dataBase) {
+            return null;
+        }
+
+        return $dataBase->add(new DateInterval('P' . $dias . 'D'))->format('Y-m-d');
     }
 }
 
 if (! function_exists('osGarantiaPill')) {
     /**
-     * Apresentação da garantia na listagem de OS, mantendo a regra do LIVE:
-     * dataFinal + dias, com o dia do vencimento ainda vigente. A data é
-     * calculada como objeto no fuso operacional, nunca comparando dd/mm/aaaa.
-     * Data ausente/inválida e zero dias permanecem neutros.
+     * Apresentação da garantia na listagem de OS. A data efetiva tem
+     * precedência; dataFinal é apenas fallback de compatibilidade histórica.
      *
      * @return array{label: string, variant: string, dot: bool}
      */
-    function osGarantiaPill(?string $dataFinal, $dias, ?string $hoje = null): array
+    function osGarantiaPill(?string $dataFinal, $dias, ?string $hoje = null, ?string $status = null, ?string $dataEntrega = null): array
     {
         $diasTexto = trim((string) $dias);
         if ($diasTexto === '' || ! ctype_digit($diasTexto) || (int) $diasTexto <= 0) {
             return ['label' => 'Sem garantia', 'variant' => 'neutral', 'dot' => false];
         }
 
-        $base = dataIsoParaYmd(substr((string) $dataFinal, 0, 10));
+        $base = $status === null
+            ? dataIsoParaYmd(substr((string) $dataFinal, 0, 10))
+            : osDataBaseDaGarantia($dataFinal, $dataEntrega, $status);
         if ($base === null) {
             return ['label' => 'Sem garantia', 'variant' => 'neutral', 'dot' => false];
         }

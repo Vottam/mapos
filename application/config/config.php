@@ -456,7 +456,6 @@ $config['sess_regenerate_destroy'] = cookieEnvFlag($_ENV['APP_SESS_REGENERATE_DE
 | 'cookie_path'     = Typically will be a forward slash
 | 'cookie_secure'   = Cookie will only be set if a secure HTTPS connection exists.
 | 'cookie_httponly' = Cookie will only be accessible via HTTP(S) (no javascript)
-| 'cookie_samesite' = Cookie's samesite attribute (Lax, Strict or None)
 |
 | Note: These settings (with the exception of 'cookie_prefix' and
 |       'cookie_httponly') will also affect sessions.
@@ -566,10 +565,7 @@ $config['proxy_ips'] = $_ENV['APP_PROXY_IPS'] ?? '';
 |          for backwards compatibility purposes!
 |
 */
-// Desligado na v5 (#2873): o filtro alterava os dados de entrada; as views
-// escapam a saída com e() (scripts/check-escape.php) e o HTML confiável passa
-// pelo HTMLPurifier (printSafeHtml()).
-$config['global_xss_filtering'] = false;
+$config['global_xss_filtering'] = $_ENV['GLOBAL_XSS_FILTERING'] ? filter_var($_ENV['GLOBAL_XSS_FILTERING'], FILTER_VALIDATE_BOOLEAN) : true;
 
 /*
 |--------------------------------------------------------------------------

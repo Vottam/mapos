@@ -232,7 +232,7 @@ class Mapos_model extends CI_Model
 
         return $this->db->get()->result();
     }
-    
+
     /*
      * Painel inicial da v5 (#2847).
      */

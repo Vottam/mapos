@@ -142,7 +142,7 @@ class Equipamentos_model extends CI_Model
 
     private function buscarHistorico(?int $equipamentoId, ?string $serial, ?int $osAtualId, int $limite, ?int $clienteId): array
     {
-        $this->db->select('os.idOs, os.clientes_id, os.dataInicial, os.dataFinal, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, c.nomeCliente AS cliente, e.idEquipamentos, e.equipamento AS tipo, m.marca, e.modelo, e.num_serie');
+        $this->db->select('os.idOs, os.clientes_id, os.dataInicial, os.dataFinal, os.dataEntrega, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, c.nomeCliente AS cliente, e.idEquipamentos, e.equipamento AS tipo, m.marca, e.modelo, e.num_serie');
         $this->db->from('equipamentos e');
         $this->db->join('equipamentos_os eo', 'eo.equipamentos_id = e.idEquipamentos');
         $this->db->join('os', 'os.idOs = eo.os_id');
@@ -178,7 +178,8 @@ class Equipamentos_model extends CI_Model
             $row->dias_vencidos = 0;
             $row->garantia_status = 'indeterminada';
             $row->situacao_garantia = 'Indefinido';
-            $dataFinal = $this->parseDataHistorico($row->dataFinal ?? null, $fuso);
+            $dataBase = osDataBaseDaGarantia($row->dataFinal ?? null, $row->dataEntrega ?? null, $row->status ?? null);
+            $dataFinal = $dataBase !== null ? $this->parseDataHistorico($dataBase, $fuso) : null;
             $dias = is_numeric($row->garantia ?? null) ? (int) $row->garantia : 0;
             if ($dataFinal === null) {
                 continue;
@@ -241,7 +242,7 @@ class Equipamentos_model extends CI_Model
 
         $baseOsId = (int) ($row->idOs ?? 0);
         $garantiaDias = is_numeric($row->garantia ?? null) ? (int) $row->garantia : 0;
-        $dataBaseRaw = trim((string) ($row->dataFinal ?? ''));
+        $dataBaseRaw = osDataBaseDaGarantia($row->dataFinal ?? null, $row->dataEntrega ?? null, $row->status ?? null) ?? '';
         $fuso = new DateTimeZone('America/Sao_Paulo');
         $dataBase = $this->parseDataHistorico($dataBaseRaw, $fuso);
         if (! $dataBase) {

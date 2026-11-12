@@ -174,7 +174,7 @@ $textos = [
                 <form method="post" action="<?= e(site_url($produto ? 'os/adicionarProduto' : 'os/adicionarServico')) ?>" novalidate
                       class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_7rem_9rem_auto] lg:items-start"
                       data-os-acao="<?= e($produto ? 'produto' : 'servico') ?>" data-os-limpar>
-                    <input type="hidden" name="idOs" value="<?= e($idOs) ?>">
+                    <input type="hidden" name="<?= e($produto ? 'idOsProduto' : 'idOsServico') ?>" value="<?= e($idOs) ?>">
                     <div class="relative sm:col-span-2 lg:col-span-1"<?= componenteAtributos([
                         'data-autocomplete' => site_url($produto ? 'os/autoCompleteProduto' : 'os/autoCompleteServico'),
                         'data-autocomplete-alvo' => 'item-id',
@@ -341,6 +341,11 @@ foreach ($exclusoes as $tipo => [$rota, $titulo, $consequencia]) { ?>
 <?php if ($pode['faturar']) { ?>
     <form id="form-faturar" method="post" action="<?= e(site_url('os/faturar')) ?>" novalidate hidden data-os-acao="faturar">
         <input type="hidden" name="idOs" value="<?= e($idOs) ?>">
+        <input type="hidden" name="os_id" value="<?= e($idOs) ?>">
+        <input type="hidden" name="valor" value="<?= e(number_format((float) $totais['total'], 2, '.', '')) ?>">
+        <input type="hidden" name="cliente" value="<?= e($os->nomeCliente) ?>">
+        <input type="hidden" name="clientes_id" value="<?= e($os->clientes_id) ?>">
+        <input type="hidden" name="tipo" value="receita">
     </form>
     <?= component('modal', [
         'id' => 'faturar-os',

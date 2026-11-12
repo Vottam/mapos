@@ -34,7 +34,7 @@ $classeSublink = 'relative flex min-h-9 items-center rounded-md py-1.5 pr-2.5 pl
       <a href="<?= e(base_url()) ?>" class="flex min-w-0 items-center gap-2.5 rounded-md <?= e($foco) ?>" title="Início">
         <span class="inline-flex size-[34px] shrink-0 items-center justify-center rounded-md bg-primary text-on-primary"><?= icon('wrench', ['class' => 'size-5']) ?></span>
         <span class="v5-rotulo flex min-w-0 items-center gap-2">
-          <span class="min-w-0 whitespace-normal break-words font-display text-[1.3125rem] leading-tight font-bold tracking-[-0.2px] text-text"><?= e($layout['nome_sistema']) ?></span>
+          <span class="min-w-0 truncate whitespace-nowrap font-display text-[1.3125rem] leading-tight font-bold tracking-[-0.2px] text-text"><?= e($layout['nome_sistema']) ?></span>
           <?php if ($layout['versao'] !== '') { ?>
             <span class="shrink-0 rounded-xs bg-surface-subtle px-1.5 text-micro-cap text-muted max-lg:hidden">v<?= e($layout['versao']) ?></span>
           <?php } ?>

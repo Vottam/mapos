@@ -29,6 +29,9 @@ $formAction = (string) (parse_url(current_url(), PHP_URL_PATH) ?: '/');
     <?php } ?>
     <form method="post" action="<?= e($formAction) ?>" novalidate class="flex flex-col gap-4" <?= js_module('formulario/padrao') ?>>
         <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <?php if ($editando) { ?>
+            <input type="hidden" name="idEquipamentos" value="<?= (int) $equipamento->idEquipamentos ?>">
+        <?php } ?>
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-identificacao">
             <h2 id="secao-identificacao" class="text-heading-sm text-text">Identificação</h2>
             <div class="<?= e($grade) ?>">

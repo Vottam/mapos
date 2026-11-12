@@ -271,6 +271,17 @@ class Clientes_model extends CI_Model
      * @param int|null $excluirId
      * @return array
      */
+    public function getByCpf($cpf)
+    {
+        $cpf = preg_replace('/\D+/', '', (string) $cpf);
+
+        if (strlen($cpf) !== 11) {
+            return [];
+        }
+
+        return $this->getByDocumentoNormalizado($cpf);
+    }
+
     public function getByDocumentoNormalizado($documento, ?int $excluirId = null)
     {
         $documento = preg_replace('/\D+/', '', (string) $documento);

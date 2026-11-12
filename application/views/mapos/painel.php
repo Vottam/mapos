@@ -65,6 +65,23 @@ if ($pode['balanco']) {
 if ($pode['os']) {
     $dadosDoModulo['os'] = $os_grafico;
 }
+
+$radarSerie = is_array($radar ?? null) ? ($radar['serie'] ?? []) : [];
+$radarTotais = is_array($radar ?? null) ? ($radar['totais'] ?? []) : [];
+$radarAproveitamento = is_array($radar ?? null) ? ($radar['aproveitamento'] ?? []) : [];
+$radarOsRecebidas = (int) ($radarTotais['os_recebidas'] ?? 0);
+$radarOsReconhecidas = (int) ($radarTotais['os_reconhecidas'] ?? 0);
+$radarOsProdutivas = (int) ($radarTotais['os_positivas'] ?? $radarTotais['os_produtivas'] ?? 0);
+$radarContribuicaoTotal = (float) ($radarTotais['contribuicao_total'] ?? 0);
+$radarBaseAproveitamento = $radarOsReconhecidas;
+$radarTicketMedio = ($radarTotais['ticket_medio_positivo'] ?? null);
+$radarContribuicaoMedia = ($radarTotais['contribuicao_media_geral'] ?? null);
+$radarDespesaPorOs = ($radarTotais['despesa_por_os_reconhecida'] ?? null);
+$radarResultado = (float) ($radarTotais['resultado_operacional'] ?? 0);
+$radarAproveitamentoPct = ($radarTotais['aproveitamento'] ?? null) === null ? null : (float) $radarTotais['aproveitamento'] * 100;
+$radarDinheiro = static fn ($valor) => $valor === null ? 'N/D' : dinheiro($valor);
+$radarPeriodo = $radar_periodo ?? '12m';
+$radarMes = $radar_mes ?? date('Y-m');
 ?>
 <div class="flex flex-col gap-4 pt-2 pb-8" <?= js_module('painel/painel') ?>>
     <header class="flex flex-wrap items-start justify-between gap-3">
@@ -93,6 +110,7 @@ if ($pode['os']) {
         <div class="grid grid-cols-2 gap-4 xl:grid-cols-4"><?= componenteConteudo($kpis) ?></div>
     <?php } ?>
 
+
     <?php if ($pode['os']) { ?>
         <div class="grid gap-4 xl:grid-cols-3">
             <section class="<?= e($caixa) ?> min-w-0 xl:col-span-2" aria-labelledby="titulo-agenda">
@@ -112,7 +130,7 @@ if ($pode['os']) {
                         ]) ?>
                     </div>
                 </div>
-                <div class="painel-agenda mt-4 min-h-96" data-agenda="<?= e(site_url('mapos/calendario')) ?>" aria-live="polite">
+                <div class="painel-agenda mt-4 min-h-96" data-agenda="<?= e((string) parse_url(site_url('mapos/calendario'), PHP_URL_PATH)) ?>" aria-live="polite">
                     <p class="text-caption text-muted" data-agenda-carregando>Carregando a agenda…</p>
                 </div>
             </section>
@@ -142,6 +160,119 @@ if ($pode['os']) {
         </div>
     <?php } ?>
 
+    <?php if (! empty($radar ?? null)) { ?>
+    <section class="<?= e($caixa) ?> min-w-0" aria-labelledby="titulo-radar">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+            <div>
+                <h2 id="titulo-radar" class="text-heading-sm text-text">Produção, Ticket Médio e Rentabilidade</h2>
+                <p class="text-caption text-muted">Todas as OS do universo aparecem como recebidas, reconhecidas, pendentes ou exceções. A competência financeira usa recebimento efetivo; o mês corrente pode estar parcial.</p>
+            </div>
+            <div class="flex flex-wrap items-end gap-2">
+                <form method="get" action="<?= e(site_url('mapos')) ?>" class="flex flex-wrap items-end gap-2" aria-label="Período do Radar">
+                    <label class="text-caption text-muted">Período
+                        <select name="radar_periodo" class="ml-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-text">
+                            <option value="12m" <?= $radarPeriodo === '12m' ? 'selected' : '' ?>>Últimos 12 meses</option>
+                            <option value="3m" <?= $radarPeriodo === '3m' ? 'selected' : '' ?>>Últimos 3 meses</option>
+                            <option value="mes" <?= $radarPeriodo === 'mes' ? 'selected' : '' ?>>Mês selecionado</option>
+                        </select>
+                    </label>
+                    <label class="text-caption text-muted">Mês/ano
+                        <input type="month" name="radar_mes" value="<?= e($radarMes) ?>" class="ml-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-text">
+                    </label>
+                    <button type="submit" class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-on-primary hover:bg-primary-hover">Aplicar</button>
+                </form>
+                <a href="<?= e(site_url('mapos/inteligenciaTickets')) ?>" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text hover:bg-surface-subtle transition-colors" title="Análise detalhada">
+                    Análise detalhada
+                    <?= icon('chevron-right', ['class' => 'size-4']) ?>
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2" data-module="painel/radar">
+            <?= page_data('radar-dados', $radar) ?>
+
+            <!-- A. Gráfico principal: contribuição média geral vs despesa por OS reconhecida -->
+            <div class="min-w-0">
+                <div class="relative h-72" style="height: clamp(280px, 25vw, 340px);">
+                    <canvas id="radar-principal" aria-label="Rentabilidade mensal: contribuição média geral e despesa operacional por OS reconhecida"></canvas>
+                </div>
+                <p class="mt-1 text-caption text-muted">Comparação ponderada da contribuição média geral com a despesa por OS reconhecida. Meses sem base financeira ficam sem linha; o mês corrente pode estar parcial.</p>
+            </div>
+
+            <!-- B. Aproveitamento financeiro das OS concluídas -->
+            <div class="min-w-0 rounded-lg border border-border bg-surface-subtle p-3">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <h3 class="flex items-center gap-1.5 text-caption text-muted">
+                            <?= icon('chart-pie', ['class' => 'size-4 text-muted']) ?> Aproveitamento das OS
+                        </h3>
+                        <p class="mt-1 text-caption text-muted"><?= $radarBaseAproveitamento > 0 && $radarBaseAproveitamento < 10 ? 'Amostra pequena: ' . $radarBaseAproveitamento . ' OS reconhecidas.' : $radarBaseAproveitamento . ' OS reconhecidas no período.' ?></p>
+                    </div>
+                    <span class="rounded-full bg-primary-tint px-2 py-1 text-caption font-semibold text-primary-strong" data-radar-aproveitamento-centro-label><?= $radarAproveitamentoPct === null ? 'Sem base' : e(number_format($radarAproveitamentoPct, 0, ',', '.') . '% das classificadas') ?></span>
+                </div>
+                <div class="relative mt-2 h-64" style="height: clamp(240px, 22vw, 300px);">
+                    <canvas id="radar-aproveitamento" aria-label="Aproveitamento financeiro das OS concluídas"></canvas>
+                    <span class="pointer-events-none absolute inset-0 flex items-center justify-center text-heading-sm font-semibold text-text" data-radar-aproveitamento-centro aria-hidden="true"><?= $radarAproveitamentoPct === null ? 'Sem base' : e(number_format($radarAproveitamentoPct, 0, ',', '.') . '% das classificadas') ?></span>
+                </div>
+            </div>
+
+            <!-- C. Tendência de três meses (média móvel ponderada) -->
+            <div class="min-w-0">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="flex items-center gap-1.5 text-caption text-muted">
+                        <?= icon('chart-column', ['class' => 'size-4 text-muted']) ?> Tendência (média móvel 3M)
+                    </h3>
+                    <span class="text-caption text-muted">Sem base = ausência de linha</span>
+                </div>
+                <div class="relative mt-2 h-64" style="height: clamp(240px, 20vw, 280px);">
+                    <canvas id="radar-tendencia" aria-label="Tendência da contribuição: média móvel ponderada de 3 meses"></canvas>
+                </div>
+            </div>
+
+            <!-- D. Síntese gerencial do período -->
+            <aside class="min-w-0 rounded-lg border border-border bg-surface-subtle p-4" aria-labelledby="titulo-radar-resumo">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h3 id="titulo-radar-resumo" class="text-heading-sm text-text">Resumo gerencial</h3>
+                        <p class="mt-1 text-caption text-muted">Síntese da mesma base exibida no Radar.</p>
+                    </div>
+                    <?= icon('percent', ['class' => 'size-5 shrink-0 text-primary']) ?>
+                </div>
+                <dl class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+                    <div class="rounded-md border border-border bg-surface p-3">
+                        <dt class="text-caption text-muted">Ticket médio positivo</dt>
+                        <dd class="mt-1 text-body-md font-semibold tabular-nums text-text" data-valor-sensivel><?= e($radarDinheiro($radarTicketMedio)) ?></dd>
+                    </div>
+                    <div class="rounded-md border border-border bg-surface p-3">
+                        <dt class="text-caption text-muted">Contribuição média geral</dt>
+                        <dd class="mt-1 text-body-md font-semibold tabular-nums text-text" data-valor-sensivel><?= e($radarDinheiro($radarContribuicaoMedia)) ?></dd>
+                    </div>
+                    <div class="rounded-md border border-border bg-surface p-3">
+                        <dt class="text-caption text-muted">Contribuição total</dt>
+                        <dd class="mt-1 text-body-md font-semibold tabular-nums text-text" data-valor-sensivel><?= e($radarDinheiro($radarContribuicaoTotal)) ?></dd>
+                    </div>
+                    <div class="rounded-md border border-border bg-surface p-3">
+                        <dt class="text-caption text-muted">Despesa / OS reconhecida</dt>
+                        <dd class="mt-1 text-body-md font-semibold tabular-nums text-text" data-valor-sensivel><?= e($radarDinheiro($radarDespesaPorOs)) ?></dd>
+                    </div>
+                    <div class="rounded-md border border-border bg-surface p-3">
+                        <dt class="text-caption text-muted">Resultado operacional</dt>
+                        <dd class="mt-1 text-body-md font-semibold tabular-nums text-text" data-valor-sensivel><?= e($radarDinheiro($radarResultado)) ?></dd>
+                    </div>
+                    <div class="rounded-md border border-border bg-surface p-3">
+                        <dt class="text-caption text-muted">Aproveitamento</dt>
+                        <dd class="mt-1 text-body-md font-semibold tabular-nums text-text"><?= $radarAproveitamentoPct === null ? 'N/D' : e(number_format($radarAproveitamentoPct, 1, ',', '.') . '%') ?></dd>
+                    </div>
+                    <div class="col-span-2 rounded-md border border-border bg-surface p-3 sm:col-span-3 lg:col-span-2">
+                        <dt class="text-caption text-muted">Cobertura do universo</dt>
+                        <dd class="mt-1 text-body-md font-semibold text-text"><?= e($radarOsRecebidas . ' recebidas · ' . $radarOsReconhecidas . ' reconhecidas · ' . ($radarTotais['os_pendentes'] ?? 0) . ' pendentes · ' . ($radarTotais['os_excecoes'] ?? 0) . ' exceções') ?></dd>
+                        <p class="mt-1 text-caption text-muted">Positivas: <?= (int) ($radarTotais['os_positivas'] ?? 0) ?> · neutras: <?= (int) ($radarTotais['os_neutras'] ?? 0) ?> · negativas: <?= (int) ($radarTotais['os_negativas'] ?? 0) ?>. A partição completa permanece visível na análise detalhada.</p>
+                    </div>
+                </dl>
+            </aside>
+        </div>
+    </section>
+    <?php } ?>
     <?php if ($pode['balanco']) { ?>
         <?php $temMovimentoFinanceiro = array_sum($balanco['receita_bruta']) + array_sum($balanco['despesas']) + array_sum($balanco['custos_fixos_pago']) + array_sum($balanco['custos_fixos_a_pagar']) + array_sum($balanco['inadimplencia']) > 0; ?>
         <section class="<?= e($caixa) ?> min-w-0" aria-labelledby="titulo-balanco">

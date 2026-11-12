@@ -83,6 +83,7 @@ if (! function_exists('layoutMenu')) {
             ['grupo' => 'Financeiro', 'label' => 'Lançamentos', 'icon' => 'chart-column', 'url' => 'financeiro/lancamentos', 'rota' => ['Financeiro', 'lancamentos'], 'ativo' => ['Financeiro']],
             ['grupo' => 'Financeiro', 'label' => 'Custos Fixos', 'icon' => 'receipt', 'url' => 'financeiro/custosFixos', 'rota' => ['Financeiro', 'custosFixos'], 'ativo' => ['Financeiro/custosFixos', 'Financeiro/adicionarCustoFixo', 'Financeiro/editarCustoFixo', 'Financeiro/competenciasCustoFixo']],
             ['grupo' => 'Financeiro', 'label' => 'Cobranças', 'icon' => 'circle-dollar-sign', 'url' => 'cobrancas/cobrancas', 'rota' => ['Cobrancas', 'cobrancas'], 'ativo' => ['Cobrancas']],
+            ['grupo' => 'Financeiro', 'label' => 'Inteligência de Tickets', 'icon' => 'percent', 'url' => 'mapos/inteligenciaTickets', 'rota' => ['Mapos', 'inteligenciaTickets'], 'ativo' => ['Mapos/inteligenciaTickets']],
             [
                 'grupo' => 'Financeiro',
                 'label' => 'Relatórios',
@@ -312,7 +313,7 @@ if (! function_exists('layoutAssetVersion')) {
      */
     function layoutAssetVersion(): string
     {
-        return 'fix-sidebar-install-final-20261031';
+        return 'mapos-ui-sync-20261110-r1';
     }
 }
 
