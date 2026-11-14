@@ -160,13 +160,18 @@ async function iniciarGraficos(raiz, dados, doc) {
             texto: cor('muted'),
             grade: cor('border'),
             fundo: cor('surface'),
-            // Valores literais recuperados de application/views/mapos/painel.php do LIVE.
+            // Séries financeiras detalhadas MasterTrend, preservadas no upgrade.
             receitaBruta: 'rgba(255, 206, 86, 0.5)',
             receitaLiquida: 'rgba(75, 192, 192, 0.5)',
             custosFixosPago: 'rgba(186, 140, 255, 0.65)',
             custosFixosAPagar: 'rgba(220, 53, 69, 0.55)',
             despesas: 'rgba(255, 99, 132, 0.5)',
             inadimplencia: 'rgba(54, 162, 235, 0.5)',
+            // Fallback de compatibilidade do contrato 5.2.x.
+            receitas: cor('success'),
+            saldo: cor('info'),
+            receitasSoft: cor('success-soft'),
+            despesasSoft: cor('warning-soft'),
         };
         Chart.defaults.font.family = getComputedStyle(doc.body).fontFamily;
 

@@ -6,16 +6,29 @@ namespace MercadoPago\Resources\Order;
 
 use MercadoPago\Serialization\Mapper;
 
-/** Config class. */
+/**
+ * Represents the configuration settings for a MercadoPago order.
+ *
+ * Groups payment method restrictions/defaults and online checkout behavior
+ * such as redirect URLs and differential pricing.
+ *
+ * @see \MercadoPago\Resources\Order
+ */
 class Config
 {
     /** Class mapper. */
     use Mapper;
 
-    /** Payment method. */
+    /** Text shown on the buyer's credit card statement. Approximately 10 characters max depending on the card issuer. */
+    public ?string $statement_descriptor;
+
+    /** Offline payment expiration duration in ISO 8601 format (e.g. "P1D" = 1 day). */
+    public ?string $default_payment_due_date;
+
+    /** Payment method restrictions, defaults, and installment settings. Maps to {@see PaymentMethodConfig}. */
     public array|object|null $payment_method;
 
-    /** Online. */
+    /** Online checkout configuration (redirect URLs, security). Maps to {@see OnlineConfig}. */
     public array|object|null $online;
 
     private $map = [

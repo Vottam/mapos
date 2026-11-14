@@ -4,17 +4,28 @@ namespace MercadoPago\Resources\Payment;
 
 use MercadoPago\Serialization\Mapper;
 
-/** Shipments class. */
+/**
+ * Represents shipment information associated with a payment in the MercadoPago API.
+ *
+ * Contains the delivery address for the purchased items.
+ * Nested within {@see AdditionalInfo}.
+ */
 class Shipments
 {
-    /** Class mapper. */
+    /** Maps nested objects to their corresponding DTO classes. */
     use Mapper;
 
-    /** Receiver Address. */
+    /** @var ReceiverAddress|array|null Delivery address where the purchased items will be shipped. */
     public array|object|null $receiver_address;
 
+    /** Whether the shipment uses express delivery. */
+    public ?bool $express_shipment;
+
+    /** Whether the buyer picks up the item locally. */
+    public ?bool $local_pickup;
+
     private $map = [
-        "receiver_address" => "MercadoPago\Resources\Payment\ReceiverAddress"
+        "receiver_address" => "MercadoPago\Resources\Payment\ReceiverAddress",
     ];
 
     /**

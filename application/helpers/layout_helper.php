@@ -319,15 +319,25 @@ if (! function_exists('layoutAssetVersion')) {
 
 if (! function_exists('layoutUrlAsset')) {
     /**
-     * URL final de um asset de layoutAssets(), com invalidação reproduzível.
+     * URL final de um asset local, com invalidação reproduzível. Sem versão
+     * explícita, mantém a versão sincronizada do overlay MasterTrend.
      */
-    function layoutUrlAsset(string $caminho, string $baseUrl): string
+    function layoutUrlAsset(string $caminho, string $baseUrl, string $versao = ''): string
     {
         if (preg_match('#^https?://#', $caminho)) {
             return $caminho;
         }
 
-        return $baseUrl . ltrim($caminho, '/') . '?v=' . rawurlencode(layoutAssetVersion());
+        $versao = $versao !== '' ? $versao : layoutAssetVersion();
+        return $baseUrl . ltrim($caminho, '/') . '?v=' . rawurlencode($versao);
+    }
+}
+
+if (! function_exists('assetUrl')) {
+    /** URL de um arquivo local de assets/ com a versão da release. */
+    function assetUrl(string $caminho, ?string $versao = null): string
+    {
+        return layoutUrlAsset($caminho, base_url(), $versao ?? (string) config_item('app_version'));
     }
 }
 

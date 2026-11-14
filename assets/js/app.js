@@ -7,11 +7,18 @@
 // Incluído no layout com <script type="module">, que só roda depois de o HTML
 // ser lido; o teste do readyState cobre os dois casos.
 
-const VERSAO_ASSETS = 'mapos-ui-sync-20261113-r2';
 const NOME_VALIDO = /^[a-z0-9_-]+(\/[a-z0-9_-]+)*$/;
 
 export function nomeDeModuloValido(nome) {
     return typeof nome === 'string' && NOME_VALIDO.test(nome);
+}
+
+/** Herda a query deste arquivo para invalidar módulos junto com o shell. */
+export function urlDoModulo(nome, base = import.meta.url) {
+    const url = new URL(`./modules/${nome}.js`, base);
+    url.search = new URL(base).search;
+
+    return url;
 }
 
 export async function iniciarModulos(raiz = document) {
@@ -31,9 +38,7 @@ export async function iniciarModulos(raiz = document) {
         elemento.dataset.moduleIniciado = 'true';
 
         try {
-            const urlModulo = new URL(`./modules/${nome}.js`, import.meta.url);
-            urlModulo.searchParams.set('v', VERSAO_ASSETS);
-            const modulo = await import(urlModulo);
+            const modulo = await import(urlDoModulo(nome));
             if (typeof modulo.default === 'function') {
                 await modulo.default(elemento);
             }

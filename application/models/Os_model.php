@@ -212,6 +212,78 @@ class Os_model extends CI_Model
         return (int) ($row->total ?? 0);
     }
 
+    /**
+     * Listagem de OS da v5 (#2842), no padrão das listagens (#2852). Os
+     * métodos listar() e contar() usam os mesmos filtros para paginação exata.
+     */
+    public function listar(array $filtros, int $limite, int $offset, ?array $statusVisiveis = null): array
+    {
+        $totalProdutos = '(SELECT COALESCE(SUM(produtos_os.subTotal), 0) FROM produtos_os WHERE produtos_os.os_id = os.idOs)';
+        $valorServico = 'COALESCE(NULLIF(servicos_os.preco, 0), servicos.preco, 0) * COALESCE(NULLIF(servicos_os.quantidade, 0), 1)';
+        if ($this->descontoPorItemDisponivel()) {
+            $valorServico = "CASE WHEN servicos_os.desconto > 0 THEN servicos_os.subTotal ELSE {$valorServico} END";
+        }
+        $totalServicos = "(SELECT COALESCE(SUM({$valorServico}), 0) FROM servicos_os LEFT JOIN servicos ON servicos.idServicos = servicos_os.servicos_id WHERE servicos_os.os_id = os.idOs)";
+
+        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.descricaoProduto, os.status, os.faturado, os.desconto, os.valor_desconto, os.clientes_id, os.usuarios_id');
+        $this->db->select('clientes.nomeCliente, usuarios.nome AS responsavel');
+        $this->db->select($totalProdutos . ' AS totalProdutos', false);
+        $this->db->select($totalServicos . ' AS totalServicos', false);
+        $this->aplicarFiltros($filtros, $statusVisiveis);
+
+        $linhas = $this->db->order_by('os.idOs', 'desc')->limit($limite, max(0, $offset))->get()->result();
+        foreach ($linhas as $linha) {
+            $bruto = (float) $linha->totalProdutos + (float) $linha->totalServicos;
+            $linha->total = (float) $linha->valor_desconto > 0 ? (float) $linha->valor_desconto : $bruto;
+        }
+
+        return $linhas;
+    }
+
+    public function contar(array $filtros, ?array $statusVisiveis = null): int
+    {
+        $this->aplicarFiltros($filtros, $statusVisiveis);
+
+        return (int) $this->db->count_all_results();
+    }
+
+    private function aplicarFiltros(array $filtros, ?array $statusVisiveis): void
+    {
+        $this->db->from('os');
+        $this->db->join('clientes', 'clientes.idClientes = os.clientes_id', 'left');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = os.usuarios_id', 'left');
+
+        $pesquisa = trim((string) ($filtros['pesquisa'] ?? ''));
+        if ($pesquisa !== '') {
+            $this->db->group_start()
+                ->like('clientes.nomeCliente', $pesquisa)
+                ->or_like('clientes.documento', $pesquisa)
+                ->or_like('os.descricaoProduto', $pesquisa);
+            if (ctype_digit($pesquisa)) {
+                $this->db->or_where('os.idOs', (int) $pesquisa);
+            }
+            $this->db->group_end();
+        }
+
+        if (($filtros['status'] ?? '') !== '') {
+            $grupo = painelGrupoStatus($filtros['status']);
+            if ($grupo !== null) {
+                $this->db->where_in('os.status', $grupo);
+            } else {
+                $this->db->where('os.status', $filtros['status']);
+            }
+        } elseif ($pesquisa === '' && $statusVisiveis !== null) {
+            $this->db->where_in('os.status', $statusVisiveis);
+        }
+
+        if (($filtros['de'] ?? '') !== '') {
+            $this->db->where('os.dataInicial >=', $filtros['de']);
+        }
+        if (($filtros['ate'] ?? '') !== '') {
+            $this->db->where('os.dataFinal <=', $filtros['ate']);
+        }
+    }
+
     public function getById($id)
     {
         $this->db->select('os.*, clientes.*, clientes.celular as celular_cliente, clientes.telefone as telefone_cliente, clientes.contato as contato_cliente, garantias.refGarantia, garantias.textoGarantia, usuarios.telefone as telefone_usuario, usuarios.email as email_usuario, usuarios.nome');

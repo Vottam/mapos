@@ -1,6 +1,28 @@
 Changelog
 =========
 
+[Release 1.19.1](https://github.com/efipay/sdk-php-apis-efi/releases/tag/1.19.1) (2026-11-09)
+-------------------------- 
+* Fixed:  base route for the 3DS endpoint
+
+[Release 1.19.0](https://github.com/efipay/sdk-php-apis-efi/releases/tag/1.19.0) (2026-06-26)
+-------------------------- 
+* Added new method and example of credit card charge with 3DS validation
+
+[Release 1.18.0](https://github.com/efipay/sdk-php-apis-efi/releases/tag/1.18.0) (2026-06-26)
+-------------------------- 
+* Added new method and example of Pix refund with split
+* Added new method and example for static Pix QR Code generator
+
+[Release 1.17.2](https://github.com/efipay/sdk-php-apis-efi/releases/tag/1.17.2) (2026-06-26)
+-------------------------- 
+* Fixed: Normalize HTTP method names to uppercase in Request.php
+* Fixed: Improve error handling in cleanExpiredCache
+
+[Release 1.17.1](https://github.com/efipay/sdk-php-apis-efi/releases/tag/1.17.1) (2026-06-26)
+-------------------------- 
+* Fixed: use explicit nullable type for $options in Endpoints::getInstance()
+
 [Release 1.17.0](https://github.com/efipay/sdk-php-apis-efi/releases/tag/1.17.0) (2025-09-23)
 -------------------------- 
 * Adds support for base64 certificates

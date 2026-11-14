@@ -24,6 +24,30 @@
  */
 $caixa = 'rounded-xl border border-border bg-surface p-4 sm:p-6';
 
+// Contagem e tendência do painel 5.3.x. Os dados financeiros continuam vindo
+// da série MasterTrend calculada no controller, sem alterar a regra monetária.
+$contagemAbaCor = [
+    'success' => 'bg-success-soft text-success-ink',
+    'warning' => 'bg-warning-soft text-warning-ink',
+    'danger' => 'bg-danger-soft text-danger-ink',
+    'info' => 'bg-info-soft text-info-ink',
+    'progress' => 'bg-progress-soft text-progress-ink',
+    'neutral' => 'bg-neutral-soft text-neutral-ink',
+    'azulescuro' => 'bg-azulescuro-soft text-azulescuro-ink',
+    'roxo' => 'bg-roxo-soft text-roxo-ink',
+];
+$contagemAbaClasse = static fn (string $variante): string => 'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold leading-5 tabular-nums ' . ($contagemAbaCor[$variante] ?? $contagemAbaCor['neutral']);
+$saldoTrend = null;
+$saldoSpark = null;
+if ($pode['lancamentos'] && $pode['balanco'] && isset($balanco['saldo'], $ano) && (int) $ano === (int) date('Y')) {
+    $idxMes = (int) date('n') - 1;
+    $inicioMes = max(0, $idxMes - 5);
+    $trechoSaldo = array_slice($balanco['saldo'], $inicioMes, $idxMes - $inicioMes + 1);
+    $saldoSpark = count($trechoSaldo) >= 2 ? $trechoSaldo : null;
+    if ($idxMes > 0) {
+        $saldoTrend = tendenciaKpi($mes['saldo'], $balanco['saldo'][$idxMes - 1], true, 'vs. mês anterior');
+    }
+}
 $kpis = [];
 if ($pode['os']) {
     $aguardando = (int) ($os_por_status['Aguardando Peças'] ?? 0);
@@ -31,12 +55,16 @@ if ($pode['os']) {
         'label' => 'OS em andamento',
         'value' => painelSomar($os_por_status, PAINEL_OS_ANDAMENTO),
         'icon' => 'wrench',
+        'accent' => 'progress',
+        'href' => site_url('os') . listagemQuery(['status' => 'andamento']),
         'caption' => $aguardando === 0 ? 'Nenhuma aguardando peças' : $aguardando . ' aguardando peças',
     ]);
     $kpis[] = component('kpi-card', [
         'label' => 'Orçamentos',
         'value' => painelSomar($os_por_status, PAINEL_OS_ORCAMENTO),
         'icon' => 'file-text',
+        'accent' => 'info',
+        'href' => site_url('os') . listagemQuery(['status' => 'orcamento']),
         'caption' => 'Em orçamento ou negociação',
     ]);
 }
@@ -45,6 +73,8 @@ if ($pode['vendas']) {
         'label' => 'Vendas em aberto',
         'value' => painelSomar($vendas_por_status, PAINEL_VENDAS_ABERTAS),
         'icon' => 'shopping-cart',
+        'accent' => 'success',
+        'href' => site_url('vendas') . listagemQuery(['status' => 'abertas']),
         'caption' => 'Ainda não faturadas',
     ]);
 }
@@ -53,6 +83,8 @@ if ($pode['lancamentos']) {
         'label' => 'Saldo do mês',
         'value' => dinheiro($mes['saldo']),
         'icon' => 'circle-dollar-sign',
+        'accent' => 'info',
+        'href' => site_url('financeiro/lancamentos') . listagemQuery(['periodo' => 'mes']),
         'caption' => 'A receber: ' . dinheiro($visao_geral['a_receber']),
         'sensitive' => true,
     ]);
@@ -321,21 +353,15 @@ $radarMes = $radar_mes ?? date('Y-m');
                     <h2 id="titulo-lista-os" class="text-heading-sm text-text">OS em andamento</h2>
                     <?= component('button', ['label' => 'Ver todas', 'variant' => 'ghost', 'size' => 'sm', 'href' => site_url('os')]) ?>
                 </div>
-                <div class="mt-3">
-                    <?= component('data-table', [
-                        'caption' => 'OS em andamento, pela data de entrega',
-                        'dense' => true,
-                        'rows' => $os_lista,
-                        'columns' => [
-                            ['label' => 'Nº', 'align' => 'right', 'nowrap' => true, 'render' => fn ($o) => component('link', ['label' => (string) $o->idOs, 'href' => site_url('os/visualizar/' . (int) $o->idOs)])],
-                            ['label' => 'Cliente', 'class' => 'min-w-0 max-w-48', 'truncate' => true, 'render' => fn ($o) => nomeClienteExibicao($o->nomeCliente ?? 'Cliente removido')],
-                            ['label' => 'Entrega', 'align' => 'right', 'nowrap' => true, 'render' => fn ($o) => $o->dataFinal !== null && substr((string) $o->dataFinal, 0, 10) < $hoje
-                                ? component('pill-status', ['label' => 'Atrasada · ' . dataBr($o->dataFinal), 'variant' => 'warning'])
-                                : ($o->dataFinal !== null ? dataBr($o->dataFinal) : '—')],
-                            ['label' => 'Status', 'nowrap' => true, 'render' => fn ($o) => component('pill-status', osStatusPill($o->status))],
-                        ],
-                        'empty' => component('empty-state', ['title' => 'Nenhuma OS em andamento', 'message' => 'OS abertas, aprovadas, em andamento ou aguardando peças aparecem aqui.', 'icon' => 'wrench', 'class' => 'border-0']),
-                    ]) ?>
+                <div role="tablist" aria-label="Status das ordens de serviço" data-painel-abas="os" data-painel-url="<?= e(site_url('mapos/painelOs')) ?>" class="mt-3 flex gap-1 overflow-x-auto shadow-[inset_0_-1px_0_var(--color-border)] [scrollbar-width:none]">
+                    <?php foreach (painelStatusAbas(painelAbasStatus(PAINEL_OS_ABAS), $os_abas_contagem, $os_status_ativo) as $aba) { ?>
+                        <button type="button" role="tab" id="aba-os-<?= e(md5($aba['status'])) ?>" aria-selected="<?= $aba['active'] ? 'true' : 'false' ?>" aria-controls="painel-lista-os" tabindex="<?= $aba['active'] ? '0' : '-1' ?>" data-painel-aba data-status="<?= e($aba['status']) ?>" class="relative inline-flex items-center gap-2 whitespace-nowrap rounded-t-md px-3.5 py-3 text-[0.9375rem] leading-tight font-medium text-muted hover:text-text aria-selected:font-semibold aria-selected:text-text after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent aria-selected:after:bg-primary focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-ring">
+                            <?= e($aba['status']) ?><span class="<?= e($contagemAbaClasse($aba['variante'])) ?>" data-painel-aba-contagem="<?= e($aba['status']) ?>"><?= e((string) $aba['count']) ?></span>
+                        </button>
+                    <?php } ?>
+                </div>
+                <div id="painel-lista-os" role="tabpanel" aria-label="Lista de ordens de serviço" aria-live="polite" class="mt-3 min-h-40" data-painel-lista="os">
+                    <?php $this->load->view('mapos/partes/painel-os', ['os_lista' => $os_lista, 'hoje' => $hoje, 'acoes_os' => $acoes_os]); ?>
                 </div>
             </section>
         <?php } ?>
@@ -346,19 +372,15 @@ $radarMes = $radar_mes ?? date('Y-m');
                     <h2 id="titulo-lista-vendas" class="text-heading-sm text-text">Vendas em aberto</h2>
                     <?= component('button', ['label' => 'Ver todas', 'variant' => 'ghost', 'size' => 'sm', 'href' => site_url('vendas')]) ?>
                 </div>
-                <div class="mt-3">
-                    <?= component('data-table', [
-                        'caption' => 'Vendas em aberto, da mais recente',
-                        'dense' => true,
-                        'rows' => $vendas_lista,
-                        'columns' => [
-                            ['label' => 'Nº', 'align' => 'right', 'nowrap' => true, 'render' => fn ($v) => component('link', ['label' => (string) $v->idVendas, 'href' => site_url('vendas/visualizar/' . (int) $v->idVendas)])],
-                            ['label' => 'Cliente', 'class' => 'min-w-0 max-w-48', 'truncate' => true, 'render' => fn ($v) => nomeClienteExibicao($v->nomeCliente ?? 'Cliente removido')],
-                            ['label' => 'Data', 'align' => 'right', 'nowrap' => true, 'render' => fn ($v) => dataBr($v->dataVenda)],
-                            ['label' => 'Status', 'nowrap' => true, 'render' => fn ($v) => component('pill-status', osStatusPill($v->status))],
-                        ],
-                        'empty' => component('empty-state', ['title' => 'Nenhuma venda em aberto', 'message' => 'Vendas ainda não faturadas aparecem aqui.', 'icon' => 'shopping-cart', 'class' => 'border-0']),
-                    ]) ?>
+                <div role="tablist" aria-label="Status das vendas" data-painel-abas="vendas" data-painel-url="<?= e(site_url('mapos/painelVendas')) ?>" class="mt-3 flex gap-1 overflow-x-auto shadow-[inset_0_-1px_0_var(--color-border)] [scrollbar-width:none]">
+                    <?php foreach (painelStatusAbas(painelAbasStatus(PAINEL_VENDAS_ABAS), $vendas_por_status, $vendas_status_ativo) as $aba) { ?>
+                        <button type="button" role="tab" id="aba-vendas-<?= e(md5($aba['status'])) ?>" aria-selected="<?= $aba['active'] ? 'true' : 'false' ?>" aria-controls="painel-lista-vendas" tabindex="<?= $aba['active'] ? '0' : '-1' ?>" data-painel-aba data-status="<?= e($aba['status']) ?>" class="relative inline-flex items-center gap-2 whitespace-nowrap rounded-t-md px-3.5 py-3 text-[0.9375rem] leading-tight font-medium text-muted hover:text-text aria-selected:font-semibold aria-selected:text-text after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent aria-selected:after:bg-primary focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-ring">
+                            <?= e($aba['status']) ?><span class="<?= e($contagemAbaClasse($aba['variante'])) ?>"><?= e((string) $aba['count']) ?></span>
+                        </button>
+                    <?php } ?>
+                </div>
+                <div id="painel-lista-vendas" role="tabpanel" aria-label="Lista de vendas" aria-live="polite" class="mt-3 min-h-40" data-painel-lista="vendas">
+                    <?php $this->load->view('mapos/partes/painel-vendas', ['vendas_lista' => $vendas_lista, 'acoes_vendas' => $acoes_vendas]); ?>
                 </div>
             </section>
         <?php } ?>

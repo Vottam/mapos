@@ -4,13 +4,18 @@ namespace MercadoPago\Resources\Payment;
 
 use MercadoPago\Serialization\Mapper;
 
-/** Expanded class. */
+/**
+ * Represents expanded response data included in a payment when gateway mode is used.
+ *
+ * Contains additional gateway-level information such as network transaction references.
+ * Nested within {@see \MercadoPago\Resources\Payment} when expanded fields are requested.
+ */
 class Expanded
 {
-    /** Class mapper. */
+    /** Maps nested objects to their corresponding DTO classes. */
     use Mapper;
 
-    /** Gateway data. */
+    /** @var ExpandedGateway|null Gateway-specific response data including network references. */
     public ?object $gateway;
 
     private $map = [
@@ -25,32 +30,3 @@ class Expanded
         return $this->map;
     }
 }
-
-/** Gateway class for expanded response. */
-class ExpandedGateway
-{
-    /** Class mapper. */
-    use Mapper;
-
-    /** Reference data. */
-    public ?object $reference;
-
-    private $map = [
-        "reference" => "MercadoPago\Resources\Payment\ExpandedGatewayReference",
-    ];
-
-    /**
-     * Method responsible for getting map of entities.
-     */
-    public function getMap(): array
-    {
-        return $this->map;
-    }
-}
-
-/** GatewayReference class for expanded response. */
-class ExpandedGatewayReference
-{
-    /** Network transaction ID. */
-    public ?string $network_transaction_id;
-} 
