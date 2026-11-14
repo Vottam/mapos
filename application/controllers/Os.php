@@ -559,16 +559,32 @@ class Os extends MY_Controller
             // Verifica para poder fazer a devolução do produto para o estoque caso OS seja cancelada.
 
             $this->db->trans_begin();
+            $osBloqueada = $this->db->query(
+                'SELECT * FROM os WHERE idOs = ? FOR UPDATE',
+                [(int) $this->input->post('idOs')]
+            )->row();
+            $osTransacaoValida = $osBloqueada !== null;
+            if ($osTransacaoValida) {
+                $os = $osBloqueada;
+                $statusAnterior = $os->status;
+            }
+
             $transacaoOk = false;
-            if (strtolower($this->input->post('status')) == 'cancelado' && strtolower($os->status) != 'cancelado') {
-                $this->devolucaoEstoque($this->input->post('idOs'));
+            $estoqueTransacaoOk = $osTransacaoValida;
+            if ($estoqueTransacaoOk && strtolower($this->input->post('status')) == 'cancelado' && strtolower($os->status) != 'cancelado') {
+                $estoqueTransacaoOk = $this->devolucaoEstoque($this->input->post('idOs'));
             }
 
-            if (strtolower($os->status) == 'cancelado' && strtolower($this->input->post('status')) != 'cancelado') {
-                $this->debitarEstoque($this->input->post('idOs'));
+            if ($estoqueTransacaoOk && strtolower($os->status) == 'cancelado' && strtolower($this->input->post('status')) != 'cancelado') {
+                $estoqueTransacaoOk = $this->debitarEstoque($this->input->post('idOs'));
             }
 
-            if ($this->os_model->edit('os', $data, 'idOs', $this->input->post('idOs')) == true) {
+            if (! $estoqueTransacaoOk) {
+                $this->db->trans_rollback();
+                $this->data['custom_error'] = $osTransacaoValida
+                    ? '<div class="form_error"><p>Não há estoque suficiente para reabrir a OS. A transação foi revertida.</p></div>'
+                    : '<div class="form_error"><p>A OS não está mais disponível. A transação foi revertida.</p></div>';
+            } elseif ($this->os_model->edit('os', $data, 'idOs', $this->input->post('idOs')) == true) {
                 $equipamentoResultado = true;
                 if (! $entregaSomenteStatus) {
                     $equipamentoResultado = $this->salvarOuVincularEquipamentoOs($this->input->post('idOs'), $clienteId, $equipamentoData, $equipamentoSelecionado, $this->data['equipamento'], $serialInternoSugerido);
@@ -1122,30 +1138,74 @@ class Os extends MY_Controller
         redirect(site_url('os'));
     }
 
-    private function devolucaoEstoque($id)
+    private function devolucaoEstoque($id): bool
     {
-        if ($produtos = $this->os_model->getProdutos($id)) {
-            $this->load->model('produtos_model');
-            if ($this->data['configuration']['control_estoque']) {
-                foreach ($produtos as $p) {
-                    $this->produtos_model->updateEstoque($p->produtos_id, $p->quantidade, '+');
-                    log_info('ESTOQUE: Produto id ' . $p->produtos_id . ' voltou ao estoque. Quantidade: ' . $p->quantidade . '. Motivo: Cancelamento/Exclusão');
-                }
-            }
+        if (! $this->data['configuration']['control_estoque']) {
+            return true;
         }
+
+        $produtos = $this->db->query(
+            'SELECT po.produtos_id, SUM(po.quantidade) AS quantidade
+             FROM produtos_os po
+             INNER JOIN produtos p ON p.idProdutos = po.produtos_id
+             WHERE po.os_id = ?
+             GROUP BY po.produtos_id
+             ORDER BY po.produtos_id
+             FOR UPDATE',
+            [$id]
+        )->result();
+
+        foreach ($produtos as $p) {
+            $dbDebug = $this->db->db_debug;
+            $this->db->db_debug = false;
+            $atualizado = $this->db->query(
+                'UPDATE produtos SET estoque = estoque + ? WHERE idProdutos = ?',
+                [(float) $p->quantidade, (int) $p->produtos_id]
+            );
+            $this->db->db_debug = $dbDebug;
+            if ($atualizado === false || $this->db->affected_rows() !== 1) {
+                return false;
+            }
+            log_info('ESTOQUE: Produto id ' . $p->produtos_id . ' voltou ao estoque. Quantidade: ' . $p->quantidade . '. Motivo: Cancelamento/Exclusão');
+        }
+
+        return true;
     }
 
-    private function debitarEstoque($id)
+    private function debitarEstoque($id): bool
     {
-        if ($produtos = $this->os_model->getProdutos($id)) {
-            $this->load->model('produtos_model');
-            if ($this->data['configuration']['control_estoque']) {
-                foreach ($produtos as $p) {
-                    $this->produtos_model->updateEstoque($p->produtos_id, $p->quantidade, '-');
-                    log_info('ESTOQUE: Produto id ' . $p->produtos_id . ' baixa do estoque. Quantidade: ' . $p->quantidade . '. Motivo: Mudou status que já estava Cancelado para outro');
-                }
-            }
+        if (! $this->data['configuration']['control_estoque']) {
+            return true;
         }
+
+        $produtos = $this->db->query(
+            'SELECT po.produtos_id, p.estoque, SUM(po.quantidade) AS quantidade
+             FROM produtos_os po
+             INNER JOIN produtos p ON p.idProdutos = po.produtos_id
+             WHERE po.os_id = ?
+             GROUP BY po.produtos_id, p.estoque
+             ORDER BY po.produtos_id
+             FOR UPDATE',
+            [$id]
+        )->result();
+
+        foreach ($produtos as $p) {
+            $dbDebug = $this->db->db_debug;
+            $this->db->db_debug = false;
+            $atualizado = $this->db->query(
+                'UPDATE produtos
+                 SET estoque = estoque - ?
+                 WHERE idProdutos = ? AND estoque >= ?',
+                [(float) $p->quantidade, (int) $p->produtos_id, (float) $p->quantidade]
+            );
+            $this->db->db_debug = $dbDebug;
+            if ($atualizado === false || $this->db->affected_rows() !== 1) {
+                return false;
+            }
+            log_info('ESTOQUE: Produto id ' . $p->produtos_id . ' baixa do estoque. Quantidade: ' . $p->quantidade . '. Motivo: Mudou status que já estava Cancelado para outro');
+        }
+
+        return true;
     }
 
     public function excluir()
@@ -1177,10 +1237,21 @@ class Os extends MY_Controller
         $osStockRefund = $this->os_model->getById($id);
         $anexos = $this->os_model->getAnexos($id);
         $this->db->trans_begin();
+        $osStockRefund = $this->db->query(
+            'SELECT * FROM os WHERE idOs = ? FOR UPDATE',
+            [(int) $id]
+        )->row();
+        if ($osStockRefund === null) {
+            $this->db->trans_rollback();
+            $this->session->set_flashdata('error', 'A OS não está mais disponível para exclusão.');
+            redirect(site_url('os/gerenciar/'));
+        }
 
         //Verifica para poder fazer a devolução do produto para o estoque caso OS seja excluida.
-        if (strtolower($osStockRefund->status) != 'cancelado') {
-            $this->devolucaoEstoque($id);
+        if (strtolower($osStockRefund->status) != 'cancelado' && ! $this->devolucaoEstoque($id)) {
+            $this->db->trans_rollback();
+            $this->session->set_flashdata('error', 'Não foi possível devolver o estoque da OS. A exclusão foi revertida.');
+            redirect(site_url('os/gerenciar/'));
         }
 
         $this->os_model->delete('servicos_os', 'os_id', $id);

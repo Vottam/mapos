@@ -235,6 +235,69 @@ public function listar(array $filtros, int $limite, int $offset): array
         return $this->db->get()->result();
     }
 
+    /**
+     * Itens de uma venda já bloqueada pelo chamador. A leitura é feita com
+     * bloqueio para manter a quantidade real até o fim da transação.
+     */
+    public function getItensParaMovimentarEstoque(int $idVenda): array
+    {
+        return $this->db->query(
+            'SELECT idItens, produtos_id, quantidade FROM itens_de_vendas WHERE vendas_id = ? ORDER BY produtos_id ASC, idItens ASC FOR UPDATE',
+            [$idVenda]
+        )->result();
+    }
+
+    /**
+     * Movimenta o estoque dos itens de uma venda na transação do chamador.
+     * Produtos são agregados e bloqueados em ordem determinística para evitar
+     * dupla devolução e reduzir deadlocks entre vendas concorrentes.
+     */
+    public function movimentarEstoqueVenda(array $itens, string $operacao): bool
+    {
+        if (! in_array($operacao, ['+', '-'], true)) {
+            return false;
+        }
+
+        $porProduto = [];
+        foreach ($itens as $item) {
+            $produto = (int) ($item->produtos_id ?? 0);
+            $quantidade = (int) ($item->quantidade ?? 0);
+            if ($produto <= 0 || $quantidade <= 0) {
+                return false;
+            }
+            $porProduto[$produto] = ($porProduto[$produto] ?? 0) + $quantidade;
+        }
+        ksort($porProduto, SORT_NUMERIC);
+
+        foreach ($porProduto as $produto => $quantidade) {
+            $existente = $this->db->query(
+                'SELECT idProdutos FROM produtos WHERE idProdutos = ? FOR UPDATE',
+                [$produto]
+            )->row();
+            if (! $existente) {
+                return false;
+            }
+
+            if ($operacao === '+') {
+                $sucesso = $this->db->query(
+                    'UPDATE produtos SET estoque = estoque + ? WHERE idProdutos = ?',
+                    [$quantidade, $produto]
+                );
+            } else {
+                $sucesso = $this->db->query(
+                    'UPDATE produtos SET estoque = estoque - ? WHERE idProdutos = ? AND estoque >= ?',
+                    [$quantidade, $produto, $quantidade]
+                );
+            }
+
+            if ($sucesso === false || $this->db->affected_rows() !== 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function getCobrancas($id = null)
     {
         $this->db->select('cobrancas.*');
@@ -367,6 +430,126 @@ public function listar(array $filtros, int $limite, int $offset): array
             ->setMerchantCity($emitente->cidade);
 
         return $pix->getQRCode();
+    }
+
+    /**
+     * Totais da venda para a tela moderna (osTotais(), sem serviços): produtos,
+     * desconto e total, calculados pelos itens e pelo desconto gravado.
+     */
+    public function totais(object $venda): array
+    {
+        $this->load->helper(['os', 'vendas', 'general']);
+
+        $soma = (float) ($this->db
+            ->select_sum('subTotal')
+            ->where('vendas_id', (int) $venda->idVendas)
+            ->get('itens_de_vendas')
+            ->row()->subTotal ?? 0);
+
+        $descontoItens = osDescontoDosItens($this->getProdutos((int) $venda->idVendas));
+
+        return osTotais($soma, 0.0, $venda->valor_desconto ?? 0, $venda->tipo_desconto ?? null, $venda->desconto ?? 0, $descontoItens);
+    }
+
+    /**
+     * Diz se as colunas do desconto por item existem. Instalações que ainda
+     * não rodaram as migrations continuam funcionando, só sem esse desconto.
+     */
+    public function descontoPorItemDisponivel(): bool
+    {
+        return $this->db->field_exists('desconto', 'itens_de_vendas');
+    }
+
+    /** Linha de itens_de_vendas que pertence à venda, ou null. */
+    public function getProdutoDaVenda(int $idVenda, int $idItem): ?object
+    {
+        return $this->db->where('idItens', $idItem)->where('vendas_id', $idVenda)->get('itens_de_vendas', 1)->row() ?: null;
+    }
+
+    /** Produto do cadastro (para conferir o id escolhido e o estoque), ou null. */
+    public function getProdutoCadastro(int $id): ?object
+    {
+        return $this->db->select('idProdutos, descricao, precoVenda, precoCompra, estoque')->where('idProdutos', $id)->get('produtos', 1)->row() ?: null;
+    }
+
+    /**
+     * Diz se existe o registro com o id, para conferir os ids escolhidos nos
+     * autocompletes antes de gravar a venda. Com $ativo, só usuários ativos.
+     */
+    public function existe(string $tabela, string $chave, int $id, bool $ativo = false): bool
+    {
+        $this->db->where($chave, $id);
+        if ($ativo) {
+            $this->db->where('situacao', 1);
+        }
+
+        return $this->db->count_all_results($tabela) > 0;
+    }
+
+    /**
+     * Tira o desconto da venda. Mudar os itens muda o total, e o desconto
+     * antigo (calculado sobre o total anterior) deixaria de bater, como na v4.
+     */
+    public function zerarDesconto(int $idVenda): void
+    {
+        $this->db->set('desconto', 0)->set('valor_desconto', 0)->set('tipo_desconto', null)->where('idVendas', $idVenda)->update('vendas');
+    }
+
+    /**
+     * Código PIX "copia e cola" (BR Code) da venda: o mesmo payload do QR Code
+     * de getQrCode().
+     */
+    public function getPixPayload($id, $pixKey, $emitente): ?string
+    {
+        return $this->pix($id, $pixKey, $emitente)?->getPixCode();
+    }
+
+    /**
+     * PIX estático com o total da venda (com o desconto, quando houver); null
+     * sem chave, sem emitente ou com total zerado.
+     */
+    private function pix($id, $pixKey, $emitente): ?StaticPayload
+    {
+        if (empty($id) || empty($pixKey) || empty($emitente)) {
+            return null;
+        }
+
+        $this->load->helper(['os', 'vendas', 'general']);
+
+        $venda = $this->getById($id);
+        $amount = $venda ? round($this->totais($venda)['total'], 2) : 0.0;
+
+        if ($amount <= 0) {
+            return null;
+        }
+
+        $pix = new StaticPayload();
+        $pix
+            ->setAmount($amount)
+            ->setTid($id)
+            ->setDescription(sprintf('%s Venda %s', substr($emitente->nome, 0, 18), $id), true)
+            ->setPixKey(getPixKeyType($pixKey), $pixKey)
+            ->setMerchantName($emitente->nome)
+            ->setMerchantCity($emitente->cidade);
+
+        return $pix;
+    }
+
+    /**
+     * Apaga o lançamento da fatura de uma venda excluída: pelo vínculo
+     * vendas.lancamentos_id (que o faturar sempre gravou) e pelas descrições
+     * conhecidas (ver vendaDescricoesDaFatura()). Chamar depois de apagar a
+     * venda: vendas.lancamentos_id tem chave estrangeira para o lançamento.
+     */
+    public function excluirFatura(int $idVenda, ?int $idLancamento): void
+    {
+        $this->load->helper('vendas');
+
+        if ($idLancamento) {
+            $this->db->where('idLancamentos', $idLancamento)->delete('lancamentos');
+        }
+
+        $this->db->where('vendas_id', $idVenda)->where_in('descricao', vendaDescricoesDaFatura($idVenda))->delete('lancamentos');
     }
 
     public function getTotalVendas($idVendas)

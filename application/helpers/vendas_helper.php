@@ -130,7 +130,7 @@ if (! function_exists('vendaValoresDoFormulario')) {
      */
     function vendaValoresDoFormulario(?array $post, ?object $venda, array $padrao = []): array
     {
-        $campos = ['cliente', 'clientes_id', 'vendedor', 'usuarios_id', 'status', 'dataVenda', 'garantia', ...VENDA_CAMPOS_TEXTO];
+        $campos = ['cliente', 'clientes_id', 'vendedor', 'usuarios_id', 'status', 'dataVenda', 'garantia', 'cliente_documento', ...VENDA_CAMPOS_TEXTO];
 
         if ($post !== null) {
             $valores = [];
@@ -150,6 +150,7 @@ if (! function_exists('vendaValoresDoFormulario')) {
                 'status' => (string) ($venda->status ?? ''),
                 'dataVenda' => osDataParaCampo($venda->dataVenda ?? null),
                 'garantia' => (string) ($venda->garantia ?? ''),
+                'cliente_documento' => '',
             ];
             foreach (VENDA_CAMPOS_TEXTO as $campo) {
                 $valores[$campo] = osTextoParaEdicao($venda->{$campo} ?? null);

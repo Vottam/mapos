@@ -54,8 +54,9 @@ $texto = static fn (string $nome, string $label, ?string $ajuda = null) => [
 ];
 
 $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STATUS_VARIANTES));
+$urlPath = static fn (string $url): string => (string) (parse_url($url, PHP_URL_PATH) ?: $url);
 ?>
-<div class="flex max-w-4xl flex-col gap-4 pt-2 pb-8" <?= js_module('vendas/formulario') ?>>
+<div class="flex max-w-4xl flex-col gap-4 pt-2 pb-8" <?= js_module('vendas/formulario') ?> data-documento-busca="<?= e($urlPath(site_url('clientes/buscarPorDocumento'))) ?>">
     <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="flex flex-col gap-1">
             <div class="flex flex-wrap items-center gap-3">
@@ -91,7 +92,27 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-responsaveis">
             <h2 id="secao-responsaveis" class="text-heading-sm text-text">Cliente e vendedor</h2>
             <div class="<?= e($grade) ?>">
-                <div<?= componenteAtributos($wrapper(site_url('os/autoCompleteCliente'), 'clientes_id', $pode['cadastrar_cliente'] ? [
+            <div class="sm:col-span-2 rounded-lg border border-border-subtle bg-surface-subtle p-3" data-os-documento>
+                <?= component('input', [
+                    'name' => 'cliente_documento',
+                    'label' => 'CPF ou CNPJ do comprador',
+                    'value' => ($valores['cliente_documento'] ?? '') !== '' ? $valores['cliente_documento'] : null,
+                    'placeholder' => 'Digite o documento para identificar o cliente',
+                    'attrs' => [
+                        'data-mascara' => 'documento',
+                        'maxlength' => 20,
+                        'inputmode' => 'numeric',
+                        'autocomplete' => 'off',
+                        'autofocus' => ! $editando,
+                        'data-msg-invalido' => 'Informe um CPF ou CNPJ com 11 ou 14 dígitos.',
+                    ],
+                ]) ?>
+                <div class="mt-2 flex flex-wrap items-center gap-2" data-documento-status aria-live="polite"></div>
+                <?php if ($pode['cadastrar_cliente']) { ?>
+                    <?= component('button', ['label' => 'Cadastrar novo cliente', 'icon' => 'plus', 'variant' => 'outline', 'type' => 'button', 'class' => 'hidden', 'attrs' => ['data-documento-novo' => true]]) ?>
+                <?php } ?>
+            </div>
+                <div<?= componenteAtributos($wrapper($urlPath(site_url('os/autoCompleteCliente')), 'clientes_id', $pode['cadastrar_cliente'] ? [
                     'data-autocomplete-novo' => site_url('clientes/adicionar'),
                     'data-autocomplete-novo-modal' => 'cliente-rapido',
                     'data-autocomplete-novo-rotulo' => 'Cadastrar novo cliente',

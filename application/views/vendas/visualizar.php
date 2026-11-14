@@ -173,7 +173,6 @@ $textos = $campos([
                 <div class="lg:pt-7">
                     <?= component('button', ['label' => 'Adicionar', 'icon' => 'plus', 'variant' => 'outline', 'type' => 'submit', 'attrs' => ['data-rotulo-carregando' => 'Adicionando…']]) ?>
                 </div>
-                <?php $this->load->view('os/partes/desconto-item-campos'); ?>
             </form>
         </section>
     <?php } ?>
@@ -185,6 +184,7 @@ $textos = $campos([
 
     <div data-os-parte="desconto"><?php $this->load->view('vendas/partes/desconto'); ?></div>
     <div data-os-parte="pix"><?php $this->load->view('vendas/partes/pix'); ?></div>
+    <div data-os-parte="faturar"><?php $this->load->view('vendas/partes/faturar'); ?></div>
 </div>
 
 <?php
@@ -224,39 +224,6 @@ if ($pode['itens']) { ?>
         'message' => 'A venda e os produtos dela serão removidos' . ($controle_estoque && ! $cancelada ? ', e as quantidades voltam ao estoque' : '') . '.' . ((int) $venda->faturado === 1 ? ' O lançamento da fatura também sai do financeiro.' : '') . ' Essa ação não pode ser desfeita.',
         'confirm_label' => 'Excluir venda',
         'confirm_attrs' => ['form' => 'form-excluir-venda'],
-    ]) ?>
-<?php } ?>
-
-<?php if ($pode['faturar']) { ?>
-    <form id="form-faturar" method="post" action="<?= e(site_url('vendas/faturar')) ?>" novalidate hidden data-os-acao="faturar">
-        <input type="hidden" name="idVendas" value="<?= e($idVenda) ?>">
-    </form>
-    <?= component('modal', [
-        'id' => 'faturar-venda',
-        'title' => 'Faturar venda #' . $idVenda,
-        'body' => [
-            component('alert', [
-                'variant' => $totais['total'] > 0 ? 'info' : 'warning',
-                'message' => $totais['total'] > 0
-                    ? 'Será lançada uma receita de ' . dinheiro($totais['total']) . ($totais['desconto'] > 0 ? ' (' . dinheiro($totais['bruto']) . ' menos ' . dinheiro($totais['desconto']) . ' de desconto)' : '') . ' para ' . $venda->nomeCliente . '. A venda passa a Faturado e não pode mais ser alterada.'
-                    : 'Adicione produtos antes de faturar.',
-            ]),
-            new HtmlSeguro('<div class="mt-4 grid gap-4 sm:grid-cols-2">'),
-            new HtmlSeguro('<div class="sm:col-span-2">'),
-            component('input', ['name' => 'descricao', 'id' => 'fatura-descricao', 'label' => 'Descrição', 'value' => 'Fatura de Venda Nº: ' . $idVenda, 'required' => true, 'attrs' => ['form' => 'form-faturar', 'maxlength' => '255', 'data-msg-vazio' => 'Informe a descrição do lançamento.']]),
-            new HtmlSeguro('</div>'),
-            component('input', ['name' => 'vencimento', 'id' => 'fatura-vencimento', 'label' => 'Vencimento', 'type' => 'date', 'value' => date('Y-m-d'), 'required' => true, 'attrs' => ['form' => 'form-faturar', 'data-msg-vazio' => 'Informe o vencimento.']]),
-            component('select', ['name' => 'formaPgto', 'id' => 'fatura-forma', 'label' => 'Forma de pagamento', 'options' => array_combine(OS_FORMAS_PAGAMENTO, OS_FORMAS_PAGAMENTO), 'placeholder' => 'Escolha', 'required' => true, 'attrs' => ['form' => 'form-faturar', 'data-msg-vazio' => 'Escolha a forma de pagamento.']]),
-            component('checkbox', ['name' => 'recebido', 'id' => 'fatura-recebido', 'label' => 'Já foi recebido', 'help' => 'Marca o lançamento como pago.', 'attrs' => ['form' => 'form-faturar', 'data-os-recebido' => 'fatura-recebimento']]),
-            component('input', ['name' => 'recebimento', 'id' => 'fatura-recebimento', 'label' => 'Data do recebimento', 'type' => 'date', 'value' => date('Y-m-d'), 'disabled' => true, 'help' => 'Habilitada ao marcar "Já foi recebido".', 'attrs' => ['form' => 'form-faturar', 'data-msg-vazio' => 'Informe a data do recebimento.']]),
-            new HtmlSeguro('<div class="sm:col-span-2">'),
-            component('textarea', ['name' => 'observacoes', 'id' => 'fatura-observacoes', 'label' => 'Observações', 'rows' => 2, 'attrs' => ['form' => 'form-faturar']]),
-            new HtmlSeguro('</div></div>'),
-        ],
-        'footer' => [
-            component('button', ['label' => 'Cancelar', 'variant' => 'ghost', 'attrs' => ['data-modal-fechar' => true]]),
-            component('button', ['label' => 'Faturar', 'icon' => 'circle-dollar-sign', 'type' => 'submit', 'disabled' => $totais['total'] <= 0, 'attrs' => ['form' => 'form-faturar', 'data-rotulo-carregando' => 'Faturando…']]),
-        ],
     ]) ?>
 <?php } ?>
 

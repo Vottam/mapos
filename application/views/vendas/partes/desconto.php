@@ -16,6 +16,21 @@ if (! $pode['editar']) {
 }
 
 $valorAtual = $totais['desconto'] > 0 ? rtrim(rtrim(number_format($totais['informado'], 2, ',', ''), '0'), ',') : null;
+
+// Venda com desconto por item (histórico/legado): não oferece desconto geral
+// cumulativo. O backend também recusa (Vendas::adicionarDesconto). A remoção
+// dos descontos por item é feita um a um pelo modal do item (valor 0).
+if ($totais['descontoItens'] > 0) { ?>
+<section class="rounded-xl border border-border bg-surface p-4 sm:p-6" aria-labelledby="secao-desconto">
+    <h2 id="secao-desconto" class="text-heading-sm text-text">Desconto</h2>
+    <?= component('alert', [
+        'variant' => 'warning',
+        'message' => 'Esta venda tem descontos por item (total de ' . dinheiro($totais['descontoItens']) . '). Remova os descontos dos itens antes de aplicar um desconto geral — eles não se acumulam.',
+    ]) ?>
+</section>
+<?php
+    return;
+}
 ?>
 <section class="rounded-xl border border-border bg-surface p-4 sm:p-6" aria-labelledby="secao-desconto">
     <h2 id="secao-desconto" class="text-heading-sm text-text">Desconto</h2>

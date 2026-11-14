@@ -313,7 +313,7 @@ if (! function_exists('layoutAssetVersion')) {
      */
     function layoutAssetVersion(): string
     {
-        return 'mapos-ui-sync-20261110-r1';
+        return 'mapos-ui-sync-20261113-r2';
     }
 }
 
