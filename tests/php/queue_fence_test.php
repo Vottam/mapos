@@ -339,13 +339,13 @@ if ($scenario === 'missing' || $scenario === 'invalid') {
     $email->retry_queue();
     $rows = $db->rows();
     foreach ($rows as $row) $byId[$row['id']] = $row;
-    assert_true($byId[453]['status'] === 'sending', 'sending row above fence must remain manual-only');
+    assert_true($byId[453]['status'] === 'pending', 'expired sending row above fence must be retryable');
     assert_true($byId[454]['status'] === 'pending', 'new failed row above fence must remain retryable');
     $email->send_queue();
     $rows = $db->rows();
     foreach ($rows as $row) $byId[$row['id']] = $row;
-    assert_true($byId[454]['status'] === 'sent', 'new failed row must remain eligible after retry release');
-    assert_true(CI_Email::$sendCount === 3, 'only two pending and one explicitly failed row may use the sink');
+    assert_true($byId[453]['status'] === 'sent' && $byId[454]['status'] === 'sent', 'expired sending and failed rows remain eligible after retry release');
+    assert_true(CI_Email::$sendCount === 4, 'two pending rows plus expired sending and failed rows may use the isolated sink');
     assert_true($byId[427]['status'] === 'failed', 'failed row at fence must remain frozen');
 } else {
     fail('unknown scenario');

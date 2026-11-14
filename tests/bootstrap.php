@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+if (! defined('APPPATH')) {
+    define('APPPATH', dirname(__DIR__) . '/application/');
+}
+
 if (! function_exists('html_escape')) {
     function html_escape($var, bool $double_encode = true): string
     {

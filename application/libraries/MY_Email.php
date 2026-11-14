@@ -44,6 +44,7 @@ class MY_Email extends CI_Email
         $this->expiration = 60 * 5;
         $this->CI = &get_instance();
 
+        $this->load_email_fence_helper();
         $this->CI->load->database('default');
     }
 
@@ -81,6 +82,12 @@ class MY_Email extends CI_Email
      */
     public function send($skip_job = false)
     {
+        if ($this->external_delivery_forbidden()) {
+            log_message('error', 'STAGING email fence: envio externo bloqueado antes do transporte.');
+
+            return false;
+        }
+
         if ($skip_job === true) {
             return parent::send();
         }
@@ -113,10 +120,32 @@ class MY_Email extends CI_Email
      */
     public function start_process()
     {
+        if ($this->external_delivery_forbidden()) {
+            log_message('error', 'STAGING email fence: worker externo não pode ser iniciado.');
+
+            return false;
+        }
+
         $filename = FCPATH . 'index.php';
         $exec = shell_exec("{$this->phpcli} {$filename} {$this->main_controller} > /dev/null &");
 
         return $exec;
+    }
+
+    private function load_email_fence_helper(): void
+    {
+        $helper = APPPATH . 'helpers/email_fence_helper.php';
+        if (is_file($helper)) {
+            require_once $helper;
+        }
+    }
+
+    private function external_delivery_forbidden(): bool
+    {
+        $this->load_email_fence_helper();
+
+        return function_exists('mapos_email_external_delivery_forbidden')
+            && mapos_email_external_delivery_forbidden();
     }
 
     /**
@@ -211,6 +240,12 @@ class MY_Email extends CI_Email
      */
     public function send_queue()
     {
+        if ($this->external_delivery_forbidden()) {
+            log_message('error', 'STAGING email fence: processamento da fila bloqueado antes de selecionar ou alterar registros.');
+
+            return;
+        }
+
         $idExclusive = $this->queue_fence();
 
         if ($idExclusive === null) {
@@ -275,6 +310,12 @@ class MY_Email extends CI_Email
      */
     public function retry_queue()
     {
+        if ($this->external_delivery_forbidden()) {
+            log_message('error', 'STAGING email fence: retry da fila bloqueado antes de alterar registros.');
+
+            return;
+        }
+
         $idExclusive = $this->queue_fence();
 
         if ($idExclusive === null) {

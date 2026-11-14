@@ -5,6 +5,11 @@ class Email_model extends CI_Model
     public function __construct()
     {
         parent::__construct();
+
+        $helper = APPPATH . 'helpers/email_fence_helper.php';
+        if (is_file($helper)) {
+            require_once $helper;
+        }
     }
 
     /**
@@ -67,6 +72,15 @@ class Email_model extends CI_Model
 
     public function add($table, $data)
     {
+        if ($table === 'email_queue'
+            && function_exists('mapos_email_external_delivery_forbidden')
+            && mapos_email_external_delivery_forbidden()
+        ) {
+            log_message('error', 'STAGING email fence: enfileiramento externo bloqueado antes do INSERT em email_queue.');
+
+            return false;
+        }
+
         $this->db->insert($table, $data);
         if ($this->db->affected_rows() == '1') {
             return true;
