@@ -177,6 +177,7 @@ $config['permissions_map'] = [
         'faturar' => 'eOs',
         'adicionarAnotacao' => 'eOs',
         'excluirAnotacao' => 'eOs',
+        'alterarGarantiaItem' => 'eOs',
         'excluir' => 'dOs',
         'autoCompleteProduto' => ['aOs', 'eOs'],
         'autoCompleteTermoGarantia' => ['aOs', 'eOs'],
@@ -281,6 +282,7 @@ $config['permissions_map'] = [
         'adicionarDesconto' => 'eVenda',
         'faturar' => 'eVenda',
         'excluir' => 'dVenda',
+        'alterarGarantiaItem' => 'eVenda',
         // Auxiliares da geração do QR Code do PIX. Não são rotas.
         'validarCPF' => false,
         'validarCNPJ' => false,
