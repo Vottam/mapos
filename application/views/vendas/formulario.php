@@ -145,7 +145,7 @@ $urlPath = static fn (string $url): string => (string) (parse_url($url, PHP_URL_
         </section>
 
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-situacao">
-            <h2 id="secao-situacao" class="text-heading-sm text-text">Situação e garantia</h2>
+            <h2 id="secao-situacao" class="text-heading-sm text-text"><?= e($editando && ($venda->garantia_modelo ?? null) !== 'por_item' ? 'Situação e garantia histórica' : 'Situação') ?></h2>
             <div class="<?= e($grade) ?>">
                 <?= component('select', [
                     'name' => 'status',
@@ -165,15 +165,19 @@ $urlPath = static fn (string $url): string => (string) (parse_url($url, PHP_URL_
                     'error' => $errosDeCampo['dataVenda'] ?? null,
                     'attrs' => ['data-msg-vazio' => 'Informe a data da venda.'],
                 ]) ?>
-                <?= component('input', [
-                    'name' => 'garantia',
-                    'label' => 'Garantia (dias)',
-                    'type' => 'number',
-                    'value' => $valores['garantia'] !== '' ? $valores['garantia'] : null,
-                    'error' => $errosDeCampo['garantia'] ?? null,
-                    'help' => 'Em branco ou 0 quando não há garantia. Conta a partir da data da venda.',
-                    'attrs' => ['min' => 0, 'max' => 9999, 'step' => 1, 'inputmode' => 'numeric', 'data-msg-invalido' => 'Informe a garantia em dias, de 0 a 9999.'],
-                ]) ?>
+                <?php if ($editando && ($venda->garantia_modelo ?? null) !== 'por_item') { ?>
+                    <?= component('input', [
+                        'name' => 'garantia',
+                        'label' => 'Garantia histórica (dias)',
+                        'type' => 'number',
+                        'value' => $valores['garantia'] !== '' ? $valores['garantia'] : null,
+                        'error' => $errosDeCampo['garantia'] ?? null,
+                        'help' => 'Campo legado da venda histórica. Prazos por item não são representados por este valor.',
+                        'attrs' => ['min' => 0, 'step' => 1, 'inputmode' => 'numeric'],
+                    ]) ?>
+                <?php } else { ?>
+                    <p class="sm:col-span-2 text-caption text-muted">A garantia comercial é registrada individualmente em cada item. Os direitos legais permanecem aplicáveis e não são somados automaticamente.</p>
+                <?php } ?>
             </div>
         </section>
 

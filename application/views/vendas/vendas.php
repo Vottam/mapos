@@ -24,6 +24,9 @@ $colunas = [
     ['key' => 'vendedor', 'label' => 'Vendedor', 'nowrap' => true, 'hide_until' => '2xl'],
     ['label' => 'Data', 'align' => 'right', 'nowrap' => true, 'hide_until' => 'lg', 'render' => fn ($v) => dataBr($v->dataVenda)],
     ['label' => 'Garantia', 'nowrap' => true, 'hide_until' => '2xl', 'render' => function ($v) {
+        if (($v->garantia_modelo ?? null) === 'por_item') {
+            return 'Por item';
+        }
         $garantia = vendaGarantiaPill(vendaGarantiaAte($v->dataVenda, $v->garantia));
 
         return $garantia !== null ? component('pill-status', $garantia) : 'Sem garantia';

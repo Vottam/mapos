@@ -71,12 +71,16 @@
                         foreach ($os as $o) {
                             $vencGarantia = '';
 
-                            if ($o->garantia && is_numeric($o->garantia)) {
+                            if (($o->garantia_modelo ?? null) === 'por_item') {
+                                $vencGarantia = 'Por item';
+                            } elseif ($o->garantia && is_numeric($o->garantia)) {
                                 $garantiaAte = osVencimentoGarantia($o->dataFinal, $o->garantia, $o->status, $o->dataEntrega ?? null);
                                 $vencGarantia = $garantiaAte ? date('d/m/Y', strtotime($garantiaAte)) : '';
                             }
                             $corGarantia = '';
-                            if (!empty($vencGarantia)) {
+                            if (($o->garantia_modelo ?? null) === 'por_item') {
+                                $corGarantia = '';
+                            } elseif (!empty($vencGarantia)) {
                                 $dataGarantia = explode('/', $vencGarantia);
                                 $dataGarantiaFormatada = $dataGarantia[2] . '-' . $dataGarantia[1] . '-' . $dataGarantia[0];
                                 if (strtotime($dataGarantiaFormatada) >= strtotime(date('d-m-Y'))) {
@@ -180,11 +184,15 @@
                 foreach ($compras as $c) {
                     $vencGarantia = '';
 
-                    if ($c->garantia && is_numeric($c->garantia)) {
+                    if (($c->garantia_modelo ?? null) === 'por_item') {
+                        $vencGarantia = 'Por item';
+                    } elseif ($c->garantia && is_numeric($c->garantia)) {
                         $vencGarantia = dateInterval($c->dataVenda, $c->garantia);
                     }
                     $corGarantia = '';
-                    if (!empty($vencGarantia)) {
+                    if (($c->garantia_modelo ?? null) === 'por_item') {
+                        $corGarantia = '';
+                    } elseif (!empty($vencGarantia)) {
                         $dataGarantia = explode('/', $vencGarantia);
                         $dataGarantiaFormatada = $dataGarantia[2] . '-' . $dataGarantia[1] . '-' . $dataGarantia[0];
                         if (strtotime($dataGarantiaFormatada) >= strtotime(date('d-m-Y'))) {

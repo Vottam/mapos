@@ -70,6 +70,7 @@ class Servicos extends MY_Controller
                 'nome' => set_value('nome'),
                 'descricao' => set_value('descricao'),
                 'preco' => $preco,
+                'garantia_dias' => $this->input->post('garantia_dias'),
             ];
 
             if ($this->servicos_model->add('servicos', $data) == true) {
@@ -85,6 +86,7 @@ class Servicos extends MY_Controller
             'nome' => '',
             'preco' => '',
             'descricao' => '',
+            'garantia_dias' => '90',
         ], (array) $this->input->post());
         $this->data['erros'] = $this->form_validation->error_array();
         if ($this->data['custom_error'] && empty($this->data['erros'])) {
@@ -117,6 +119,7 @@ class Servicos extends MY_Controller
                 'nome' => $this->input->post('nome'),
                 'descricao' => $this->input->post('descricao'),
                 'preco' => $preco,
+                'garantia_dias' => $this->input->post('garantia_dias'),
             ];
 
             if ($this->servicos_model->edit('servicos', $data, 'idServicos', $this->input->post('idServicos')) == true) {
@@ -134,7 +137,8 @@ class Servicos extends MY_Controller
         $this->data['valores'] = [
             'nome' => $servico->nome ?? '',
             'preco' => number_format((float) ($servico->preco ?? 0), 2, ',', '.'),
-            'descricao' => $servico->descricao ?? '',
+            'descricao' => $this->input->post('descricao') !== null ? $this->input->post('descricao') : ($servico->descricao ?? ''),
+            'garantia_dias' => $this->input->post('garantia_dias') !== null ? $this->input->post('garantia_dias') : (string) ($servico->garantia_dias ?? 90),
         ];
         $this->data['erros'] = $this->form_validation->error_array();
         if ($this->data['custom_error'] && empty($this->data['erros'])) {
@@ -165,5 +169,17 @@ class Servicos extends MY_Controller
 
         $this->session->set_flashdata('success', 'Serviço excluido com sucesso!');
         redirect(site_url('servicos/gerenciar/'));
+    }
+
+    public function validar_garantia_dias($dias): bool
+    {
+        if (garantiaDiasValido($dias)) {
+            return true;
+        }
+
+        $mensagem = 'Informe zero ou um número inteiro de dias.';
+        $this->form_validation->set_message('validar_garantia_dias', $mensagem);
+
+        return false;
     }
 }

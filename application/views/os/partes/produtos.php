@@ -13,6 +13,13 @@ $colunas = [
     ['label' => 'Preço', 'align' => 'right', 'nowrap' => true, 'render' => fn ($p) => dinheiro($p->preco)],
 ];
 
+if (($os->garantia_modelo ?? null) === 'por_item') {
+    $colunas[] = [
+        'label' => 'Garantia por item',
+        'render' => fn ($p) => garantiaEditorItem($p, 'produto', (int) $os->idOs, (int) $p->idProdutos_os, site_url('os/alterarGarantiaItem'), $pode['garantia_item'] ?? false),
+    ];
+}
+
 // Desconto individual do item (#2880): a coluna só aparece quando algum item tem.
 if (array_filter($produtos, static fn ($p) => (float) ($p->desconto ?? 0) > 0) !== []) {
     $colunas[] = osColunaDescontoDoItem();

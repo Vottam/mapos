@@ -123,7 +123,8 @@ private function filtrosDaListagem(): array
                     'usuarios_id' => $this->input->post('usuarios_id'),
                     'faturado' => 0,
                     'status' => $this->input->post('status'),
-                    'garantia' => $this->input->post('garantia')
+                    'garantia' => $this->input->post('garantia'),
+                    'garantia_modelo' => 'por_item',
                 ];
 
                 $id = $this->vendas_model->add('vendas', $data, true);
@@ -206,8 +207,10 @@ private function filtrosDaListagem(): array
                     'usuarios_id' => $this->input->post('usuarios_id'),
                     'clientes_id' => $this->input->post('clientes_id'),
                     'status' => $this->input->post('status'),
-                    'garantia' => $this->input->post('garantia')
                 ];
+                if ($this->input->post('garantia') !== null) {
+                    $data['garantia'] = $this->input->post('garantia');
+                }
 
                 $transacaoOk = $this->db->trans_begin();
                 $vendaBloqueada = $transacaoOk
@@ -543,7 +546,7 @@ private function filtrosDaListagem(): array
                 'chave' => $this->formatarChave($configuracao['pix_key'] ?? ''),
             ],
             'whatsapp' => $telefone === null ? null : ['telefone' => $telefone],
-            'garantia_ate' => vendaGarantiaAte($venda->dataVenda, $venda->garantia),
+            'garantia_ate' => ($venda->garantia_modelo ?? null) === 'por_item' ? null : vendaGarantiaAte($venda->dataVenda, $venda->garantia),
             'pode' => [
                 'editar' => $editavel,
                 'itens' => $editavel && $venda->status !== 'Cancelado',
@@ -639,6 +642,77 @@ private function filtrosDaListagem(): array
         $this->responderJson(422, ['result' => false, 'message' => $mensagem, 'erros' => ['_geral' => $mensagem]]);
     }
 
+    /** Alteração autorizada do snapshot individual, sem editar preço ou cabeçalho. */
+    public function alterarGarantiaItem()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eVenda')) {
+            $this->responderJson(403, ['result' => false, 'message' => 'Você não tem permissão para editar vendas.']);
+            return;
+        }
+
+        $venda = $this->vendaParaAlterar(true);
+        if (! $venda) {
+            return;
+        }
+        if (($venda->garantia_modelo ?? null) !== 'por_item') {
+            $this->responderJson(409, ['result' => false, 'message' => 'Esta venda mantém o modo histórico de garantia e não pode ser convertida automaticamente.']);
+            return;
+        }
+
+        $idVenda = (int) $venda->idVendas;
+        $idItem = (int) $this->input->post('idItem');
+        $dias = garantiaNormalizarDias($this->input->post('dias'));
+        if ($idItem <= 0) {
+            $this->responderJson(422, ['result' => false, 'message' => 'Item da venda inválido.']);
+            return;
+        }
+        if ($dias === null || ! garantiaDiasValido($dias)) {
+            $mensagem = 'Informe zero ou um número inteiro de dias.';
+            $this->responderJson(422, ['result' => false, 'message' => $mensagem, 'erros' => ['dias' => $mensagem]]);
+            return;
+        }
+
+        if (! $this->db->trans_begin()) {
+            $this->responderJson(500, ['result' => false, 'message' => 'Não foi possível iniciar a alteração da garantia.']);
+            return;
+        }
+        $bloqueada = $this->db->query(
+            'SELECT idVendas, status, faturado, garantia_modelo FROM vendas WHERE idVendas = ? FOR UPDATE',
+            [$idVenda]
+        )->row();
+        $faturadaSemPermissao = $bloqueada && (int) $bloqueada->faturado === 1
+            && ($this->data['configuration']['control_edit_vendas'] ?? '0') !== '1';
+        if (! $bloqueada || ($bloqueada->garantia_modelo ?? null) !== 'por_item'
+            || strcasecmp(trim((string) $bloqueada->status), 'Cancelado') === 0 || $faturadaSemPermissao
+        ) {
+            $this->db->trans_rollback();
+            $this->responderJson(409, ['result' => false, 'message' => 'Esta venda não pode mais ser alterada.']);
+            return;
+        }
+
+        $item = $this->db->query(
+            'SELECT idItens FROM itens_de_vendas WHERE idItens = ? AND vendas_id = ? FOR UPDATE',
+            [$idItem, $idVenda]
+        )->row();
+        if (! $item) {
+            $this->db->trans_rollback();
+            $this->responderJson(404, ['result' => false, 'message' => 'Item não encontrado nesta venda.']);
+            return;
+        }
+
+        $salvo = $this->db->where('idItens', $idItem)->where('vendas_id', $idVenda)->update('itens_de_vendas', [
+            'garantia_dias_snapshot' => $dias,
+        ]);
+        if ($salvo === false || $this->db->trans_status() === false || ! $this->db->trans_commit()) {
+            $this->db->trans_rollback();
+            $this->responderJson(500, ['result' => false, 'message' => 'Não foi possível salvar a garantia do item.']);
+            return;
+        }
+
+        log_info('Alterou o snapshot de garantia de um item da venda. ID (venda): ' . $idVenda . ', vínculo: ' . $idItem);
+        $this->responderTrechos($idVenda, 'produto', 'Garantia do item atualizada.');
+    }
+
     /**
      * Produto novo na venda: id do cadastro conferido no banco, estoque baixado
      * quando o controle está ligado, e desconto da venda removido (o total muda).
@@ -690,6 +764,20 @@ private function filtrosDaListagem(): array
         }
 
         $this->db->trans_start();
+
+        if (($venda->garantia_modelo ?? null) === 'por_item') {
+            $cadastroBloqueado = $this->db->query(
+                'SELECT garantia_dias FROM produtos WHERE idProdutos = ? FOR UPDATE',
+                [$idCadastro]
+            )->row();
+            $snapshotGarantia = garantiaSnapshotDoCatalogo($cadastroBloqueado);
+            if ($snapshotGarantia === null) {
+                $this->db->trans_rollback();
+                $this->responderJson(409, ['result' => false, 'message' => 'O prazo comercial do produto não está válido. Revise o cadastro antes de adicionar.']);
+                return;
+            }
+            $dados = array_merge($dados, $snapshotGarantia);
+        }
 
         if (! $this->vendas_model->add('itens_de_vendas', $dados + ['vendas_id' => $idVenda])) {
             $this->db->trans_rollback();

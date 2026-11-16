@@ -137,8 +137,8 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         <tr>
                                             <td><b>Status Venda: </b><?php echo $result->status; ?></td>
                                             <td><b>Data da Venda: </b><?php echo date('d/m/Y', strtotime($result->dataVenda)); ?></td>
-                                            <td><?php if ($result->garantia): ?><b>Garantia: </b><?php echo $result->garantia . ' dia(s)'; ?><?php endif; ?></td>
-                                            <td><?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Orçamento', 'Aberto', 'Em Andamento', 'Aguardando Peças'])): ?><b>Venc. da Garantia: </b><?php echo dateInterval($result->dataVenda, $result->garantia); ?><?php endif; ?></td>
+                                            <td><?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantia): ?><b>Garantia: </b><?php echo $result->garantia . ' dia(s)'; ?><?php endif; ?></td>
+                                            <td><?php if (($result->garantia_modelo ?? null) !== 'por_item' && in_array($result->status, ['Finalizado', 'Faturado', 'Orçamento', 'Aberto', 'Em Andamento', 'Aguardando Peças'])): ?><b>Venc. da Garantia: </b><?php echo dateInterval($result->dataVenda, $result->garantia); ?><?php endif; ?></td>
                                         </tr>
                                     <?php endif; ?>
                                     <?php if ($result->observacoes != null): ?>

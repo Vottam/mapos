@@ -81,6 +81,7 @@ class Produtos extends MY_Controller
                 'estoqueMinimo' => set_value('estoqueMinimo'),
                 'saida' => set_value('saida'),
                 'entrada' => set_value('entrada'),
+                'garantia_dias' => $this->input->post('garantia_dias'),
             ];
 
             if ($this->produtos_model->add('produtos', $data) == true) {
@@ -102,6 +103,7 @@ class Produtos extends MY_Controller
             'estoqueMinimo' => '',
             'entrada' => '',
             'saida' => '',
+            'garantia_dias' => '90',
         ], (array) $this->input->post());
         $this->data['erros'] = $this->form_validation->error_array();
         if ($this->data['custom_error'] && empty($this->data['erros'])) {
@@ -141,6 +143,7 @@ class Produtos extends MY_Controller
                 'estoqueMinimo' => $this->input->post('estoqueMinimo'),
                 'saida' => set_value('saida'),
                 'entrada' => set_value('entrada'),
+                'garantia_dias' => $this->input->post('garantia_dias'),
             ];
 
             if ($this->produtos_model->edit('produtos', $data, 'idProdutos', $this->input->post('idProdutos')) == true) {
@@ -165,6 +168,7 @@ class Produtos extends MY_Controller
             'estoqueMinimo' => (string) ($produto->estoqueMinimo ?? ''),
             'entrada' => $produto->entrada ?? '',
             'saida' => $produto->saida ?? '',
+            'garantia_dias' => $this->input->post('garantia_dias') !== null ? $this->input->post('garantia_dias') : (string) ($produto->garantia_dias ?? 90),
         ];
         $this->data['erros'] = $this->form_validation->error_array();
         if ($this->data['custom_error'] && empty($this->data['erros'])) {
@@ -273,5 +277,17 @@ class Produtos extends MY_Controller
         } else {
             $this->data['custom_error'] = '<div class="alert">Ocorreu um erro.</div>';
         }
+    }
+
+    public function validar_garantia_dias($dias): bool
+    {
+        if (garantiaDiasValido($dias)) {
+            return true;
+        }
+
+        $mensagem = 'Informe zero ou um número inteiro de dias.';
+        $this->form_validation->set_message('validar_garantia_dias', $mensagem);
+
+        return false;
     }
 }

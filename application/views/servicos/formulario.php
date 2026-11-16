@@ -60,6 +60,24 @@ $errosDeCampo = array_diff_key($erros, ['_geral' => true]);
             </div>
         </section>
 
+        <section class="grid gap-4 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 sm:p-6" aria-label="Prazo comercial informado" <?= js_module('garantia/catalogo') ?>>
+            <div class="sm:col-span-2">
+                <h2 class="text-heading-sm text-text">Garantia (dias)</h2>
+                <p class="mt-1 text-caption text-muted">Prazo informado para a operação. O prazo não afasta os direitos legais do consumidor.</p>
+            </div>
+            <?= component('input', [
+                'name' => 'garantia_dias',
+                'label' => 'Prazo comercial informado (dias)',
+                'type' => 'number',
+                'required' => true,
+                'value' => $valores['garantia_dias'] !== '' ? $valores['garantia_dias'] : '90',
+                'error' => $errosDeCampo['garantia_dias'] ?? null,
+                'help' => '90 dias é a sugestão inicial. Pode informar 0, 30, 180, 365 ou outro prazo inteiro não negativo.',
+                'attrs' => ['min' => 0, 'step' => 1, 'inputmode' => 'numeric'],
+            ]) ?>
+            <p class="sm:col-span-2 text-caption text-warning" data-garantia-zero-aviso hidden aria-live="polite"><?= e(garantiaAvisoZero()) ?></p>
+        </section>
+
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <?= component('button', ['label' => 'Cancelar', 'variant' => 'ghost', 'href' => site_url('servicos')]) ?>
             <?= component('button', ['label' => $editando ? 'Salvar alterações' : 'Cadastrar serviço', 'icon' => 'save', 'type' => 'submit', 'attrs' => ['data-rotulo-carregando' => 'Salvando…']]) ?>

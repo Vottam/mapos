@@ -53,32 +53,36 @@ $totalProdutos = 0;
                                 <tr class="table-secondary">
                                     <th class="text-center">STATUS</th>
                                     <th class="text-center">DATA DA VENDA</th>
-                                    <th class="text-center">GARANTIA</th>
-                                    <th class="text-center">VENC. DA GARANTIA</th>
+                                    <?php if (($result->garantia_modelo ?? null) !== 'por_item'): ?>
+                                        <th class="text-center">GARANTIA</th>
+                                        <th class="text-center">VENC. DA GARANTIA</th>
+                                    <?php endif; ?>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
                                     <td class="text-center"><?= $result->status ?></td>
                                     <td class="text-center"><?= date('d/m/Y', strtotime($result->dataVenda)) ?></td>
-                                    <td class="text-center">
-                                        <?php if ($result->garantia > 0): ?>
-                                            <?= $result->garantia . ' dia(s)' ?>
-                                        <?php else: ?>
-                                            Sem garantia
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="text-center">
-                                        <?php if ($result->garantia > 0): ?>
-                                            <?php
-                                                $dataVenda = strtotime($result->dataVenda);
-                                            $vencimentoGarantia = date('d/m/Y', strtotime("+{$result->garantia} days", $dataVenda));
-                                            echo $vencimentoGarantia;
-                                            ?>
-                                        <?php else: ?>
-                                            Sem garantia
-                                        <?php endif; ?>
-                                    </td>
+                                    <?php if (($result->garantia_modelo ?? null) !== 'por_item'): ?>
+                                        <td class="text-center">
+                                            <?php if ($result->garantia > 0): ?>
+                                                <?= $result->garantia . ' dia(s)' ?>
+                                            <?php else: ?>
+                                                Sem garantia
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-center">
+                                            <?php if ($result->garantia > 0): ?>
+                                                <?php
+                                                    $dataVenda = strtotime($result->dataVenda);
+                                                    $vencimentoGarantia = date('d/m/Y', strtotime("+{$result->garantia} days", $dataVenda));
+                                                    echo $vencimentoGarantia;
+                                                ?>
+                                            <?php else: ?>
+                                                Sem garantia
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endif; ?>
                                 </tr>
                             </tbody>
                         </table>
@@ -117,6 +121,9 @@ $totalProdutos = 0;
                                     <th>PRODUTO(S)</th>
                                     <th class="text-center" width="10%">QTD</th>
                                     <th class="text-center" width="10%">UNT</th>
+                                    <?php if (($result->garantia_modelo ?? null) === 'por_item'): ?>
+                                        <th>GARANTIA</th>
+                                    <?php endif; ?>
                                     <th class="text-end" width="15%" >SUBTOTAL</th>
                                 </tr>
                             </thead>
@@ -127,16 +134,22 @@ $totalProdutos = 0;
                                     echo '  <td>' . $p->descricao . '</td>';
                                     echo '  <td class="text-center">' . $p->quantidade . '</td>';
                                     echo '  <td class="text-center">' . number_format($p->preco ?: $p->precoVenda, 2, ',', '.') . '</td>';
+                                    if (($result->garantia_modelo ?? null) === 'por_item') {
+                                        echo '  <td>' . garantiaHtmlItemImpressao($p) . '</td>';
+                                    }
                                     echo '  <td class="text-end">R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                     echo '</tr>';
                                 endforeach; ?>
                                 <tr>
-                                    <td colspan="3" class="text-end"><b>TOTAL PRODUTOS:</b></td>
+                                    <td colspan="<?= ($result->garantia_modelo ?? null) === 'por_item' ? 4 : 3 ?>" class="text-end"><b>TOTAL PRODUTOS:</b></td>
                                     <td class="text-end"><b>R$ <?= number_format($totalProdutos, 2, ',', '.') ?></b></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+                    <?php if (($result->garantia_modelo ?? null) === 'por_item'): ?>
+                        <p class="small text-muted"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if ($totalProdutos != 0) : ?>

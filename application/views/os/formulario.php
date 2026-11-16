@@ -193,24 +193,28 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
                     'help' => 'Preenchida automaticamente na transição para Entregue; não é editável.',
                     'attrs' => ['readonly' => true, 'aria-readonly' => 'true', 'data-data-entrega-efetiva' => true],
                 ]) ?>
-                <?= component('input', [
-                    'name' => 'garantia',
-                    'label' => 'Garantia (dias)',
-                    'type' => 'number',
-                    'value' => $valores['garantia'] !== '' ? $valores['garantia'] : null,
-                    'error' => $errosDeCampo['garantia'] ?? null,
-                    'help' => 'Em branco ou 0 quando não há garantia.',
-                    'attrs' => ['min' => 0, 'max' => 9999, 'step' => 1, 'inputmode' => 'numeric', 'data-msg-invalido' => 'Informe a garantia em dias, de 0 a 9999.'],
-                ]) ?>
-                <div<?= componenteAtributos($wrapper($urlPath(site_url('os/autoCompleteTermoGarantia')), 'garantias_id', ['data-autocomplete-min' => '1'])) ?>>
-                    <?= component('input', $visivel('termoGarantia', [
-                        'label' => 'Termo de garantia',
-                        'placeholder' => 'Opcional',
-                        'help' => 'Texto impresso no termo de garantia da OS.',
-                        'attrs' => ['data-msg-invalido' => 'Escolha um termo da lista ou deixe o campo em branco.'],
-                    ])) ?>
-                    <input<?= componenteAtributos($oculto('garantias_id')) ?>>
-                </div>
+                <?php if ($editando && ($os->garantia_modelo ?? null) !== 'por_item') { ?>
+                    <?= component('input', [
+                        'name' => 'garantia',
+                        'label' => 'Garantia histórica (dias)',
+                        'type' => 'number',
+                        'value' => $valores['garantia'] !== '' ? $valores['garantia'] : null,
+                        'error' => $errosDeCampo['garantia'] ?? null,
+                        'help' => 'Campo legado da OS histórica. Prazos por item não são representados por este valor.',
+                        'attrs' => ['min' => 0, 'step' => 1, 'inputmode' => 'numeric'],
+                    ]) ?>
+                    <div<?= componenteAtributos($wrapper($urlPath(site_url('os/autoCompleteTermoGarantia')), 'garantias_id', ['data-autocomplete-min' => '1'])) ?>>
+                        <?= component('input', $visivel('termoGarantia', [
+                            'label' => 'Termo de garantia histórico',
+                            'placeholder' => 'Opcional',
+                            'help' => 'Documento legado da OS histórica.',
+                            'attrs' => ['data-msg-invalido' => 'Escolha um termo da lista ou deixe o campo em branco.'],
+                        ])) ?>
+                        <input<?= componenteAtributos($oculto('garantias_id')) ?>>
+                    </div>
+                <?php } else { ?>
+                    <p class="sm:col-span-2 text-caption text-muted">A garantia comercial é registrada individualmente em cada produto ou serviço. Os direitos legais permanecem aplicáveis e não são somados automaticamente.</p>
+                <?php } ?>
                 <div class="sm:col-span-2 rounded-lg border border-border-subtle bg-surface-subtle p-3" data-garantia-retorno>
                     <label class="flex items-start gap-2 text-caption text-text">
                         <input type="checkbox" name="garantia_retorno" value="1" class="mt-1" data-garantia-retorno-toggle <?= ($valores['garantia_retorno'] ?? '') === '1' ? 'checked' : '' ?>>

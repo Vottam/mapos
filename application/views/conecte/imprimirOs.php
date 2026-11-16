@@ -1,7 +1,9 @@
 <?php
 $totalServico  = 0;
 $totalProdutos = 0;
-$garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $result->status, $result->dataEntrega ?? null);
+$garantiaAte = ($result->garantia_modelo ?? null) === 'por_item'
+    ? null
+    : osVencimentoGarantia($result->dataFinal, $result->garantia, $result->status, $result->dataEntrega ?? null);
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -57,10 +59,10 @@ $garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $resu
                                     <th class="text-center">STATUS</th>
                                     <th class="text-center">DATA INICIAL</th>
                                     <th class="text-center">DATA FINAL</th>
-                                    <?php if ($result->garantia) : ?>
+                                    <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantia) : ?>
                                         <th class="text-center">GARANTIA</th>
                                     <?php endif; ?>
-                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
+                                    <?php if (($result->garantia_modelo ?? null) !== 'por_item' && in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
                                         <th class="text-center">VENC. GARANTIA</th>
                                     <?php endif; ?>
                                 </tr>
@@ -70,10 +72,10 @@ $garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $resu
                                     <td class="text-center"><?= $result->status ?></td>
                                     <td class="text-center"><?= date('d/m/Y', strtotime($result->dataInicial)) ?></td>
                                     <td class="text-center"><?= $result->dataFinal ? date('d/m/Y', strtotime($result->dataFinal)) : '' ?></td>
-                                    <?php if ($result->garantia) : ?>
+                                    <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantia) : ?>
                                         <td class="text-center"><?= $result->garantia . ' dia(s)' ?></td>
                                     <?php endif; ?>
-                                    <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
+                                    <?php if (($result->garantia_modelo ?? null) !== 'por_item' && in_array($result->status, ['Finalizado', 'Faturado', 'Entregue'])) : ?>
                                         <td class="text-center"><?= $garantiaAte ? date('d/m/Y', strtotime($garantiaAte)) : '' ?></td>
                                     <?php endif; ?>
                                 </tr>
@@ -141,6 +143,9 @@ $garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $resu
                                     <th>PRODUTO(S)</th>
                                     <th class="text-center" width="10%">QTD</th>
                                     <th class="text-center" width="10%">UNT</th>
+                                    <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
+                                        <th>GARANTIA</th>
+                                    <?php endif; ?>
                                     <th class="text-end" width="15%" >SUBTOTAL</th>
                                 </tr>
                             </thead>
@@ -151,11 +156,14 @@ $garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $resu
                                     echo '  <td>' . $p->descricao . '</td>';
                                     echo '  <td class="text-center">' . $p->quantidade . '</td>';
                                     echo '  <td class="text-center">' . number_format($p->preco ?: $p->precoVenda, 2, ',', '.') . '</td>';
+                                    if (($result->garantia_modelo ?? null) === 'por_item') {
+                                        echo '  <td>' . garantiaHtmlItemImpressao($p) . '</td>';
+                                    }
                                     echo '  <td class="text-end">R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                     echo '</tr>';
                                 endforeach; ?>
                                 <tr>
-                                    <td colspan="3" class="text-end"><b>TOTAL PRODUTOS:</b></td>
+                                    <td colspan="<?= ($result->garantia_modelo ?? null) === 'por_item' ? 4 : 3 ?>" class="text-end"><b>TOTAL PRODUTOS:</b></td>
                                     <td class="text-end"><b>R$ <?= number_format($totalProdutos, 2, ',', '.') ?></b></td>
                                 </tr>
                             </tbody>
@@ -171,6 +179,9 @@ $garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $resu
                                     <th>SERVIÇO(S)</th>
                                     <th class="text-center" width="10%">QTD</th>
                                     <th class="text-center" width="10%">UNT</th>
+                                    <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
+                                        <th>GARANTIA</th>
+                                    <?php endif; ?>
                                     <th class="text-end" width="15%" >SUBTOTAL</th>
                                 </tr>
                             </thead>
@@ -185,16 +196,23 @@ $garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $resu
                         echo '  <td>' . $s->nome . '</td>';
                         echo '  <td class="text-center">' . ($s->quantidade ?: 1) . '</td>';
                         echo '  <td class="text-center">' . number_format($preco, 2, ',', '.') . '</td>';
+                        if (($result->garantia_modelo ?? null) === 'por_item') {
+                            echo '  <td>' . garantiaHtmlItemImpressao($s) . '</td>';
+                        }
                         echo '  <td class="text-end">R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
                         echo '</tr>';
                     endforeach; ?>
                                 <tr>
-                                    <td colspan="3" class="text-end"><b>TOTAL SERVIÇOS:</b></td>
+                                    <td colspan="<?= ($result->garantia_modelo ?? null) === 'por_item' ? 4 : 3 ?>" class="text-end"><b>TOTAL SERVIÇOS:</b></td>
                                     <td class="text-end"><b>R$ <?= number_format($totalServico, 2, ',', '.') ?></b></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+                <?php endif; ?>
+
+                <?php if (($result->garantia_modelo ?? null) === 'por_item'): ?>
+                    <p class="small text-muted"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
                 <?php endif; ?>
 
                 <?php if ($totalProdutos != 0 || $totalServico != 0) : ?>

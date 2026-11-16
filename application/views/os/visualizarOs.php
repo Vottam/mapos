@@ -22,7 +22,7 @@
                             <a target="_blank" title="Imprimir Etiqueta 40x25mm" class="button btn btn-mini btn-inverse" href="<?php echo site_url() ?>/os/imprimirEtiqueta/<?php echo $result->idOs; ?>">
                                 <span class="button__icon"><i class='bx bx-barcode'></i></span> <span class="button__text">Etiqueta 40x25</span>
                             </a>
-                            <?php if ($result->garantias_id) { ?>
+                            <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantias_id) { ?>
 
                                 <a target="_blank" title="Imprimir Termo de Garantia" class="button btn btn-mini btn-inverse" href="<?php echo site_url() ?>/garantias/imprimirGarantiaOs/<?php echo $result->idOs; ?>">
                                     <span class="button__icon"><i class="bx bx-paperclip"></i></span> <span class="button__text">Termo Garantia</span>
@@ -149,12 +149,12 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         </td>
 
                                         <td>
-                                            <?php if ($result->garantia) { ?>
+                                            <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantia) { ?>
                                                 <b>GARANTIA: </b><br><?php echo $result->garantia . ' dia(s)'; ?>
                                             <?php } ?>
                                         </td>
 
-                                        <?php if (in_array($result->status, ['Finalizado', 'Faturado', 'Entregue', 'Orçamento', 'Aberto'])): ?>
+                                        <?php if (($result->garantia_modelo ?? null) !== 'por_item' && in_array($result->status, ['Finalizado', 'Faturado', 'Entregue', 'Orçamento', 'Aberto'])): ?>
                                             <td>
                                                 <b>VENC. DA GARANTIA:</b><br>
                                                 <?php $garantiaAte = osVencimentoGarantia($result->dataFinal, $result->garantia, $result->status, $result->dataEntrega ?? null); ?>
@@ -200,7 +200,7 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                     </tr>
                                 <?php } ?>
 
-                                <?php if ($result->garantias_id != null) { ?>
+                                <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantias_id != null) { ?>
                                     <tr>
                                         <td colspan="5">
                                             <strong>TERMO DE GARANTIA </strong><br>
@@ -277,6 +277,7 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         <th>PRODUTO</th>
                                         <th>QTD</th>
                                         <th>UNT</th>
+                                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?><th>GARANTIA</th><?php } ?>
                                         <th>SUBTOTAL</th>
                                     </tr>
                                 </thead>
@@ -286,12 +287,15 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         echo '<td>' . $p->descricao . '</td>';
                                         echo '<td>' . $p->quantidade . '</td>';
                                         echo '<td>R$ ' . $p->preco ?: $p->precoVenda . '</td>';
+                                        if (($result->garantia_modelo ?? null) === 'por_item') {
+                                            echo '<td>' . garantiaHtmlItemImpressao($p) . '</td>';
+                                        }
                                         echo '<td>R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                         echo '</tr>';
                                     } ?>
                                     <tr>
                                         <td></td>
-                                        <td colspan="2" style="text-align: right"><strong>TOTAL:</strong></td>
+                                        <td colspan="<?= ($result->garantia_modelo ?? null) === 'por_item' ? 3 : 2 ?>" style="text-align: right"><strong>TOTAL:</strong></td>
                                         <td><strong>R$ <?php echo number_format($totalProdutos, 2, ',', '.'); ?></strong>
                                         </td>
                                     </tr>
@@ -305,6 +309,7 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         <th>SERVIÇO</th>
                                         <th>QTD</th>
                                         <th>UNT</th>
+                                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?><th>GARANTIA</th><?php } ?>
                                         <th>SUBTOTAL</th>
                                     </tr>
                                 </thead>
@@ -317,16 +322,22 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                 echo '<td>' . $s->nome . '</td>';
                                 echo '<td>' . ($s->quantidade ?: 1) . '</td>';
                                 echo '<td>R$ ' . $preco . '</td>';
+                                if (($result->garantia_modelo ?? null) === 'por_item') {
+                                    echo '<td>' . garantiaHtmlItemImpressao($s) . '</td>';
+                                }
                                 echo '<td>R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
                                 echo '</tr>';
                             } ?>
                                     <tr>
-                                        <td colspan="3" style="text-align: right"><strong>TOTAL:</strong></td>
+                                        <td colspan="<?= ($result->garantia_modelo ?? null) === 'por_item' ? 4 : 3 ?>" style="text-align: right"><strong>TOTAL:</strong></td>
                                         <td><strong>R$ <?php echo number_format($totalServico, 2, ',', '.'); ?></strong>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                        <?php } ?>
+                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?>
+                            <p><?php echo htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8'); ?></p>
                         <?php } ?>
                         <table class="table table-bordered table-condensed">
                             <?php if ($totalProdutos != 0 || $totalServico != 0) {

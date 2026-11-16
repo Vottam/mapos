@@ -180,6 +180,7 @@ class ClientOsController extends REST_Controller
             'status' => 'Aberto',
             'observacoes' => $this->security->xss_clean($this->input->post('observacoes')),
             'faturado' => 0,
+            'garantia_modelo' => 'por_item',
         ];
 
         $osId = $this->Conecte_model->add('os', $data, true);

@@ -45,7 +45,7 @@
                                         <td colspan="4" style="width: 100%;"><b>#Venda: </b><span>
                                                 <?php echo $result->idVendas ?></span>
                                             <span style="padding-inline: 1em">Emissão: <?php echo date('d/m/Y H:i:s'); ?></span>
-                                            <?php if ($result->faturado) : ?>
+                                            <?php if ($result->faturado && ($result->garantia_modelo ?? null) !== 'por_item') : ?>
                                                 <br>
                                                 <b>Venc. Garantia: </b>
                                                 <?php echo dateInterval($result->dataVenda, $result->garantia); ?>
@@ -96,7 +96,11 @@
                                                 foreach ($produtos as $p) {
                                                     $totalProdutos = $totalProdutos + $p->subTotal;
                                                     echo '<tr>';
-                                                    echo '<td>' . $p->descricao . '</td>';
+                                                    echo '<td>' . $p->descricao;
+                                                    if (($result->garantia_modelo ?? null) === 'por_item') {
+                                                        echo '<br><small>Garantia: ' . garantiaHtmlItemImpressao($p) . '</small>';
+                                                    }
+                                                    echo '</td>';
                                                     echo '<td>' . $p->quantidade . '</td>';
                                                     echo '<td>R$ ' . ($p->preco ?: $p->precoVenda) . '</td>';
                                                     echo '<td>R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
@@ -127,6 +131,9 @@
                                             </h4>
                                         </td>
                                     </tr>
+                                    <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
+                                        <tr><td colspan="4"><small><?php echo htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8'); ?></small></td></tr>
+                                    <?php endif; ?>
                                 </tbody>
                                 <?php if (in_array($result->status, ['Finalizado', 'Orçamento', 'Faturado', 'Aberto', 'Em Andamento', 'Aguardando Peças']) && $qrCode): ?>
                                     <tr>

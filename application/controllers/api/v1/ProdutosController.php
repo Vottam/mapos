@@ -14,6 +14,18 @@ class ProdutosController extends REST_Controller
         $this->load->helper('validation_helper');
     }
 
+    public function validar_garantia_dias($dias): bool
+    {
+        if (garantiaDiasValido($dias)) {
+            return true;
+        }
+
+        $mensagem = 'Informe zero ou um número inteiro de dias.';
+        $this->form_validation->set_message('validar_garantia_dias', $mensagem);
+
+        return false;
+    }
+
     public function index_get($id = '')
     {
         $this->logged_user();
@@ -69,6 +81,7 @@ class ProdutosController extends REST_Controller
         }
 
         $_POST = (array) json_decode(file_get_contents('php://input'), true);
+        $_POST['garantia_dias'] ??= '90';
 
         $this->load->library('form_validation');
 
@@ -93,6 +106,7 @@ class ProdutosController extends REST_Controller
             'estoqueMinimo' => $this->post('estoqueMinimo', true) ? $this->post('estoqueMinimo', true) : 0,
             'saida' => $this->post('saida', true) ? $this->post('saida', true) : 0,
             'entrada' => $this->post('entrada', true) ? $this->post('entrada', true) : 0,
+            'garantia_dias' => $this->post('garantia_dias', true),
         ];
 
         if ($this->produtos_model->add('produtos', $data)) {
@@ -127,6 +141,12 @@ class ProdutosController extends REST_Controller
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
+        $inputData = (array) json_decode(trim(file_get_contents('php://input')), true);
+        $produtoExistente = $this->produtos_model->getById($id);
+        if (! $produtoExistente) {
+            $this->response(['status' => false, 'message' => 'Produto não encontrado.'], REST_Controller::HTTP_NOT_FOUND);
+        }
+
         if (! $this->put('descricao', true) ||
         ! $this->put('unidade', true) ||
         ! $this->put('precoCompra', true) ||
@@ -153,6 +173,15 @@ class ProdutosController extends REST_Controller
             'saida' => $this->put('saida', true) ?: 0,
             'entrada' => $this->put('entrada', true) ?: 0
         ];
+
+        if (array_key_exists('garantia_dias', $inputData)) {
+            $dias = $this->put('garantia_dias', true);
+            if ($dias === null || ! garantiaDiasValido($dias)) {
+                $this->response(['status' => false, 'message' => 'Prazo comercial inválido.'], REST_Controller::HTTP_BAD_REQUEST);
+                return;
+            }
+            $data['garantia_dias'] = garantiaNormalizarDias($dias);
+        }
 
         if ($this->produtos_model->edit('produtos', $data, 'idProdutos', $id)) {
             $this->response([

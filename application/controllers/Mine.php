@@ -775,6 +775,7 @@ class Mine extends CI_Controller
                 'status' => 'Aberto',
                 'observacoes' => $this->security->xss_clean(set_value('observacoes')),
                 'faturado' => 0,
+                'garantia_modelo' => 'por_item',
             ];
 
             if (is_numeric($id = $this->Conecte_model->add('os', $data, true))) {

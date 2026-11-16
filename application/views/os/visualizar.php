@@ -43,8 +43,10 @@ $dados = $campos([
     'Técnico responsável' => $os->nome,
     'Entrada' => dataBr($os->dataInicial),
     'Previsão de entrega' => dataBr($os->dataFinal),
-    'Garantia' => (int) $os->garantia > 0 ? (int) $os->garantia . ' dias' . ($garantia_ate ? ', até ' . dataBr($garantia_ate) : '') : null,
-    'Termo de garantia' => $os->refGarantia ?? null,
+    'Garantia' => ($os->garantia_modelo ?? null) === 'por_item'
+        ? 'Por item'
+        : ((int) $os->garantia > 0 ? (int) $os->garantia . ' dias' . ($garantia_ate ? ', até ' . dataBr($garantia_ate) : '') : null),
+    'Termo de garantia' => ($os->garantia_modelo ?? null) === 'por_item' ? null : ($os->refGarantia ?? null),
 ]);
 
 $texto = static fn ($valor) => trim(strip_tags((string) $valor)) !== '' ? osTextoExibicao($valor) : null;

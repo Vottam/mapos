@@ -51,6 +51,9 @@ $colunas = [
     ['id' => 'data_inicial', 'label' => 'Data Inicial', 'selector_label' => 'Data Inicial', 'class' => 'os-col-data', 'align' => 'right', 'nowrap' => true, 'default_visible' => true, 'render' => fn ($o) => $dataAbreviada($o->dataInicial)],
     ['id' => 'data_final', 'label' => 'Data Final', 'selector_label' => 'Data Final', 'class' => 'os-col-data', 'align' => 'right', 'nowrap' => true, 'default_visible' => true, 'render' => fn ($o) => $dataAbreviada($o->dataFinal)],
     ['id' => 'vencimento_garantia', 'label' => 'Venc. Garantia', 'selector_label' => 'Venc. Garantia', 'class' => 'os-col-garantia', 'align' => 'right', 'nowrap' => true, 'default_visible' => true, 'render' => static function ($o) use ($dataAbreviada) {
+        if (($o->garantia_modelo ?? null) === 'por_item') {
+            return 'Por item';
+        }
         $pill = osGarantiaPill($o->dataFinal ?? null, $o->garantia ?? null, null, $o->status ?? null, $o->dataEntrega ?? null);
         $label = $pill['label'];
         if ($label === 'Sem garantia') {

@@ -152,7 +152,7 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                     <tr>
                                         <td><b>Inicial: </b><?php echo date('d/m/Y', strtotime($result->dataInicial)); ?></td>
                                         <td><b>Final: </b><?php echo $result->dataFinal ? date('d/m/Y', strtotime($result->dataFinal)) : ''; ?></td>
-                                        <?php if ($result->garantia != null) { ?><td><b>Garantia:</b></br><?php echo $result->garantia . ' dia(s)'; ?><?php } ?></td>
+                                        <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantia != null) { ?><td><b>Garantia:</b></br><?php echo $result->garantia . ' dia(s)'; ?></td><?php } ?>
                                     </tr>
                                 <?php } ?>
 
@@ -178,7 +178,7 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         </tr>
                                     <?php } ?>
                                 <?php } ?>
-                                <?php if ($result->garantias_id != null) { ?>
+                                <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantias_id != null) { ?>
                                     <tr>
                                         <td colspan="5">
                                             <strong>Termo de Garantia: </strong><br>
@@ -204,7 +204,11 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                     $totalProdutos = $totalProdutos + $p->subTotal;
                                     echo '<tr>';
                                     echo '<td>' . $p->quantidade . '</td>';
-                                    echo '<td>' . $p->descricao . '</td>';
+                                    echo '<td>' . $p->descricao;
+                                    if (($result->garantia_modelo ?? null) === 'por_item') {
+                                        echo '<br><small>Garantia: ' . garantiaHtmlItemImpressao($p) . '</small>';
+                                    }
+                                    echo '</td>';
                                     echo '<td>R$ ' . $p->preco ?: $p->precoVenda . '</td>';
                                     echo '<td>R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                     echo '</tr>';
@@ -235,7 +239,11 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                             $totalServico = $totalServico + $subtotal;
                             echo '<tr>';
                             echo '<td>' . ($s->quantidade ?: 1) . '</td>';
-                            echo '<td>' . $s->nome . '</td>';
+                            echo '<td>' . $s->nome;
+                            if (($result->garantia_modelo ?? null) === 'por_item') {
+                                echo '<br><small>Garantia: ' . garantiaHtmlItemImpressao($s) . '</small>';
+                            }
+                            echo '</td>';
                             echo '<td>R$ ' . $preco . '</td>';
                             echo '<td>R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
                             echo '</tr>';
@@ -247,6 +255,9 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                             </tbody>
                         </table>
                     <?php } ?>
+                    <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
+                        <p style="font-size: 10px;"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php endif; ?>
                     <table class="table table-bordered table-condensed">
                         <tbody>
                             <tr>
@@ -366,11 +377,9 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                                     <b>Final: </b>
                                                     <?php echo $result->dataFinal ? date('d/m/Y', strtotime($result->dataFinal)) : ''; ?>
                                                 </td>
-                                                <td>
-                                                    <?php if ($result->garantia != null) { ?>
-                                                        <b>Garantia: </b><?php echo $result->garantia . ' dia(s)'; ?>
-                                                    <?php } ?>
-                                                </td>
+                                                <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantia != null) { ?>
+                                                    <td><b>Garantia: </b><?php echo $result->garantia . ' dia(s)'; ?></td>
+                                                <?php } ?>
                                         <?php } ?>
                                         <?php if ($result->descricaoProduto != null) { ?>
                                             <tr>
@@ -402,7 +411,7 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                             </tr>
                                         <?php } ?>
                                     <?php } ?>
-                                    <?php if ($result->garantias_id != null) { ?>
+                                    <?php if (($result->garantia_modelo ?? null) !== 'por_item' && $result->garantias_id != null) { ?>
                                     <tr>
                                         <td colspan="5">
                                             <strong>Termo de Garantia: </strong><br><?php echo printSafeHtml($result->textoGarantia) ?>
@@ -427,7 +436,11 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                         $totalProdutos = $totalProdutos + $p->subTotal;
                                         echo '<tr>';
                                         echo '<td>' . $p->quantidade . '</td>';
-                                        echo '<td>' . $p->descricao . '</td>';
+                                        echo '<td>' . $p->descricao;
+                                    if (($result->garantia_modelo ?? null) === 'por_item') {
+                                        echo '<br><small>Garantia: ' . garantiaHtmlItemImpressao($p) . '</small>';
+                                    }
+                                    echo '</td>';
                                         echo '<td>R$ ' . $p->preco ?: $p->precoVenda . '</td>';
                                         echo '<td>R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                         echo '</tr>';
@@ -459,7 +472,11 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                 $totalServico = $totalServico + $subtotal;
                                 echo '<tr>';
                                 echo '<td>' . ($s->quantidade ?: 1) . '</td>';
-                                echo '<td>' . $s->nome . '</td>';
+                                echo '<td>' . $s->nome;
+                            if (($result->garantia_modelo ?? null) === 'por_item') {
+                                echo '<br><small>Garantia: ' . garantiaHtmlItemImpressao($s) . '</small>';
+                            }
+                            echo '</td>';
                                 echo '<td>R$ ' . $preco . '</td>';
                                 echo '<td>R$ ' . number_format($subtotal, 2, ',', '.') . '</td>';
                                 echo '</tr>';
@@ -471,7 +488,9 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                 </tbody>
                             </table>
                         <?php } ?>
-
+                        <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
+                            <p style="font-size: 10px;"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
+                        <?php endif; ?>
                         <table class="table table-bordered table-condensed">
                             <tbody>
                                 <tr>

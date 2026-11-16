@@ -1075,6 +1075,54 @@ class Os_model extends CI_Model
         return ! $fechada || (($this->data['configuration']['control_editos'] ?? '0') === '1');
     }
 
+    /** Atualiza somente o snapshot de garantia de um vínculo da OS, com lock. */
+    public function atualizarGarantiaDoItem(string $tipo, int $idOs, int $idItem, int $dias): array
+    {
+        if (! in_array($tipo, ['produto', 'servico'], true) || $idOs <= 0 || $idItem <= 0 || ! garantiaDiasValido($dias)) {
+            return ['ok' => false, 'status' => 422, 'message' => 'Prazo comercial ou item inválido.'];
+        }
+        if (! $this->db->trans_begin()) {
+            return ['ok' => false, 'status' => 500, 'message' => 'Não foi possível iniciar a alteração da garantia.'];
+        }
+
+        $os = $this->db->query(
+            'SELECT idOs, status, faturado, garantia_modelo FROM os WHERE idOs = ? FOR UPDATE',
+            [$idOs]
+        )->row();
+        if (! $os) {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 404, 'message' => 'OS não encontrada.'];
+        }
+        if (($os->garantia_modelo ?? null) !== 'por_item' || ! $this->osEditavelNaTransacao($os) || (string) $os->status === 'Cancelado') {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 409, 'message' => 'Esta garantia não pode mais ser alterada nesta OS.'];
+        }
+
+        $tabela = $tipo === 'produto' ? 'produtos_os' : 'servicos_os';
+        $chave = $tipo === 'produto' ? 'idProdutos_os' : 'idServicos_os';
+        $item = $this->db->query(
+            "SELECT {$chave} FROM {$tabela} WHERE {$chave} = ? AND os_id = ? FOR UPDATE",
+            [$idItem, $idOs]
+        )->row();
+        if (! $item) {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 404, 'message' => 'Item não encontrado nesta OS.'];
+        }
+
+        $atualizado = $this->db->where($chave, $idItem)->where('os_id', $idOs)->update($tabela, [
+            'garantia_dias_snapshot' => $dias,
+        ]);
+        if ($atualizado === false || $this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 500, 'message' => 'Não foi possível salvar a garantia do item.'];
+        }
+        if (! $this->db->trans_commit()) {
+            return ['ok' => false, 'status' => 500, 'message' => 'Não foi possível confirmar a garantia do item.'];
+        }
+
+        return ['ok' => true, 'status' => 200, 'message' => 'Garantia do item atualizada.'];
+    }
+
     /**
      * Adiciona produto e debita estoque na mesma transação.
      * A OS e o produto são bloqueados antes de validar/gravar para impedir
@@ -1096,7 +1144,7 @@ class Os_model extends CI_Model
         }
 
         $os = $this->db->query(
-            'SELECT idOs, status, faturado FROM os WHERE idOs = ? FOR UPDATE',
+            'SELECT idOs, status, faturado, garantia_modelo FROM os WHERE idOs = ? FOR UPDATE',
             [$idOs]
         )->row();
         if (! $os) {
@@ -1110,12 +1158,20 @@ class Os_model extends CI_Model
         }
 
         $produto = $this->db->query(
-            'SELECT idProdutos, precoCompra, estoque FROM produtos WHERE idProdutos = ? FOR UPDATE',
+            'SELECT idProdutos, precoCompra, estoque, garantia_dias FROM produtos WHERE idProdutos = ? FOR UPDATE',
             [$idProduto]
         )->row();
         if (! $produto) {
             $this->db->trans_rollback();
             return ['ok' => false, 'status' => 422, 'message' => 'Produto não encontrado.'];
+        }
+        if (($os->garantia_modelo ?? null) === 'por_item') {
+            $snapshotGarantia = garantiaSnapshotDoCatalogo($produto);
+            if ($snapshotGarantia === null) {
+                $this->db->trans_rollback();
+                return ['ok' => false, 'status' => 409, 'message' => 'O prazo comercial do produto não está válido. Revise o cadastro antes de adicionar.'];
+            }
+            $data = array_merge($data, $snapshotGarantia);
         }
 
         [$descontoCalculado, $errosDesconto] = osDescontoDoItem(
@@ -1200,7 +1256,7 @@ class Os_model extends CI_Model
         }
 
         $os = $this->db->query(
-            'SELECT idOs, status, faturado FROM os WHERE idOs = ? FOR UPDATE',
+            'SELECT idOs, status, faturado, garantia_modelo FROM os WHERE idOs = ? FOR UPDATE',
             [$idOs]
         )->row();
         if (! $os) {
@@ -1213,12 +1269,20 @@ class Os_model extends CI_Model
         }
 
         $servico = $this->db->query(
-            'SELECT idServicos FROM servicos WHERE idServicos = ? FOR UPDATE',
+            'SELECT idServicos, garantia_dias FROM servicos WHERE idServicos = ? FOR UPDATE',
             [$idServico]
         )->row();
         if (! $servico) {
             $this->db->trans_rollback();
             return ['ok' => false, 'status' => 422, 'message' => 'Serviço não encontrado.'];
+        }
+        if (($os->garantia_modelo ?? null) === 'por_item') {
+            $snapshotGarantia = garantiaSnapshotDoCatalogo($servico);
+            if ($snapshotGarantia === null) {
+                $this->db->trans_rollback();
+                return ['ok' => false, 'status' => 409, 'message' => 'O prazo comercial do serviço não está válido. Revise o cadastro antes de adicionar.'];
+            }
+            $data = array_merge($data, $snapshotGarantia);
         }
 
         [$descontoCalculado, $errosDesconto] = osDescontoDoItem(

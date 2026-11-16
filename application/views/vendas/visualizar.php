@@ -37,7 +37,9 @@ $dados = $campos([
     'E-mail' => $venda->email,
     'Vendedor' => $venda->nome,
     'Data da venda' => dataBr($venda->dataVenda),
-    'Garantia' => (int) $venda->garantia > 0 ? (int) $venda->garantia . ' dias' . ($garantia_ate ? ', até ' . dataBr($garantia_ate) : '') : null,
+    'Garantia' => ($venda->garantia_modelo ?? null) === 'por_item'
+        ? 'Por item'
+        : ((int) $venda->garantia > 0 ? (int) $venda->garantia . ' dias' . ($garantia_ate ? ', até ' . dataBr($garantia_ate) : '') : null),
 ]);
 
 $textos = $campos([

@@ -96,17 +96,20 @@
                                             <b>Data da Venda: </b><?php echo date('d/m/Y', strtotime($result->dataVenda)); ?>
                                         </td>
 
-                                        <td>
-                                            <?php if ($result->garantia) { ?>
-                                                <b>Garantia: </b><?php echo $result->garantia . ' dia(s)'; ?>
-                                            <?php } ?>
-                                        </td>
-
-                                        <td>
-                                            <?php if ($result->status == 'Finalizado' || $result->status == 'Faturado') { ?>
-                                                <b>Venc. da Garantia: </b><?php echo dateInterval($result->dataVenda, $result->garantia); ?>
-                                            <?php } ?>
-                                        </td>
+                                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?>
+                                            <td colspan="2"><b>Garantia: </b>Consulte o prazo de cada produto abaixo. Os direitos legais permanecem aplicáveis.</td>
+                                        <?php } else { ?>
+                                            <td>
+                                                <?php if ($result->garantia) { ?>
+                                                    <b>Garantia: </b><?php echo $result->garantia . ' dia(s)'; ?>
+                                                <?php } ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($result->status == 'Finalizado' || $result->status == 'Faturado') { ?>
+                                                    <b>Venc. da Garantia: </b><?php echo dateInterval($result->dataVenda, $result->garantia); ?>
+                                                <?php } ?>
+                                            </td>
+                                        <?php } ?>
                                     </tr>
                                 <?php } ?>
                                 <tr>
@@ -128,6 +131,7 @@
                                     <tr>
                                         <th style="font-size: 15px">Produto</th>
                                         <th style="font-size: 15px">Quantidade</th>
+                                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?><th style="font-size: 15px">Garantia</th><?php } ?>
                                         <th style="font-size: 15px">Sub-total</th>
                                     </tr>
                                 </thead>
@@ -139,13 +143,15 @@
                                         echo '<tr>';
                                         echo '<td>' . $p->descricao . '</td>';
                                         echo '<td>' . $p->quantidade . '</td>';
-
+                                        if (($result->garantia_modelo ?? null) === 'por_item') {
+                                            echo '<td>' . garantiaHtmlItemImpressao($p) . '</td>';
+                                        }
                                         echo '<td>R$ ' . number_format($p->subTotal, 2, ',', '.') . '</td>';
                                         echo '</tr>';
                                     } ?>
 
                                     <tr>
-                                        <td colspan="2" style="text-align: right"><strong>Total:</strong></td>
+                                        <td colspan="<?= ($result->garantia_modelo ?? null) === 'por_item' ? 3 : 2 ?>" style="text-align: right"><strong>Total:</strong></td>
                                         <td><strong>R$
                                                 <?php echo number_format($totalProdutos, 2, ',', '.'); ?></strong></td>
                                     </tr>
@@ -153,6 +159,9 @@
                             </table>
                         <?php
                         } ?>
+                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?>
+                            <p><?php echo htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8'); ?></p>
+                        <?php } ?>
 
                         <hr />
 

@@ -406,6 +406,7 @@ class Os extends MY_Controller
                 'observacoes' => $this->input->post('observacoes'),
                 'laudoTecnico' => $this->input->post('laudoTecnico'),
                 'faturado' => 0,
+                'garantia_modelo' => 'por_item',
                 'garantia_retorno' => $this->input->post('garantia_retorno') ? 1 : 0,
                 'garantia_origem_os_id' => is_numeric($this->input->post('garantia_origem_os_id')) ? (int) $this->input->post('garantia_origem_os_id') : null,
             ];
@@ -542,8 +543,6 @@ class Os extends MY_Controller
             $data = [
                 'dataInicial' => $dataInicial,
                 'dataFinal' => $dataFinal,
-                'garantia' => $this->input->post('garantia'),
-                'garantias_id' => $termoGarantiaId,
                 'descricaoProduto' => $this->input->post('descricaoProduto'),
                 'defeito' => $this->input->post('defeito'),
                 'status' => $this->input->post('status'),
@@ -554,6 +553,12 @@ class Os extends MY_Controller
                 'garantia_retorno' => $this->input->post('garantia_retorno') ? 1 : 0,
                 'garantia_origem_os_id' => is_numeric($this->input->post('garantia_origem_os_id')) ? (int) $this->input->post('garantia_origem_os_id') : null,
             ];
+            if ($this->input->post('garantia') !== null) {
+                $data['garantia'] = $this->input->post('garantia');
+            }
+            if ($this->input->post('garantias_id') !== null) {
+                $data['garantias_id'] = $termoGarantiaId;
+            }
             $os = $this->os_model->getById($this->input->post('idOs'));
             $statusAnterior = $os->status;
             $statusNovo = $this->input->post('status');
@@ -785,9 +790,10 @@ class Os extends MY_Controller
                 'telefone' => $telefone,
                 'texto' => osTextoWhatsApp($configuracao['notifica_whats'] ?? '', $troca),
             ],
-            'garantia_ate' => osVencimentoGarantia($os->dataFinal, $os->garantia, $os->status, $os->dataEntrega ?? null),
+            'garantia_ate' => ($os->garantia_modelo ?? null) === 'por_item' ? null : osVencimentoGarantia($os->dataFinal, $os->garantia, $os->status, $os->dataEntrega ?? null),
             'pode' => [
                 'editar' => $editavel,
+                'garantia_item' => $this->permite('eOs') && $editavel && $os->status !== 'Cancelado' && ($os->garantia_modelo ?? null) === 'por_item',
                 'faturar' => $editavel && (int) $os->faturado === 0 && $os->status !== 'Cancelado',
                 'excluir' => $editavel && $this->permite('dOs'),
                 'cobrar' => $this->permite('aCobranca') && ! $cobrancas && $totais['total'] > 0,
@@ -1391,6 +1397,37 @@ class Os extends MY_Controller
         $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode($resultado, JSON_UNESCAPED_UNICODE));
+    }
+
+    public function alterarGarantiaItem()
+    {
+        if (! $this->permission->checkPermission($this->session->userdata('permissao'), 'eOs')) {
+            return $this->responderOsJson(403, ['result' => false, 'message' => 'Você não tem permissão para editar O.S.']);
+        }
+
+        $idOs = (int) $this->input->post('idOs');
+        $idItem = (int) $this->input->post('idItem');
+        $tipo = (string) $this->input->post('tipo');
+        $dias = garantiaNormalizarDias($this->input->post('dias'));
+        if ($idOs <= 0 || $idItem <= 0 || ! in_array($tipo, ['produto', 'servico'], true)) {
+            return $this->responderOsJson(422, ['result' => false, 'message' => 'Item da OS inválido.']);
+        }
+        if ($dias === null || ! garantiaDiasValido($dias)) {
+            $mensagem = 'Informe zero ou um número inteiro de dias.';
+            return $this->responderOsJson(422, ['result' => false, 'message' => $mensagem, 'erros' => ['dias' => $mensagem]]);
+        }
+
+        $resultado = $this->os_model->atualizarGarantiaDoItem($tipo, $idOs, $idItem, $dias);
+        if (! $resultado['ok']) {
+            return $this->responderOsJson((int) $resultado['status'], ['result' => false, 'message' => $resultado['message']]);
+        }
+
+        log_info('Alterou o snapshot de garantia de um item da OS. ID (OS): ' . $idOs . ', vínculo: ' . $idItem);
+        return $this->responderOsJson(200, [
+            'result' => true,
+            'message' => $resultado['message'],
+            'html' => $this->trechosDaOs($idOs, $this->input->post('aba')),
+        ]);
     }
 
     public function adicionarProduto()
