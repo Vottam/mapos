@@ -84,7 +84,7 @@ if (! function_exists('garantiaSnapshotDoCatalogo')) {
 
 if (! function_exists('garantiaEditorItem')) {
     /** Interface única por item: um prazo numérico e aviso zero. */
-    function garantiaEditorItem($item, string $contexto, int $idOperacao, int $idItem, string $rota, bool $editavel): string
+    function garantiaEditorItem($item, string $contexto, int $idOperacao, int $idItem, string $rota, bool $editavel): HtmlSeguro
     {
         $dias = garantiaNormalizarDias(garantiaValorDoItem($item, 'garantia_dias_snapshot'));
         $rotulo = htmlspecialchars(garantiaRotuloItem($item), ENT_QUOTES, 'UTF-8');
@@ -93,7 +93,7 @@ if (! function_exists('garantiaEditorItem')) {
             : '';
 
         if (! $editavel || $dias === null || ! in_array($contexto, ['venda', 'produto', 'servico'], true)) {
-            return '<span class="inline-flex flex-col gap-1">' . $rotulo . $avisoZero . '</span>';
+            return new HtmlSeguro('<span class="inline-flex flex-col gap-1">' . $rotulo . $avisoZero . '</span>');
         }
 
         $campoDias = 'garantia-dias-' . $contexto . '-' . $idItem;
@@ -109,7 +109,7 @@ if (! function_exists('garantiaEditorItem')) {
         $diasHtml = htmlspecialchars((string) $dias, ENT_QUOTES, 'UTF-8');
         $classe = 'grid min-w-44 gap-1';
 
-        return '<form method="post" action="' . $rotaHtml . '" class="' . $classe . '" data-os-acao="' . ($contexto === 'servico' ? 'servico' : 'produto') . '">'
+        return new HtmlSeguro('<form method="post" action="' . $rotaHtml . '" class="' . $classe . '" data-os-acao="' . ($contexto === 'servico' ? 'servico' : 'produto') . '">'
             . $csrfHidden
             . '<input type="hidden" name="' . $campoOperacao . '" value="' . $idOperacaoHtml . '">'
             . '<input type="hidden" name="idItem" value="' . $idItemHtml . '">' . $tipoHidden
@@ -118,7 +118,7 @@ if (! function_exists('garantiaEditorItem')) {
             . '<button type="submit" class="text-caption text-primary underline">Salvar prazo</button>'
             . '<small class="text-caption text-muted">Prazo comercial; os direitos legais permanecem aplicáveis.</small>'
             . '<small class="text-caption text-warning" data-garantia-zero-aviso' . ($dias === 0 ? '' : ' hidden') . ' aria-live="polite">' . htmlspecialchars(garantiaAvisoZero(), ENT_QUOTES, 'UTF-8') . '</small>'
-            . '</form>';
+            . '</form>');
     }
 }
 
