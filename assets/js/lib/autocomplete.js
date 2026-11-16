@@ -30,9 +30,9 @@
 //   "autocomplete-novo-criado" no wrapper (detail.item): o autocomplete o
 //   escolhe como se tivesse sido tirado da lista. Sem o dialog, vale o link.
 
-import { mensagemDoCampo, mostrarErroDoCampo } from './formulario.js';
-import { get as getPadrao } from './http.js';
-import { criarIcone } from './icone.js';
+import { mensagemDoCampo, mostrarErroDoCampo } from './formulario.js?v=mapos-sales-smart-save-ux-20261116-r1';
+import { get as getPadrao } from './http.js?v=mapos-sales-smart-save-ux-20261116-r1';
+import { criarIcone } from './icone.js?v=mapos-sales-smart-save-ux-20261116-r1';
 
 export const CLASSES_POPUP = 'absolute inset-x-0 z-30 mt-1 hidden overflow-hidden rounded-sm border border-border bg-surface shadow-overlay';
 export const CLASSES_LISTA = 'max-h-64 overflow-y-auto py-1';

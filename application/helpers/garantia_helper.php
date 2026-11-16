@@ -107,6 +107,24 @@ if (! function_exists('garantiaEditorItem')) {
         $idItemHtml = htmlspecialchars((string) $idItem, ENT_QUOTES, 'UTF-8');
         $rotaHtml = htmlspecialchars($rota, ENT_QUOTES, 'UTF-8');
         $diasHtml = htmlspecialchars((string) $dias, ENT_QUOTES, 'UTF-8');
+
+        if ($contexto === 'venda') {
+            $descricao = (string) (garantiaValorDoItem($item, 'descricao') ?? garantiaValorDoItem($item, 'nome') ?? ('Item #' . $idItem));
+            $descricaoHtml = htmlspecialchars($descricao, ENT_QUOTES, 'UTF-8');
+            return new HtmlSeguro('<form method="post" action="' . $rotaHtml . '" class="flex min-w-0 flex-col gap-1" data-garantia-autosave="1" data-garantia-id="' . $idItemHtml . '" data-garantia-nome="' . $descricaoHtml . '">'
+                . $csrfHidden
+                . '<input type="hidden" name="' . $campoOperacao . '" value="' . $idOperacaoHtml . '">'
+                . '<input type="hidden" name="idItem" value="' . $idItemHtml . '">'
+                . '<label class="sr-only" for="' . $campoDias . '">Prazo de garantia de ' . $descricaoHtml . ', em dias</label>'
+                . '<div class="flex items-center gap-1">'
+                . '<input id="' . $campoDias . '" name="dias" type="number" min="0" step="1" inputmode="numeric" value="' . $diasHtml . '" class="block w-20 rounded-sm border bg-field px-2 py-1 text-right text-body-md text-text placeholder:text-muted max-sm:min-h-11 focus:outline-3 focus:outline-offset-0 focus:outline-ring focus:shadow-field-focus border-input" data-garantia-dias required>'
+                . '<span class="text-caption text-muted">dias</span>'
+                . '</div>'
+                . '<small class="text-caption text-muted" data-garantia-item-status role="status" aria-live="polite">Salvo</small>'
+                . '<small class="text-caption text-warning-ink" data-garantia-zero-aviso' . ($dias === 0 ? '' : ' hidden') . ' aria-live="polite">' . htmlspecialchars(garantiaAvisoZero(), ENT_QUOTES, 'UTF-8') . '</small>'
+                . '</form>');
+        }
+
         $classe = 'grid min-w-44 gap-1';
 
         return new HtmlSeguro('<form method="post" action="' . $rotaHtml . '" class="' . $classe . '" data-os-acao="' . ($contexto === 'servico' ? 'servico' : 'produto') . '">'

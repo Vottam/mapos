@@ -47,7 +47,7 @@ $textos = $campos([
     'Observações ao cliente' => trim(strip_tags((string) $venda->observacoes_cliente)) !== '' ? osTextoExibicao($venda->observacoes_cliente) : null,
 ]);
 ?>
-<div class="flex flex-col gap-4 pt-2 pb-8" <?= js_module('vendas/tela') ?>>
+<div class="flex flex-col gap-4 pt-2 pb-8" <?= js_module('vendas/tela') ?> data-venda-id="<?= e($idVenda) ?>">
     <header class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-3">
@@ -56,7 +56,16 @@ $textos = $campos([
             </div>
             <p class="text-caption [overflow-wrap:anywhere] text-muted"><?= e($venda->nomeCliente . ' · Vendedor: ' . $venda->nome) ?></p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+            <?php if (($venda->garantia_modelo ?? null) === 'por_item' && $pode['itens']) { ?>
+                <div class="flex flex-col gap-1 rounded-lg border border-border px-2 py-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="rounded-full bg-success-soft px-2 py-1 text-caption font-medium text-success-ink" data-garantia-estado="salvo" role="status" aria-live="polite">SALVO</span>
+                        <button type="button" class="rounded-lg border border-border bg-surface px-3 py-2 text-caption font-medium text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed" data-garantia-salvar>Salvar alterações</button>
+                    </div>
+                    <span class="max-w-full text-caption text-danger-ink" data-garantia-mensagem aria-live="polite"></span>
+                </div>
+            <?php } ?>
             <?php if ($pode['faturar']) { ?>
                 <?= component('button', ['label' => 'Faturar', 'icon' => 'circle-dollar-sign', 'variant' => 'outline', 'attrs' => ['data-modal-abrir' => 'faturar-venda']]) ?>
             <?php } ?>

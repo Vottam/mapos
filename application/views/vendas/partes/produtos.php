@@ -15,7 +15,7 @@ $colunas = [
 
 if (($venda->garantia_modelo ?? null) === 'por_item') {
     $colunas[] = [
-        'label' => 'Garantia por item',
+        'label' => 'Garantia',
         'render' => fn ($p) => garantiaEditorItem($p, 'venda', (int) $venda->idVendas, (int) $p->idItens, site_url('vendas/alterarGarantiaItem'), $pode['itens']),
     ];
 }
@@ -57,5 +57,8 @@ if ($pode['itens']) {
     ]) ?>
     <?php if ($produtos !== []) { ?>
         <p class="text-right text-body-md text-text">Total de produtos: <span class="font-medium tabular-nums"><?= e(dinheiro($totais['produtos'])) ?></span></p>
+        <?php if (($venda->garantia_modelo ?? null) === 'por_item') { ?>
+            <p class="text-caption text-muted"><?= e(garantiaAvisoLegal()) ?></p>
+        <?php } ?>
     <?php } ?>
 </div>
