@@ -10,6 +10,7 @@ class Os_model extends CI_Model
     {
         parent::__construct();
         $this->load->helper('os');
+        $this->load->helper('garantia');
     }
 
     /**
@@ -457,7 +458,7 @@ class Os_model extends CI_Model
             return [];
         }
 
-        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.dataEntrega, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, clientes.nomeCliente as cliente, equipamentos.idEquipamentos, equipamentos.equipamento as tipo, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie');
+        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.dataEntrega, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, clientes.nomeCliente as cliente, equipamentos.idEquipamentos, equipamentos.equipamento as tipo, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie, os.garantia_modelo');
         $this->db->from('equipamentos');
         $this->db->join('equipamentos_os', 'equipamentos_os.equipamentos_id = equipamentos.idEquipamentos');
         $this->db->join('os', 'os.idOs = equipamentos_os.os_id');
@@ -488,13 +489,81 @@ class Os_model extends CI_Model
             }
         }
 
-        return $rows;
+        return garantiaEnriquecerHistoricoSerial($rows, $this);
     }
 
     public function calcularCriticaGarantiaSerial($row)
     {
         if (! $row) {
             return null;
+        }
+
+        if (isset($row->garantia_modelo) && (string) $row->garantia_modelo === 'por_item') {
+            $itens = isset($row->itensGarantia) && is_array($row->itensGarantia) ? $row->itensGarantia : [];
+            $resumo = $row->garantiaResumo ?? null;
+            $baseOsId = (int) ($row->idOs ?? 0);
+            $temVigente = is_array($resumo) ? ! empty($resumo['tem_vigente']) : false;
+            $temVencido = is_array($resumo) ? ! empty($resumo['tem_vencido']) : false;
+
+            if ($temVigente) {
+                $tiposVigentes = [];
+                foreach ($itens as $item) {
+                    $situacao = (string) ($item['situacao'] ?? '');
+                    if ($situacao === 'vigente' || $situacao === 'vence_hoje') {
+                        $tiposVigentes[] = (string) ($item['tipo'] ?? '');
+                    }
+                }
+                $tiposUnicos = array_values(array_unique($tiposVigentes));
+                $titulo = count($tiposUnicos) === 1
+                    ? ($tiposUnicos[0] === 'Serviço' ? 'Serviço com prazo vigente' : 'Produto com prazo vigente')
+                    : 'Há itens com prazos vigentes';
+                return [
+                    'baseOsId' => $baseOsId,
+                    'status' => 'em_garantia',
+                    'titulo' => $titulo,
+                    'contador' => 'Há itens com prazos vigentes',
+                    'dias_restantes' => 0,
+                    'dias_vencidos' => 0,
+                    'data_base' => $row->dataEntrega ?? ($row->data_final_garantia ?? ''),
+                    'data_base_formatada' => $row->data_entrega_br ?? '',
+                    'garantia_dias' => null,
+                    'data_final_garantia' => (string) ($row->vencimentoGarantiaGeral ?? ''),
+                    'data_final_garantia_formatada' => $row->dataEntrega ? date('d/m/Y', strtotime((string) $row->vencimentoGarantiaGeral ?? 'now')) : '',
+                    'texto' => 'Pelo menos um item desta OS ainda está dentro do prazo de garantia registrado. O defeito atual nem sempre está coberto; confirme manualmente.',
+                ];
+            }
+
+            if ($temVencido) {
+                return [
+                    'baseOsId' => $baseOsId,
+                    'status' => 'vencida',
+                    'titulo' => 'Todos os prazos comerciais vencidos',
+                    'contador' => 'Todos os prazos comerciais vencidos',
+                    'dias_restantes' => 0,
+                    'dias_vencidos' => 0,
+                    'data_base' => $row->dataEntrega ?? '',
+                    'data_base_formatada' => '',
+                    'garantia_dias' => null,
+                    'data_final_garantia' => (string) ($row->vencimentoGarantiaGeral ?? ''),
+                    'data_final_garantia_formatada' => $row->vencimentoGarantiaGeral ? date('d/m/Y', strtotime((string) $row->vencimentoGarantiaGeral)) : '',
+                    'texto' => 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.',
+                ];
+            }
+
+            return [
+                'baseOsId' => $baseOsId,
+                'status' => 'sem_garantia_registrada',
+                'titulo' => 'Zero registrado',
+                'contador' => 'Prazo zero registrado',
+                'dias_restantes' => 0,
+                'dias_vencidos' => 0,
+                'data_base' => $row->dataEntrega ?? '',
+                'data_base_formatada' => '',
+                'garantia_dias' => 0,
+                'data_final_garantia' => '',
+                'data_final_garantia_formatada' => '',
+                'texto' => 'Os prazos comerciais não foram definidos para os itens desta OS; os direitos legais permanecem aplicáveis.',
+            ];
         }
 
         $baseOsId = (int) ($row->idOs ?? 0);
@@ -1877,5 +1946,81 @@ class Os_model extends CI_Model
         $liquido = $valorDesconto !== null && $valorDesconto > 0 ? $valorDesconto : $valor - $desconto;
 
         return (float) round($liquido, 2);
+    }
+
+    /** Itens (produtos e serviços) da OS com o snapshot de garantia de cada um. */
+    public function getItensGarantiaDaOs(int $idOs): array
+    {
+        $itens = [];
+
+        $produtos = $this->db
+            ->select('produtos_os.idProdutos_os AS idItem, produtos.descricao AS nome, produtos_os.garantia_dias_snapshot', false)
+            ->from('produtos_os')
+            ->join('produtos', 'produtos.idProdutos = produtos_os.produtos_id')
+            ->where('produtos_os.os_id', $idOs)
+            ->get()
+            ->result();
+        foreach ($produtos as $produto) {
+            $produto->tipo = 'produto';
+            $itens[] = $produto;
+        }
+
+        $servicos = $this->db
+            ->select('servicos_os.idServicos_os AS idItem, servicos.nome AS nome, servicos_os.servico AS nomeOs, servicos_os.garantia_dias_snapshot', false)
+            ->from('servicos_os')
+            ->join('servicos', 'servicos.idServicos = servicos_os.servicos_id', 'left')
+            ->where('servicos_os.os_id', $idOs)
+            ->get()
+            ->result();
+        foreach ($servicos as $servico) {
+            if (trim((string) ($servico->nome ?? '')) === '') {
+                $servico->nome = trim((string) ($servico->nomeOs ?? ''));
+            }
+            $servico->tipo = 'servico';
+            $itens[] = $servico;
+        }
+
+        return $itens;
+    }
+
+    /**
+     * Carrega os snapshots de garantia (produto e serviço) de várias OSs em
+     * duas consultas agregadas. Retorna lista com osId, tipo, nome e snapshot.
+     */
+    public function getItensGarantiaDasOs(array $osIds): array
+    {
+        $itens = [];
+        if ($osIds === []) {
+            return $itens;
+        }
+
+        $produtos = $this->db
+            ->select('produtos_os.os_id AS osId, produtos_os.idProdutos_os AS idItem, produtos.descricao AS nome, produtos_os.garantia_dias_snapshot', false)
+            ->from('produtos_os')
+            ->join('produtos', 'produtos.idProdutos = produtos_os.produtos_id')
+            ->where_in('produtos_os.os_id', $osIds)
+            ->get()
+            ->result();
+        foreach ($produtos as $produto) {
+            $produto->tipo = 'produto';
+            $itens[] = $produto;
+        }
+
+        $servicos = $this->db
+            ->select('servicos_os.os_id AS osId, servicos_os.idServicos_os AS idItem, servicos.nome AS nome, servicos_os.servico AS nomeOs, servicos_os.garantia_dias_snapshot', false)
+            ->from('servicos_os')
+            ->join('servicos', 'servicos.idServicos = servicos_os.servicos_id', 'left')
+            ->where_in('servicos_os.os_id', $osIds)
+            ->get()
+            ->result();
+        foreach ($servicos as $servico) {
+            if (trim((string) ($servico->nome ?? '')) === '') {
+                $servico->nome = trim((string) ($servico->nomeOs ?? ''));
+            }
+            $servico->tipo = 'servico';
+            $itens[] = $servico;
+        }
+
+        return $itens;
     }
 }

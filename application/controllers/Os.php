@@ -210,8 +210,14 @@ class Os extends MY_Controller
             'dataFinal' => ! empty($row->dataFinal) ? date('d/m/Y', strtotime($row->dataFinal)) : '',
             'status' => $row->status ?? '',
             'garantia' => isset($row->garantia) ? (int) $row->garantia : 0,
+            'garantiaDias' => isset($row->garantia) ? (int) $row->garantia : 0,
             'vencimentoGarantia' => $row->vencimento_garantia ?? null,
+            'vencimentoGarantiaGeral' => isset($row->vencimentoGarantiaGeral) ? (string) $row->vencimentoGarantiaGeral : null,
+            'vencimentoGarantiaGeralBr' => isset($row->vencimentoGarantiaGeral) ? date('d/m/Y', strtotime((string) $row->vencimentoGarantiaGeral)) : null,
             'situacaoGarantia' => $row->situacao_garantia ?? 'Indefinido',
+            'garantiaStatus' => $row->garantia_status ?? null,
+            'garantiaModelo' => (string) ($row->garantia_modelo ?? ''),
+            'itensGarantia' => isset($row->itensGarantia) && is_array($row->itensGarantia) ? array_values($row->itensGarantia) : [],
             'descricaoProduto' => $this->resumirTextoHistorico($row->descricaoProduto ?? '', 140),
             'defeito' => $this->resumirTextoHistorico($row->defeito ?? '', 140),
             'laudoTecnico' => $this->resumirTextoHistorico($row->laudoTecnico ?? '', 140),
@@ -307,7 +313,9 @@ class Os extends MY_Controller
             (SELECT equipamentos.equipamento FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_tipo,
             (SELECT equipamentos.modelo FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_modelo,
             (SELECT marcas.marca FROM equipamentos_os JOIN equipamentos ON equipamentos.idEquipamentos = equipamentos_os.equipamentos_id JOIN marcas ON marcas.idMarcas = equipamentos.marcas_id WHERE equipamentos_os.os_id = os.idOs LIMIT 1) equipamento_marca,
-            COALESCE((SELECT SUM(IF(l.valor_desconto = 0, l.valor, l.valor_desconto)) FROM lancamentos l WHERE l.tipo = \'receita\' AND l.descricao = CONCAT(\'Fatura de OS Nº: \', os.idOs)), 0) valor_faturado_real',
+            COALESCE((SELECT SUM(IF(l.valor_desconto = 0, l.valor, l.valor_desconto)) FROM lancamentos l WHERE l.tipo = \'receita\' AND l.descricao = CONCAT(\'Fatura de OS Nº: \', os.idOs)), 0) valor_faturado_real,
+            (SELECT MAX(DATE_ADD(os.dataEntrega, INTERVAL p.garantia_dias_snapshot DAY)) FROM produtos_os p WHERE p.os_id = os.idOs AND p.garantia_dias_snapshot > 0 AND os.dataEntrega IS NOT NULL) vencimento_produtos,
+            (SELECT MAX(DATE_ADD(os.dataEntrega, INTERVAL s.garantia_dias_snapshot DAY)) FROM servicos_os s WHERE s.os_id = os.idOs AND s.garantia_dias_snapshot > 0 AND os.dataEntrega IS NOT NULL) vencimento_servicos',
             $where_array,
             (int) $this->data['configuration']['per_page'],
             $offset
@@ -326,6 +334,11 @@ class Os extends MY_Controller
             $resultado->total = (float) $resultado->totalProdutos + (float) $resultado->totalServicos;
             $resultado->valorLiquido = ($valorBaseCentavos - $custoComponentesCentavos) / 100;
             $resultado->vtFaturado = (float) ($resultado->valor_faturado_real ?? 0);
+
+            // vencimento geral por item para listagem
+            $vencP = ($resultado->vencimento_produtos ?? null);
+            $vencS = ($resultado->vencimento_servicos ?? null);
+            $resultado->vencimento_geral = garantiaMaiorData($vencP !== null ? substr((string) $vencP, 0, 10) : null, $vencS !== null ? substr((string) $vencS, 0, 10) : null);
         }
 
         $this->data['filtros'] = $filtros;
@@ -679,6 +692,8 @@ class Os extends MY_Controller
         $this->data['result'] = $os;
         $this->data['os'] = $os;
         $this->data['valores'] = osValoresDoFormulario($this->postDoFormulario(), $os);
+        $this->data['itensGarantia'] = $this->os_model->getItensGarantiaDaOs((int) $this->uri->segment(3));
+        $this->data['itensGarantiaNormalizados'] = garantiaItensNormalizados($this->data['itensGarantia'], $os->dataEntrega ?? null);
         $this->data['erros'] = $this->form_validation->error_array();
         if ($this->data['custom_error'] && empty($this->data['erros'])) {
             $this->data['erros']['_geral'] = strip_tags($this->data['custom_error']);
@@ -791,6 +806,7 @@ class Os extends MY_Controller
                 'texto' => osTextoWhatsApp($configuracao['notifica_whats'] ?? '', $troca),
             ],
             'garantia_ate' => ($os->garantia_modelo ?? null) === 'por_item' ? null : osVencimentoGarantia($os->dataFinal, $os->garantia, $os->status, $os->dataEntrega ?? null),
+            'itensGarantia' => $this->os_model->getItensGarantiaDaOs((int) ($os->idOs ?? 0)),
             'pode' => [
                 'editar' => $editavel,
                 'garantia_item' => $this->permite('eOs') && $editavel && $os->status !== 'Cancelado' && ($os->garantia_modelo ?? null) === 'por_item',

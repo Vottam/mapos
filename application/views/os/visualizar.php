@@ -126,6 +126,49 @@ $textos = [
     <?php if ($aba === 'resumo') { ?>
         <div data-os-parte="totais"><?php $this->load->view('os/partes/totais'); ?></div>
 
+        <?php
+        $itensGarantiaNormalizados = isset($itensGarantia) && is_array($itensGarantia)
+            ? garantiaItensNormalizados($itensGarantia, $os->dataEntrega ?? null)
+            : [];
+        if (($os->garantia_modelo ?? null) === 'por_item' && $itensGarantiaNormalizados !== []) {
+        ?>
+        <section class="<?= e($caixa) ?>" aria-labelledby="secao-controle-garantias">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="secao-controle-garantias" class="text-heading-sm text-text">Controle de garantias</h2>
+                <?php if (($os->dataEntrega ?? null) !== null) { ?>
+                    <span class="text-caption text-muted">Contagem a partir da data efetiva de entrega <?= e(dataBr($os->dataEntrega)) ?>.</span>
+                <?php } else { ?>
+                    <span class="text-caption text-muted">Aguardando a data efetiva de entrega para iniciar a contagem.</span>
+                <?php } ?>
+            </div>
+            <div class="mt-3 overflow-x-auto">
+                <table class="w-full min-w-[42rem] text-left text-caption">
+                    <thead>
+                        <tr class="border-b border-border-subtle text-muted">
+                            <th class="py-1 pr-3 font-medium">Item</th>
+                            <th class="py-1 pr-3 font-medium">Tipo</th>
+                            <th class="py-1 pr-3 font-medium">Prazo</th>
+                            <th class="py-1 pr-3 font-medium">Vencimento</th>
+                            <th class="py-1 pr-3 font-medium">Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($itensGarantiaNormalizados as $linhaGarantia) { ?>
+                            <tr class="border-b border-border-subtle last:border-b-0">
+                                <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['nome']) ?></td>
+                                <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['tipo']) ?></td>
+                                <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['prazo_texto']) ?></td>
+                                <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['vencimento_br'] ?? '—') ?></td>
+                                <td class="py-2 pr-3 align-top"><?= component('pill-status', ['label' => $linhaGarantia['situacao_texto'], 'variant' => $linhaGarantia['variant'], 'dot' => false, 'attrs' => ['title' => $linhaGarantia['situacao_texto']]]) ?></td>
+                            </tr>
+                        <?php } ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="mt-2 text-caption text-muted">Prazos por item; o último vencimento comercial da OS é o maior vencimento dos itens com prazo positivo. Não somam-se automaticamente os direitos legais aos prazos comerciais registrados.</p>
+        </section>
+        <?php } ?>
+
         <div class="grid gap-4 lg:grid-cols-3">
             <section class="<?= e($caixa) ?>" aria-labelledby="secao-dados">
                 <h2 id="secao-dados" class="text-heading-sm text-text">Dados da OS</h2>

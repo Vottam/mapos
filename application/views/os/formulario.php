@@ -193,6 +193,41 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
                     'help' => 'Preenchida automaticamente na transição para Entregue; não é editável.',
                     'attrs' => ['readonly' => true, 'aria-readonly' => 'true', 'data-data-entrega-efetiva' => true],
                 ]) ?>
+                <?php if (($os->garantia_modelo ?? null) === 'por_item' && ! empty($itensGarantiaNormalizados)) { ?>
+                    <div class="sm:col-span-2 rounded-lg border border-border-subtle bg-surface-subtle p-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h4 class="text-sm font-semibold text-text">Controle de garantias</h4>
+                            <?php if (($os->dataEntrega ?? null) !== null) { ?>
+                                <span class="text-caption text-muted">Contagem a partir da data efetiva de entrega <?= e(dataBr($os->dataEntrega)) ?>.</span>
+                            <?php } ?>
+                        </div>
+                        <div class="mt-3 overflow-x-auto">
+                            <table class="w-full min-w-[42rem] text-left text-caption">
+                                <thead>
+                                    <tr class="border-b border-border-subtle text-muted">
+                                        <th class="py-1 pr-3 font-medium">Item</th>
+                                        <th class="py-1 pr-3 font-medium">Tipo</th>
+                                        <th class="py-1 pr-3 font-medium">Prazo</th>
+                                        <th class="py-1 pr-3 font-medium">Vencimento</th>
+                                        <th class="py-1 pr-3 font-medium">Situação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($itensGarantiaNormalizados as $linhaGarantia) { ?>
+                                        <tr class="border-b border-border-subtle last:border-b-0">
+                                            <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['nome']) ?></td>
+                                            <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['tipo']) ?></td>
+                                            <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['prazo_texto']) ?></td>
+                                            <td class="py-2 pr-3 align-top text-text"><?= e($linhaGarantia['vencimento_br'] ?? '—') ?></td>
+                                            <td class="py-2 pr-3 align-top"><?= component('pill-status', ['label' => $linhaGarantia['situacao_texto'], 'variant' => $linhaGarantia['variant'], 'dot' => false, 'attrs' => ['title' => $linhaGarantia['situacao_texto']]]) ?></td>
+                                        </tr>
+                                    <?php } ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="mt-2 text-caption text-muted">Prazos por item; o último vencimento comercial da OS é o maior vencimento dos itens com prazo positivo. Não somam-se automaticamente os direitos legais aos prazos comerciais registrados.</p>
+                    </div>
+                <?php } ?>
                 <?php if ($editando && ($os->garantia_modelo ?? null) !== 'por_item') { ?>
                     <?= component('input', [
                         'name' => 'garantia',

@@ -7,8 +7,8 @@
 // [data-toast-region] da página; sem ela, uma região é criada no <body>.
 // As classes repetem as do partial PHP: se mudar uma, mude a outra.
 
-import iniciarToast from '../modules/componentes/toast.js?v=fix-sidebar-install-final-20261031';
-import { criarIcone } from './icone.js?v=fix-sidebar-install-final-20261031';
+import iniciarToast from '../modules/componentes/toast.js?v=mapos-531-item-warranty-return-20261117-r2';
+import { criarIcone } from './icone.js?v=mapos-531-item-warranty-return-20261117-r2';
 
 // variante → [ícone Lucide, cor]
 export const VARIANTES = {

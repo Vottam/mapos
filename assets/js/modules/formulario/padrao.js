@@ -17,8 +17,8 @@
 // O envio continua sendo um POST comum: o servidor responde com a tela e os
 // erros, ou redireciona com o toast de sucesso.
 
-import { marcarCarregando, mensagemDoCampo, mostrarErroDoCampo } from '../../lib/formulario.js';
-import { MASCARAS } from '../../lib/mascaras.js';
+import { marcarCarregando, mensagemDoCampo, mostrarErroDoCampo } from '../../lib/formulario.js?v=mapos-531-item-warranty-return-20261117-r2';
+import { MASCARAS } from '../../lib/mascaras.js?v=mapos-531-item-warranty-return-20261117-r2';
 
 const CAMPOS = 'input:not([type=hidden]):not([type=button]):not([type=submit]), select, textarea';
 

@@ -1023,3 +1023,21 @@ if (! function_exists('osGarantiaPill')) {
         ];
     }
 }
+
+if (! function_exists('osGarantiaPillPorItem')) {
+    /**
+     * Wrapper que usa o motor de garantia por item quando a OS for do modelo
+     * novo. Mantém o comportamento legado quando não houver snapshots.
+     *
+     * @param list<object|array> $itens       itens com garantia_dias_snapshot
+     * @param string|null        $dataEntrega data efetiva (Y-m-d) ou null
+     * @param string|null        $hojeYmd     override para testes
+     * @return array{label: string, variant: string, dot: bool, title?: string}
+     */
+    function osGarantiaPillPorItem(array $itens, ?string $dataEntrega, ?string $hojeYmd = null): array
+    {
+        $vencimentoGeral = garantiaUltimoVencimento($itens, $dataEntrega, $hojeYmd);
+
+        return garantiaPillPorItem($dataEntrega, $vencimentoGeral, $hojeYmd);
+    }
+}

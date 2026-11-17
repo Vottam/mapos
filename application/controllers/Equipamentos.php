@@ -8,6 +8,7 @@ class Equipamentos extends MY_Controller
     {
         parent::__construct();
         $this->load->model('equipamentos_model');
+        $this->load->model('os_model');
     }
 
     public function index()
@@ -309,6 +310,13 @@ class Equipamentos extends MY_Controller
             'diasVencidos' => (int) ($item->dias_vencidos ?? 0),
             'situacaoGarantia' => (string) ($item->situacao_garantia ?? 'Indefinido'),
             'vencimentoGarantia' => (string) ($item->vencimento_garantia ?? ''),
+            'garantiaModelo' => (string) ($item->garantia_modelo ?? ''),
+            'vencimentoGarantiaGeral' => isset($item->vencimentoGarantiaGeral) && $item->vencimentoGarantiaGeral !== null
+                ? (string) $item->vencimentoGarantiaGeral
+                : null,
+            'itensGarantia' => isset($item->itensGarantia) && is_array($item->itensGarantia)
+                ? array_values($item->itensGarantia)
+                : [],
             'urlVisualizarOs' => $url,
         ];
     }

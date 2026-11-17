@@ -2,6 +2,12 @@
 
 class Equipamentos_model extends CI_Model
 {
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->helper('garantia');
+    }
+
     public function listar(array $filtros, int $limite, int $offset): array
     {
         $this->selectEquipamentos(true);
@@ -142,7 +148,7 @@ class Equipamentos_model extends CI_Model
 
     private function buscarHistorico(?int $equipamentoId, ?string $serial, ?int $osAtualId, int $limite, ?int $clienteId): array
     {
-        $this->db->select('os.idOs, os.clientes_id, os.dataInicial, os.dataFinal, os.dataEntrega, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, c.nomeCliente AS cliente, e.idEquipamentos, e.equipamento AS tipo, m.marca, e.modelo, e.num_serie');
+        $this->db->select('os.idOs, os.clientes_id, os.dataInicial, os.dataFinal, os.dataEntrega, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, c.nomeCliente AS cliente, e.idEquipamentos, e.equipamento AS tipo, m.marca, e.modelo, e.num_serie, os.garantia_modelo');
         $this->db->from('equipamentos e');
         $this->db->join('equipamentos_os eo', 'eo.equipamentos_id = e.idEquipamentos');
         $this->db->join('os', 'os.idOs = eo.os_id');
@@ -209,7 +215,7 @@ class Equipamentos_model extends CI_Model
             }
         }
 
-        return $rows;
+        return garantiaEnriquecerHistoricoSerial($rows, $this);
     }
 
     /** Confirma que uma OS de origem pertence ao cliente e ao serial atuais. */
@@ -238,6 +244,35 @@ class Equipamentos_model extends CI_Model
     {
         if (! $row) {
             return null;
+        }
+
+        if (isset($row->garantia_modelo) && (string) $row->garantia_modelo === 'por_item') {
+            $itens = isset($row->itensGarantia) && is_array($row->itensGarantia) ? $row->itensGarantia : [];
+            $resumo = isset($row->garantiaResumo) && is_array($row->garantiaResumo) ? $row->garantiaResumo : [];
+            $baseOsId = (int) ($row->idOs ?? 0);
+            $temVigente = ! empty($resumo['tem_vigente']);
+            $temVencido = ! empty($resumo['tem_vencido']);
+
+            if ($temVigente) {
+                $tiposVigentes = [];
+                foreach ($itens as $item) {
+                    $situacao = (string) ($item['situacao'] ?? '');
+                    if ($situacao === 'vigente' || $situacao === 'vence_hoje') {
+                        $tiposVigentes[] = (string) ($item['tipo'] ?? '');
+                    }
+                }
+                $tiposUnicos = array_values(array_unique($tiposVigentes));
+                $titulo = count($tiposUnicos) === 1
+                    ? ($tiposUnicos[0] === 'Serviço' ? 'Serviço com prazo vigente' : 'Produto com prazo vigente')
+                    : 'Há itens com prazos vigentes';
+                return $this->montarCriticaPorItem($baseOsId, 'em_garantia', $titulo, 'Há itens com prazos vigentes', 'Pelo menos um item desta OS ainda está dentro do prazo de garantia registrado. O defeito atual nem sempre está coberto; confirme manualmente.');
+            }
+
+            if ($temVencido) {
+                return $this->montarCriticaPorItem($baseOsId, 'vencida', 'Todos os prazos comerciais vencidos', 'Todos os prazos comerciais vencidos', 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.');
+            }
+
+            return $this->montarCriticaPorItem($baseOsId, 'sem_garantia_registrada', 'Zero registrado', 'Prazo zero registrado', 'Os prazos comerciais não foram definidos para os itens desta OS; os direitos legais permanecem aplicáveis.');
         }
 
         $baseOsId = (int) ($row->idOs ?? 0);
@@ -328,6 +363,24 @@ class Equipamentos_model extends CI_Model
             'texto' => 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.',
         ];
     }
+    private function montarCriticaPorItem(int $baseOsId, string $status, string $titulo, string $contador, string $texto): array
+    {
+        return [
+            'baseOsId' => $baseOsId,
+            'status' => $status,
+            'titulo' => $titulo,
+            'contador' => $contador,
+            'dias_restantes' => 0,
+            'dias_vencidos' => 0,
+            'data_base' => '',
+            'data_base_formatada' => '',
+            'garantia_dias' => null,
+            'data_final_garantia' => '',
+            'data_final_garantia_formatada' => '',
+            'texto' => $texto,
+        ];
+    }
+
     private function parseDataHistorico($valor, DateTimeZone $fuso): ?DateTimeImmutable
     {
         $texto = trim((string) $valor);
@@ -579,6 +632,13 @@ class Equipamentos_model extends CI_Model
         $valor = trim((string) $valor);
 
         return $valor === '' ? null : $valor;
+    }
+
+    /** Delegação: recupera snapshots de garantia de várias OSs via Os_model. */
+    public function getItensGarantiaDasOs(array $osIds): array
+    {
+        $this->load->model('os_model');
+        return $this->os_model->getItensGarantiaDasOs($osIds);
     }
 
     private function serialInterno(int $osId): string

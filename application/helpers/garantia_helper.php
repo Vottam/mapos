@@ -107,6 +107,24 @@ if (! function_exists('garantiaEditorItem')) {
         $idItemHtml = htmlspecialchars((string) $idItem, ENT_QUOTES, 'UTF-8');
         $rotaHtml = htmlspecialchars($rota, ENT_QUOTES, 'UTF-8');
         $diasHtml = htmlspecialchars((string) $dias, ENT_QUOTES, 'UTF-8');
+
+        if ($contexto === 'venda') {
+            $descricao = (string) (garantiaValorDoItem($item, 'descricao') ?? garantiaValorDoItem($item, 'nome') ?? ('Item #' . $idItem));
+            $descricaoHtml = htmlspecialchars($descricao, ENT_QUOTES, 'UTF-8');
+            return new HtmlSeguro('<form method="post" action="' . $rotaHtml . '" class="flex min-w-0 flex-col gap-1" data-garantia-autosave="1" data-garantia-id="' . $idItemHtml . '" data-garantia-nome="' . $descricaoHtml . '">'
+                . $csrfHidden
+                . '<input type="hidden" name="' . $campoOperacao . '" value="' . $idOperacaoHtml . '">'
+                . '<input type="hidden" name="idItem" value="' . $idItemHtml . '">'
+                . '<label class="sr-only" for="' . $campoDias . '">Prazo de garantia de ' . $descricaoHtml . ', em dias</label>'
+                . '<div class="flex items-center gap-1">'
+                . '<input id="' . $campoDias . '" name="dias" type="number" min="0" step="1" inputmode="numeric" value="' . $diasHtml . '" class="block w-20 rounded-sm border bg-field px-2 py-1 text-right text-body-md text-text placeholder:text-muted max-sm:min-h-11 focus:outline-3 focus:outline-offset-0 focus:outline-ring focus:shadow-field-focus border-input" data-garantia-dias required>'
+                . '<span class="text-caption text-muted">dias</span>'
+                . '</div>'
+                . '<small class="text-caption text-muted" data-garantia-item-status role="status" aria-live="polite">Salvo</small>'
+                . '<small class="text-caption text-warning-ink" data-garantia-zero-aviso' . ($dias === 0 ? '' : ' hidden') . ' aria-live="polite">' . htmlspecialchars(garantiaAvisoZero(), ENT_QUOTES, 'UTF-8') . '</small>'
+                . '</form>');
+        }
+
         $classe = 'grid min-w-44 gap-1';
 
         return new HtmlSeguro('<form method="post" action="' . $rotaHtml . '" class="' . $classe . '" data-os-acao="' . ($contexto === 'servico' ? 'servico' : 'produto') . '">'
@@ -146,5 +164,414 @@ if (! function_exists('garantiaAvisoZero')) {
     function garantiaAvisoZero(): string
     {
         return 'Prazo comercial informado: 0 dias. Os direitos previstos na legislação de defesa do consumidor permanecem aplicáveis.';
+    }
+}
+
+if (! function_exists('garantiaDataEntregaEfetiva')) {
+    /** Normaliza a data efetiva da entrega (Y-m-d) ou devolve null quando ausente/inválida. */
+    function garantiaDataEntregaEfetiva($dataEntrega): ?string
+    {
+        $iso = dataIsoParaYmd(substr(trim((string) $dataEntrega), 0, 10));
+        if ($iso === null || $iso === '0000-00-00') {
+            return null;
+        }
+
+        return $iso;
+    }
+}
+
+if (! function_exists('garantiaHojeYmd')) {
+    /** Hoje em Y-m-d no fuso operacional; aceita override explícito para testes. */
+    function garantiaHojeYmd(?string $hojeYmd = null, ?DateTimeZone $fuso = null): string
+    {
+        $fuso = $fuso ?? new DateTimeZone('America/Sao_Paulo');
+        if ($hojeYmd !== null) {
+            $iso = dataIsoParaYmd(substr(trim((string) $hojeYmd), 0, 10));
+            if ($iso !== null) {
+                return $iso;
+            }
+        }
+
+        return (new DateTimeImmutable('now', $fuso))->format('Y-m-d');
+    }
+}
+
+if (! function_exists('garantiaEstadoPorItem')) {
+    /**
+     * Estado de garantia de UM item da OS a partir do snapshot e da data
+     * efetiva de entrega. Sem efeitos colaterais e sem consultar o catálogo.
+     *
+     * @param object|array $item       linha do item com garantia_dias_snapshot
+     * @param string|null  $dataEntrega data efetiva (Y-m-d) ou null
+     * @param string|null  $hojeYmd     override de hoje para testes
+     * @return array{snapshot: ?int, prazo: int, prazo_texto: string, data_vencimento: ?string, data_vencimento_br: ?string, dias_restantes: ?int, dias_vencidos: ?int, situacao: string, situacao_texto: string}
+     */
+    function garantiaEstadoPorItem($item, ?string $dataEntrega, ?string $hojeYmd = null): array
+    {
+        $snapshotBruto = garantiaValorDoItem($item, 'garantia_dias_snapshot');
+        $snapshot = $snapshotBruto === null ? null : garantiaNormalizarDias($snapshotBruto);
+        $prazo = $snapshot === null ? 0 : $snapshot;
+        $fuso = new DateTimeZone('America/Sao_Paulo');
+        $hoje = garantiaHojeYmd($hojeYmd, $fuso);
+        $base = garantiaDataEntregaEfetiva($dataEntrega);
+
+        $estado = [
+            'snapshot' => $snapshot,
+            'prazo' => $prazo,
+            'prazo_texto' => $snapshot === null
+                ? 'Não informado'
+                : $prazo . ' ' . ($prazo === 1 ? 'dia' : 'dias'),
+            'data_vencimento' => null,
+            'data_vencimento_br' => null,
+            'dias_restantes' => null,
+            'dias_vencidos' => null,
+            'situacao' => 'nao_informado',
+            'situacao_texto' => 'Informação histórica indisponível',
+        ];
+
+        // Histórico legado (snapshot NULL): não inventa prazo nem vencimento.
+        if ($snapshot === null) {
+            return $estado;
+        }
+
+        // Zero registrado: sem data de vencimento, não entra no agregado.
+        if ($prazo === 0) {
+            $estado['situacao'] = 'zero_registrado';
+            $estado['situacao_texto'] = '0 dias registrados';
+            return $estado;
+        }
+
+        // Sem data efetiva: aguardando entrega, sem vencimento fictício.
+        if ($base === null) {
+            $estado['situacao'] = 'aguardando_entrega';
+            $estado['situacao_texto'] = 'Aguardando entrega';
+            return $estado;
+        }
+
+        $dataBase = DateTimeImmutable::createFromFormat('!Y-m-d', $base, $fuso);
+        $dataHoje = DateTimeImmutable::createFromFormat('!Y-m-d', $hoje, $fuso);
+        if (! $dataBase || ! $dataHoje) {
+            $estado['situacao'] = 'nao_informado';
+            return $estado;
+        }
+
+        try {
+            $vencimento = $dataBase->add(new DateInterval('P' . $prazo . 'D'));
+        } catch (Throwable $erro) {
+            $estado['situacao'] = 'nao_informado';
+            return $estado;
+        }
+
+        $diferenca = (int) $dataHoje->diff($vencimento)->format('%r%a');
+        $estado['data_vencimento'] = $vencimento->format('Y-m-d');
+        $estado['data_vencimento_br'] = $vencimento->format('d/m/Y');
+
+        if ($diferenca === 0) {
+            $estado['situacao'] = 'vence_hoje';
+            $estado['situacao_texto'] = 'Vence hoje';
+            $estado['dias_restantes'] = 0;
+            return $estado;
+        }
+
+        if ($diferenca > 0) {
+            $estado['situacao'] = 'vigente';
+            $estado['situacao_texto'] = 'Restam ' . $diferenca . ' ' . ($diferenca === 1 ? 'dia' : 'dias');
+            $estado['dias_restantes'] = $diferenca;
+            return $estado;
+        }
+
+        $diasVencidos = -$diferenca;
+        $estado['situacao'] = 'vencido';
+        $estado['situacao_texto'] = 'Venceu há ' . $diasVencidos . ' ' . ($diasVencidos === 1 ? 'dia' : 'dias');
+        $estado['dias_vencidos'] = $diasVencidos;
+
+        return $estado;
+    }
+}
+
+if (! function_exists('garantiaUltimoVencimento')) {
+    /** Maior data de vencimento entre os itens com prazo positivo e entrega definida. */
+    function garantiaUltimoVencimento(array $itens, ?string $dataEntrega, ?string $hojeYmd = null): ?string
+    {
+        $ultimo = null;
+        foreach ($itens as $item) {
+            $estado = garantiaEstadoPorItem($item, $dataEntrega, $hojeYmd);
+            if ($estado['data_vencimento'] === null) {
+                continue;
+            }
+            if ($ultimo === null || strcmp($estado['data_vencimento'], $ultimo) > 0) {
+                $ultimo = $estado['data_vencimento'];
+            }
+        }
+
+        return $ultimo;
+    }
+}
+
+if (! function_exists('garantiaMaiorData')) {
+    /** Maior data Y-m-d entre as informadas; null se nenhuma for válida. */
+    function garantiaMaiorData(?string $a, ?string $b): ?string
+    {
+        $a = $a !== null ? substr(trim((string) $a), 0, 10) : null;
+        $b = $b !== null ? substr(trim((string) $b), 0, 10) : null;
+        if ($a === null || $a === '') {
+            return $b !== null && $b !== '' ? $b : null;
+        }
+        if ($b === null || $b === '') {
+            return $a;
+        }
+
+        return strcmp($a, $b) >= 0 ? $a : $b;
+    }
+}
+
+if (! function_exists('garantiaPillPorItem')) {
+    /**
+     * Pill da coluna "Venc. garantia" para OS com garantia por item.
+     * - sem entrega efetiva → "Aguardando entrega" (neutro)
+     * - nenhum prazo positivo → "Zero registrado" (neutro)
+     * - data geral calculável → data + variante vigente/vencido
+     *
+     * @return array{label: string, variant: string, dot: bool, title?: string, attrs?: array}
+     */
+    function garantiaPillPorItem(?string $dataEntrega, ?string $vencimentoGeral, ?string $hojeYmd = null): array
+    {
+        $fuso = new DateTimeZone('America/Sao_Paulo');
+        $hoje = garantiaHojeYmd($hojeYmd, $fuso);
+        $base = garantiaDataEntregaEfetiva($dataEntrega);
+
+        if ($base === null) {
+            return [
+                'label' => 'Aguardando entrega',
+                'variant' => 'neutral',
+                'dot' => false,
+                'title' => 'Aguardando a data efetiva de entrega',
+            ];
+        }
+
+        $vencimento = $vencimentoGeral !== null ? substr(trim((string) $vencimentoGeral), 0, 10) : null;
+        if ($vencimento === null || $vencimento === '') {
+            return [
+                'label' => 'Zero registrado',
+                'variant' => 'neutral',
+                'dot' => false,
+                'title' => 'Todos os prazos comerciais são zero',
+            ];
+        }
+
+        $vencData = DateTimeImmutable::createFromFormat('!Y-m-d', $vencimento, $fuso);
+        $hojeData = DateTimeImmutable::createFromFormat('!Y-m-d', $hoje, $fuso);
+        if (! $vencData || ! $hojeData) {
+            return [
+                'label' => 'Aguardando entrega',
+                'variant' => 'neutral',
+                'dot' => false,
+                'title' => 'Data inválida para cálculo',
+            ];
+        }
+
+        $dias = (int) $hojeData->diff($vencData)->format('%r%a');
+        $dataFormatada = $vencData->format('d/m/Y');
+
+        if ($dias === 0) {
+            return [
+                'label' => $dataFormatada,
+                'variant' => 'warning',
+                'dot' => false,
+                'title' => 'Vence hoje',
+            ];
+        }
+
+        if ($dias > 0) {
+            return [
+                'label' => $dataFormatada,
+                'variant' => 'success',
+                'dot' => false,
+                'title' => 'Último vencimento comercial: ' . $dataFormatada . ' (restam ' . $dias . ' dias)',
+            ];
+        }
+
+        return [
+            'label' => $dataFormatada,
+            'variant' => 'danger',
+            'dot' => false,
+            'title' => 'Último vencimento comercial: ' . $dataFormatada . ' (venceu há ' . (-$dias) . ' dias)',
+        ];
+    }
+}
+
+if (! function_exists('garantiaItensNormalizados')) {
+    /**
+     * Normaliza os itens de uma OS para exibição do CONTROLE DE GARANTIAS.
+     *
+     * @param list<object|array> $itens  itens com tipo, nome e garantia_dias_snapshot
+     * @param string|null        $dataEntrega
+     * @param string|null        $hojeYmd
+     * @return list<array{tipo: string, nome: string, prazo: ?int, prazo_texto: string, vencimento: ?string, vencimento_br: ?string, dias_restantes: ?int, dias_vencidos: ?int, situacao: string, situacao_texto: string, variant: string}>
+     */
+    function garantiaItensNormalizados(array $itens, ?string $dataEntrega, ?string $hojeYmd = null): array
+    {
+        $normalizados = [];
+        foreach ($itens as $item) {
+            $estado = garantiaEstadoPorItem($item, $dataEntrega, $hojeYmd);
+            $tipo = (string) (garantiaValorDoItem($item, 'tipo') ?? 'produto');
+            $nome = trim((string) (garantiaValorDoItem($item, 'nome') ?? garantiaValorDoItem($item, 'descricao') ?? ''));
+
+            $variantes = [
+                'vigente' => 'success',
+                'vence_hoje' => 'warning',
+                'vencido' => 'danger',
+                'aguardando_entrega' => 'neutral',
+                'zero_registrado' => 'neutral',
+                'nao_informado' => 'neutral',
+            ];
+
+            $normalizados[] = [
+                'tipo' => $tipo === 'servico' ? 'Serviço' : 'Produto',
+                'nome' => $nome !== '' ? $nome : ('Item #' . (int) (garantiaValorDoItem($item, 'idItem') ?? 0)),
+                'prazo' => $estado['snapshot'],
+                'prazo_texto' => $estado['prazo_texto'],
+                'vencimento' => $estado['data_vencimento'],
+                'vencimento_br' => $estado['data_vencimento_br'],
+                'dias_restantes' => $estado['dias_restantes'],
+                'dias_vencidos' => $estado['dias_vencidos'],
+                'situacao' => $estado['situacao'],
+                'situacao_texto' => $estado['situacao_texto'],
+                'variant' => $variantes[$estado['situacao']] ?? 'neutral',
+            ];
+        }
+
+        return $normalizados;
+    }
+}
+
+if (! function_exists('garantiaResumoItens')) {
+    /**
+     * Situação geral de um conjunto de itens de garantia (usada no cartão e
+     * no modal de retorno por serial).
+     *
+     * @param list<array> $itensNormalizados saída de garantiaItensNormalizados
+     * @return array{tem_vigente: bool, tem_vencido: bool, todos_vencidos: bool, todos_zero: bool, aguardando_entrega: bool, resumo: string}
+     */
+    function garantiaResumoItens(array $itensNormalizados): array
+    {
+        $temVigente = false;
+        $temVencido = false;
+        $temZero = false;
+        $temAguardando = false;
+        $temIndefinido = false;
+
+        foreach ($itensNormalizados as $item) {
+            switch ((string) ($item['situacao'] ?? '')) {
+                case 'vigente':
+                case 'vence_hoje':
+                    $temVigente = true;
+                    break;
+                case 'vencido':
+                    $temVencido = true;
+                    break;
+                case 'zero_registrado':
+                    $temZero = true;
+                    break;
+                case 'aguardando_entrega':
+                    $temAguardando = true;
+                    break;
+                default:
+                    $temIndefinido = true;
+                    break;
+            }
+        }
+
+        $todosZero = $temZero && ! $temVigente && ! $temVencido && ! $temAguardando && ! $temIndefinido;
+        $todosVencidos = $temVencido && ! $temVigente;
+        $aguardando = $temAguardando && ! $temVigente && ! $temVencido && ! $temZero && ! $temIndefinido;
+
+        if ($temVigente && $temVencido) {
+            $resumo = 'Há itens com prazos vigentes e itens vencidos';
+        } elseif ($temVigente) {
+            $resumo = 'Há itens com prazos vigentes';
+        } elseif ($todosVencidos) {
+            $resumo = 'Todos os prazos comerciais vencidos';
+        } elseif ($todosZero) {
+            $resumo = 'Zero registrado';
+        } elseif ($aguardando) {
+            $resumo = 'Aguardando entrega';
+        } else {
+            $resumo = 'Informação histórica indisponível';
+        }
+
+        return [
+            'tem_vigente' => $temVigente,
+            'tem_vencido' => $temVencido,
+            'todos_vencidos' => $todosVencidos,
+            'todos_zero' => $todosZero,
+            'aguardando_entrega' => $aguardando,
+            'resumo' => $resumo,
+        ];
+    }
+}
+
+if (! function_exists('garantiaClassificarStatusItem')) {
+    /**
+     * Traduz o estado agregado dos itens para o vocabulário que o JS do
+     * cartão serial já conhece: vigente, vencida, sem_garantia_registrada,
+     * indeterminada e misto (itens com prazos diferentes).
+     */
+    function garantiaClassificarStatusItem(array $itensNormalizados): string
+    {
+        $resumo = garantiaResumoItens($itensNormalizados);
+        if ($resumo['tem_vigente'] && $resumo['tem_vencido']) {
+            return 'misto';
+        }
+        if ($resumo['tem_vigente']) {
+            return 'vigente';
+        }
+        if ($resumo['todos_vencidos']) {
+            return 'vencida';
+        }
+        if ($resumo['todos_zero']) {
+            return 'sem_garantia_registrada';
+        }
+
+        return 'indeterminada';
+    }
+}
+
+if (! function_exists('garantiaEnriquecerHistoricoSerial')) {
+    /**
+     * Enriquecce a lista de OSs históricas com snapshots de garantia por item
+     * e com o agregado MAX. Recebe a lista de rows e o model Os_model
+     * (ou equivalente com getItensGarantiaDasOs).
+     *
+     * @param array  $rows
+     * @param object $os_model instância com método getItensGarantiaDasOs(array $osIds): array
+     * @return array
+     */
+    function garantiaEnriquecerHistoricoSerial(array $rows, $os_model): array
+    {
+        if (! is_object($os_model) || ! method_exists($os_model, 'getItensGarantiaDasOs') || $rows === []) {
+            return $rows;
+        }
+
+        $osIds = [];
+        foreach ($rows as $linha) {
+            if (isset($linha->idOs)) {
+                $osIds[] = (int) $linha->idOs;
+            }
+        }
+
+        $itensPorOs = [];
+        foreach ($os_model->getItensGarantiaDasOs($osIds) as $itemGarantia) {
+            $itensPorOs[(int) $itemGarantia->osId][] = $itemGarantia;
+        }
+
+        foreach ($rows as $row) {
+            $itensDaOs = $itensPorOs[(int) $row->idOs] ?? [];
+            $row->itensGarantia = garantiaItensNormalizados($itensDaOs, $row->dataEntrega ?? null);
+            $row->vencimentoGarantiaGeral = garantiaUltimoVencimento($itensDaOs, $row->dataEntrega ?? null);
+            $row->garantiaResumo = garantiaResumoItens($row->itensGarantia);
+        }
+
+        return $rows;
     }
 }

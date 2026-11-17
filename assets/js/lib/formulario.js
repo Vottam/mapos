@@ -6,7 +6,7 @@
 // por aria-describedby, aria-invalid no campo e borda border-danger. Se o
 // servidor já renderizou o erro, o mesmo elemento é reaproveitado.
 
-import { criarIcone } from './icone.js';
+import { criarIcone } from './icone.js?v=mapos-531-item-warranty-return-20261117-r2';
 
 export const MENSAGENS = {
     vazio: 'Preencha este campo.',
