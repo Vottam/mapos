@@ -92,6 +92,8 @@ if (! function_exists('configuracaoCampos')) {
             'vendas' => [
                 'control_estoque' => ['destino' => 'config', 'tipo' => 'sim_nao', 'rotulo' => 'Controlar o estoque', 'ajuda' => 'Adicionar produto à OS ou à venda baixa o estoque; tirar, cancelar ou excluir devolve.'],
                 'control_edit_vendas' => ['destino' => 'config', 'tipo' => 'sim_nao', 'rotulo' => 'Permitir editar venda faturada ou cancelada'],
+                'garantia_padrao_produto_dias' => ['destino' => 'config', 'tipo' => 'numero', 'rotulo' => 'Garantia padrão para produtos/vendas (dias)', 'obrigatorio' => true, 'max' => 5, 'grupo' => 'Garantias', 'ajuda' => 'Sugestão inicial para produtos cadastrados e adicionados a vendas/OS. Aceita inteiros não negativos (0, 30, 90, 180, 365...). Vale para novas operações; não altera operações já realizadas nem itens com garantia personalizada.'],
+                'garantia_padrao_servico_dias' => ['destino' => 'config', 'tipo' => 'numero', 'rotulo' => 'Garantia padrão para serviços (dias)', 'obrigatorio' => true, 'max' => 5, 'grupo' => 'Garantias', 'ajuda' => 'Sugestão inicial para serviços cadastrados e adicionados a OS. Aceita inteiros não negativos (0, 30, 90, 180, 365...). Vale para novas operações; não altera operações já realizadas nem itens com garantia personalizada.'],
             ],
             'financeiro' => [
                 'control_baixa' => ['destino' => 'config', 'tipo' => 'sim_nao', 'rotulo' => 'Impedir editar lançamento já pago'],

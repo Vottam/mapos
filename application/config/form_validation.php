@@ -74,6 +74,11 @@ $config = [
             'label' => '',
             'rules' => 'required|trim',
         ],
+        [
+            'field' => 'garantia_dias',
+            'label' => 'Prazo comercial informado',
+            'rules' => 'required|callback_validar_garantia_dias',
+        ],
     ],
     'produtos' => [
         [
@@ -105,6 +110,16 @@ $config = [
             'field' => 'estoqueMinimo',
             'label' => 'Estoque Minimo',
             'rules' => 'trim',
+        ],
+        [
+            'field' => 'garantia_dias',
+            'label' => 'Prazo comercial informado',
+            'rules' => 'required|callback_validar_garantia_dias',
+        ],
+        [
+            'field' => 'supplier_warranty_days',
+            'label' => 'Garantia do fornecedor (dias)',
+            'rules' => 'trim|callback_validar_garantia_dias',
         ],
     ],
     'usuarios' => [

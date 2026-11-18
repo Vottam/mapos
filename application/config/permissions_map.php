@@ -131,6 +131,9 @@ $config['permissions_map'] = [
         'pesquisar' => '*',
         'buscaRapida' => '*',
         'calendario' => 'vOs',
+        'painelOs' => 'vOs',
+        'painelVendas' => 'vVenda',
+        'painelGraficoOs' => 'vOs',
         'uploadUserImage' => 'cUsuario',
         'backup' => 'cBackup',
         // Cadastrar, editar e trocar o logo do emitente são POST em emitente.
@@ -174,6 +177,7 @@ $config['permissions_map'] = [
         'faturar' => 'eOs',
         'adicionarAnotacao' => 'eOs',
         'excluirAnotacao' => 'eOs',
+        'alterarGarantiaItem' => 'eOs',
         'excluir' => 'dOs',
         'autoCompleteProduto' => ['aOs', 'eOs'],
         'autoCompleteTermoGarantia' => ['aOs', 'eOs'],
@@ -205,6 +209,7 @@ $config['permissions_map'] = [
         'adicionar' => 'aProduto',
         'editar' => 'eProduto',
         'atualizar_estoque' => 'eProduto',
+        'renovarGarantiaFornecedor' => 'eProduto',
         'excluir' => 'dProduto',
     ],
 
@@ -278,6 +283,7 @@ $config['permissions_map'] = [
         'adicionarDesconto' => 'eVenda',
         'faturar' => 'eVenda',
         'excluir' => 'dVenda',
+        'alterarGarantiaItem' => 'eVenda',
         // Auxiliares da geração do QR Code do PIX. Não são rotas.
         'validarCPF' => false,
         'validarCNPJ' => false,

@@ -132,6 +132,15 @@ function valorHistorico(valor, fallback = '-') {
     return texto || fallback;
 }
 
+function formatarDataBr(ymd) {
+    const base = String(ymd ?? '').trim().slice(0, 10);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(base);
+    if (!m) {
+        return base;
+    }
+    return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
 function criarCampoHistorico(label, valor, classe = '') {
     const wrapper = document.createElement('div');
     wrapper.className = classe || 'flex flex-col gap-1';
@@ -147,7 +156,28 @@ function criarCampoHistorico(label, valor, classe = '') {
 
 function textoParaObservacoes(item) {
     const periodo = `${valorHistorico(item.dataInicial)}${item.dataFinal ? ` até ${item.dataFinal}` : ''}`;
-    const garantia = `${valorHistorico(item.situacaoGarantia, 'Indefinida')}${item.vencimentoGarantia ? ` (vence em ${item.vencimentoGarantia})` : ''}`;
+    let garantia;
+    if (String(item.garantiaModelo ?? '').trim() === 'por_item') {
+        const itens = Array.isArray(item.itensGarantia) ? item.itensGarantia : [];
+        const vigentes = itens.filter((it) => ['vigente', 'vence_hoje'].includes(String(it.situacao ?? '')));
+        const vencidos = itens.filter((it) => String(it.situacao ?? '') === 'vencido');
+        let texto = 'Por item';
+        if (vigentes.length && vencidos.length) {
+            texto = 'Há itens com prazos vigentes e itens vencidos';
+        } else if (vigentes.length) {
+            texto = 'Há itens com prazos vigentes';
+        } else if (vencidos.length) {
+            texto = 'Todos os prazos comerciais vencidos';
+        } else if (itens.every((it) => String(it.situacao ?? '') === 'zero_registrado') && itens.length) {
+            texto = 'Zero registrado';
+        } else if (itens.every((it) => String(it.situacao ?? '') === 'aguardando_entrega') && itens.length) {
+            texto = 'Aguardando entrega';
+        }
+        const venc = item.vencimentoGarantiaGeral ? ` (último vencimento em ${formatarDataBr(String(item.vencimentoGarantiaGeral).slice(0, 10))})` : '';
+        garantia = `${texto}${venc}`;
+    } else {
+        garantia = `${valorHistorico(item.situacaoGarantia, 'Indefinida')}${item.vencimentoGarantia ? ` (vence em ${item.vencimentoGarantia})` : ''}`;
+    }
     const equipamento = [item.equipamento, item.marca, item.modelo].filter(Boolean).join(' · ');
     const linhas = [
         `[Histórico anterior por número de série — OS #${item.idOs}]`,
@@ -215,6 +245,74 @@ function selecionarRetornoGarantia(raiz, item, aviso) {
 }
 
 function garantiaVisual(item) {
+    const modelo = String(item.garantiaModelo ?? '').trim();
+    if (modelo === 'por_item') {
+        const itens = Array.isArray(item.itensGarantia) ? item.itensGarantia : [];
+        if (!itens.length) {
+            return {
+                chave: 'indeterminada',
+                caixa: 'bg-neutral-soft',
+                texto: 'text-neutral-ink',
+                titulo: 'Prazo indeterminável',
+                detalhe: 'Nenhum item com snapshot de garantia registrado.',
+            };
+        }
+        const todosAguardando = itens.every((it) => String(it.situacao ?? '') === 'aguardando_entrega');
+        if (todosAguardando) {
+            return {
+                chave: 'aguardando',
+                caixa: 'bg-neutral-soft',
+                texto: 'text-neutral-ink',
+                titulo: 'Aguardando entrega',
+                detalhe: 'A contagem começa na data efetiva da entrega.',
+            };
+        }
+        const todosZero = itens.every((it) => String(it.situacao ?? '') === 'zero_registrado');
+        if (todosZero) {
+            return {
+                chave: 'sem-garantia',
+                caixa: 'bg-neutral-soft',
+                texto: 'text-neutral-ink',
+                titulo: 'Zero registrado',
+                detalhe: 'Todos os itens estão registrados com prazo zero.',
+            };
+        }
+        const vigentes = itens.filter((it) => ['vigente', 'vence_hoje'].includes(String(it.situacao ?? '')));
+        const vencidos = itens.filter((it) => String(it.situacao ?? '') === 'vencido');
+        if (vigentes.length) {
+            const tiposVigentes = new Set(vigentes.map((it) => String(it.tipo ?? '').toLowerCase()));
+            const titulo = tiposVigentes.size === 1
+                ? (tiposVigentes.has('serviço') ? 'Serviço com prazo vigente' : 'Produto com prazo vigente')
+                : 'Há itens com prazos vigentes';
+            const detalhe = vigentes.length === 1
+                ? `${vigentes[0].nome} — ${vigentes[0].situacao_texto}.`
+                : `${vigentes.length} item(ns) dentro do prazo.`;
+            return {
+                chave: vigentes.length === 1 ? 'vigente' : 'misto',
+                caixa: 'bg-success-soft',
+                texto: 'text-success-ink',
+                titulo,
+                detalhe,
+            };
+        }
+        if (vencidos.length) {
+            return {
+                chave: 'vencida',
+                caixa: 'bg-danger-soft',
+                texto: 'text-danger-ink',
+                titulo: 'Todos os prazos comerciais vencidos',
+                detalhe: 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.',
+            };
+        }
+        return {
+            chave: 'indeterminada',
+            caixa: 'bg-neutral-soft',
+            texto: 'text-neutral-ink',
+            titulo: 'Prazo indeterminável',
+            detalhe: 'Data efetiva da entrega não disponível para cálculo.',
+        };
+    }
+
     const status = String(item.garantiaStatus ?? '').trim();
     const situacao = String(item.situacaoGarantia ?? '').trim().toLowerCase();
     if (status === 'vigente' || situacao === 'em garantia') {
@@ -272,6 +370,40 @@ function criarSeloGarantia(item, compacto = false) {
     return selo;
 }
 
+function criarListaItensGarantia(item, compacto = false) {
+    const itens = Array.isArray(item.itensGarantia) ? item.itensGarantia : [];
+    if (!itens.length) {
+        return null;
+    }
+    const wrapper = document.createElement('div');
+    wrapper.className = compacto ? 'flex flex-col gap-1' : 'mt-3 flex flex-col gap-1';
+    for (const it of itens) {
+        const linha = document.createElement('div');
+        linha.className = 'flex items-center justify-between gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2';
+        const esquerda = document.createElement('div');
+        esquerda.className = 'flex min-w-0 flex-col gap-0.5';
+        const nome = document.createElement('span');
+        nome.className = 'text-caption font-medium text-text [overflow-wrap:anywhere]';
+        nome.textContent = it.nome ?? 'Item';
+        const meta = document.createElement('span');
+        meta.className = 'text-caption text-muted';
+        meta.textContent = `${it.tipo ?? ''} · ${it.prazo_texto ?? ''}`;
+        esquerda.append(nome, meta);
+        const direita = document.createElement('div');
+        direita.className = 'flex flex-col items-end gap-0.5 whitespace-nowrap text-right';
+        const venc = document.createElement('span');
+        venc.className = 'text-caption text-text';
+        venc.textContent = it.vencimento_br ? it.vencimento_br : '—';
+        const sit = document.createElement('span');
+        sit.className = 'text-caption text-muted';
+        sit.textContent = it.situacao_texto ?? '';
+        direita.append(venc, sit);
+        linha.append(esquerda, direita);
+        wrapper.append(linha);
+    }
+    return wrapper;
+}
+
 function textoResumoAtendimento(item) {
     const texto = valorHistorico(item.defeito || item.descricaoProduto, 'Sem defeito ou descrição registrada.');
     return texto.length > 260 ? `${texto.slice(0, 257).trimEnd()}…` : texto;
@@ -308,6 +440,10 @@ function criarCartaoHistorico(raiz, item, critica) {
     descricao.textContent = textoResumoAtendimento(item);
     descricaoGrupo.append(descricaoTitulo, descricao);
     card.append(descricaoGrupo, criarSeloGarantia(item, true));
+    const listaItens = criarListaItensGarantia(item, true);
+    if (listaItens) {
+        card.append(listaItens);
+    }
 
     const acoes = document.createElement('div');
     acoes.className = 'flex flex-wrap gap-2';
@@ -359,6 +495,11 @@ function abrirHistoricoModal(raiz, item, critica) {
     const aviso = document.createElement('p');
     aviso.className = 'mb-4 min-h-5 text-caption text-success';
     corpo.append(aviso, criarSeloGarantia(item));
+
+    const listaItensModal = criarListaItensGarantia(item);
+    if (listaItensModal) {
+        corpo.append(listaItensModal);
+    }
 
     if (critica && Number(critica.baseOsId) === Number(item.idOs)) {
         const alerta = document.createElement('div');
@@ -686,12 +827,15 @@ function iniciarEquipamentos(raiz) {
         }
     };
 
+    // A chave NÃO inclui o equipamento: a automação (selecionarEquipamentoEncontrado)
+    // muda o select após o fetch, e incluir isso na chave fazia o blur do clique em
+    // "Ver detalhes" trocar a chave, apagar o cartão e perder o primeiro clique.
     const consultarSerial = () => {
         const valorOriginal = serial?.value.trim() || '';
         const valorNormalizado = normalizarSerialParaConsulta(valorOriginal);
         const clienteId = cliente.value || '';
         const equipamentoId = select.value && select.value !== '0' ? select.value : '';
-        const chave = `${clienteId}|${valorNormalizado}|${osId}|${equipamentoId}`;
+        const chave = `${clienteId}|${valorNormalizado}|${osId}`;
         if (chave === ultimaChave || chave === consultaAgendadaChave) {
             return;
         }

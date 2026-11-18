@@ -9,6 +9,7 @@
  * @var array<string, string> $erros    Por campo; _geral para falha ao salvar
  */
 $editando = $servico !== null;
+$padraoServicoGlobal = garantiaPadraoGlobalDias($this->data['configuration'] ?? null, 'servico');
 $erroGeral = $erros['_geral'] ?? null;
 $errosDeCampo = array_diff_key($erros, ['_geral' => true]);
 ?>
@@ -58,6 +59,32 @@ $errosDeCampo = array_diff_key($erros, ['_geral' => true]);
                     'attrs' => ['maxlength' => 45],
                 ]) ?>
             </div>
+        </section>
+
+        <section class="grid gap-4 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 sm:p-6" aria-label="Prazo comercial informado" <?= js_module('garantia/catalogo') ?>>
+            <div class="sm:col-span-2">
+                <h2 class="text-heading-sm text-text">Garantia comercial (dias)</h2>
+            </div>
+            <?= component('input', [
+                'name' => 'garantia_dias',
+                'label' => 'Prazo comercial informado (dias)',
+                'type' => 'number',
+                'required' => true,
+                'value' => $valores['garantia_dias'] !== '' ? $valores['garantia_dias'] : (string) $padraoServicoGlobal,
+                'error' => $errosDeCampo['garantia_dias'] ?? null,
+                'help' => 'Desmarcado o campo ao lado: acompanha o padrão das Configurações → Vendas (hoje: ' . $padraoServicoGlobal . ' dias) e passa a sugerir esse prazo para novas operações. Pode informar 0, 30, 180, 365 ou outro inteiro não negativo.',
+                'attrs' => ['min' => 0, 'step' => 1, 'inputmode' => 'numeric'],
+            ]) ?>
+            <div class="flex flex-col justify-end">
+                <?= component('checkbox', [
+                    'name' => 'garantia_dias_custom',
+                    'value' => '1',
+                    'label' => 'Personalizar garantia deste serviço',
+                    'help' => 'Marcado: usa o prazo informado ao lado e não acompanha o padrão global. Desmarcado: herda o padrão das Configurações (o que valer na data da operação).',
+                    'checked' => ($valores['garantia_dias_custom'] ?? '0') === '1',
+                ]) ?>
+            </div>
+            <p class="sm:col-span-2 text-caption text-warning" data-garantia-zero-aviso hidden aria-live="polite"><?= e(garantiaAvisoZero()) ?></p>
         </section>
 
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

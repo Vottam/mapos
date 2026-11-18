@@ -131,9 +131,99 @@ $caixa = 'rounded-xl border border-border bg-surface p-4 sm:p-6';
             </div>
         </section>
 
+        <?php
+        $padraoProdutoGlobal = garantiaPadraoGlobalDias($this->data['configuration'] ?? null, 'produto');
+        $fornecedorDias = $produto !== null && $produto->supplier_warranty_days !== null ? (int) $produto->supplier_warranty_days : null;
+        $fornecedorRestante = $produto !== null ? garantiaFornecedorRestanteDias($produto) : null;
+        $fornecedorVencimento = $produto !== null ? garantiaFornecedorVencimento($produto) : null;
+        $fornecedorInicio = $fornecedorDias !== null && $produto !== null ? substr(trim((string) ($produto->supplier_warranty_start_date ?? '')), 0, 10) : '';
+        ?>
+        <section class="<?= e($caixa) ?>" aria-labelledby="secao-garantia" <?= js_module('garantia/catalogo') ?>>
+            <h2 id="secao-garantia" class="text-heading-sm text-text">Garantia comercial (dias)</h2>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <?= component('input', [
+                    'name' => 'garantia_dias',
+                    'label' => 'Prazo comercial informado (dias)',
+                    'type' => 'number',
+                    'required' => true,
+                    'value' => $valores['garantia_dias'] !== '' ? $valores['garantia_dias'] : (string) $padraoProdutoGlobal,
+                    'error' => $errosDeCampo['garantia_dias'] ?? null,
+                    'help' => 'Desmarcado o campo abaixo: acompanha o padrão das Configurações → Vendas (hoje: ' . $padraoProdutoGlobal . ' dias) e passa a sugerir esse prazo para novas operações. Pode informar 0, 30, 180, 365 ou outro inteiro não negativo.',
+                    'attrs' => ['min' => 0, 'step' => 1, 'inputmode' => 'numeric'],
+                ]) ?>
+                <div class="flex flex-col justify-end">
+                    <?= component('checkbox', [
+                        'name' => 'garantia_dias_custom',
+                        'value' => '1',
+                        'label' => 'Personalizar garantia deste produto',
+                        'help' => 'Marcado: usa o prazo informado acima e não acompanha o padrão global. Desmarcado: herda o padrão das Configurações (o que valer na data da operação).',
+                        'checked' => ($valores['garantia_dias_custom'] ?? '0') === '1',
+                    ]) ?>
+                </div>
+            </div>
+            <p class="mt-3 text-caption text-warning" data-garantia-zero-aviso hidden aria-live="polite"><?= e(garantiaAvisoZero()) ?></p>
+        </section>
+
+        <section class="<?= e($caixa) ?>" aria-labelledby="secao-fornecedor">
+            <h2 id="secao-fornecedor" class="text-heading-sm text-text">Garantia do fornecedor</h2>
+            <p class="mt-0.5 text-caption text-muted">Prazo recebido do fabricante ou distribuidor. É independente da garantia oferecida ao cliente e serve como controle interno de cobertura. Não exige lote, unidade, serial ou nota fiscal do fornecedor.</p>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <?= component('input', [
+                    'name' => 'supplier_warranty_days',
+                    'label' => 'Garantia recebida do fornecedor (dias)',
+                    'type' => 'number',
+                    'value' => $valores['supplier_warranty_days'] ?? '',
+                    'error' => $errosDeCampo['supplier_warranty_days'] ?? null,
+                    'help' => 'Em branco: não informada. Alterar o prazo reinicia a contagem a partir de hoje. Zero é um prazo válido.',
+                    'attrs' => ['min' => 0, 'step' => 1, 'inputmode' => 'numeric'],
+                ]) ?>
+                <div class="flex flex-col justify-center gap-0.5 rounded-lg border border-border bg-surface-subtle px-4 py-3">
+                    <span class="text-label-md text-text">Garantia restante do fornecedor</span>
+                    <?php if ($fornecedorDias !== null && $fornecedorRestante !== null) { ?>
+                        <?php if ($fornecedorRestante > 0) { ?>
+                            <span class="text-body-md font-semibold text-text"><?= (int) $fornecedorRestante ?> dias restantes<?= $fornecedorVencimento !== null ? ' (vence em ' . e(date('d/m/Y', strtotime($fornecedorVencimento))) . ')' : '' ?></span>
+                        <?php } else { ?>
+                            <span class="text-body-md font-semibold text-warning">Vencida: 0 dias restantes<?= $fornecedorVencimento !== null ? ' (venceu em ' . e(date('d/m/Y', strtotime($fornecedorVencimento))) . ')' : '' ?></span>
+                        <?php } ?>
+                        <?php if ($fornecedorInicio !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fornecedorInicio)) { ?>
+                            <span class="text-caption text-muted">Contagem iniciada em <?= e(date('d/m/Y', strtotime($fornecedorInicio))) ?>, sobre o prazo original de <?= (int) $fornecedorDias ?> dias.</span>
+                        <?php } ?>
+                    <?php } else { ?>
+                        <span class="text-body-md text-muted">Não informada.</span>
+                    <?php } ?>
+                </div>
+            </div>
+            <div class="mt-3">
+                <?= component('checkbox', [
+                    'name' => 'supplier_warranty_pass_through',
+                    'value' => '1',
+                    'label' => 'Repassar garantia adicional ao cliente',
+                    'help' => 'Marcado: novas vendas e OS sugerem o maior prazo entre a base comercial e o restante do fornecedor. Nunca reduz o prazo base. Desmarque para não repassar.',
+                    'checked' => ($valores['supplier_warranty_pass_through'] ?? '0') === '1',
+                ]) ?>
+            </div>
+            <?php if ($editando && $fornecedorDias !== null) { ?>
+                <div class="mt-4 border-t border-border pt-4">
+                    <?= component('button', ['label' => 'Renovar contagem da garantia', 'variant' => 'outline', 'icon' => 'history', 'attrs' => ['type' => 'button', 'data-modal-abrir' => 'renovar-fornecedor']]) ?>
+                    <p class="mt-1 text-caption text-muted">Reinicia a contagem a partir de hoje, mantendo o prazo atual (<?= (int) $fornecedorDias ?> dias). Use ao comprar nova remessa.</p>
+                    <?= component('modal-confirm', ['id' => 'renovar-fornecedor', 'title' => 'Renovar contagem da garantia do fornecedor?', 'message' => 'A contagem recomeça hoje com o mesmo prazo de ' . (int) $fornecedorDias . ' dias. Operações já realizadas não são alteradas.', 'confirm_label' => 'Renovar contagem', 'icon' => 'history', 'confirm_attrs' => ['form' => 'form-renovar-fornecedor']]) ?>
+                </div>
+            <?php } elseif ($editando) { ?>
+                <p class="mt-3 text-caption text-muted">Informe o prazo da garantia do fornecedor acima e salve para habilitar a renovação da contagem.</p>
+            <?php } else { ?>
+                <p class="mt-3 text-caption text-muted">Ao salvar o produto com um prazo informado, a contagem começa na data deste salvamento.</p>
+            <?php } ?>
+        </section>
+
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <?= component('button', ['label' => 'Cancelar', 'variant' => 'ghost', 'href' => $editando ? site_url('produtos/visualizar/' . (int) $produto->idProdutos) : site_url('produtos')]) ?>
             <?= component('button', ['label' => $editando ? 'Salvar alterações' : 'Cadastrar produto', 'icon' => 'save', 'type' => 'submit', 'attrs' => ['data-rotulo-carregando' => 'Salvando…']]) ?>
         </div>
     </form>
+    <?php if ($editando && ($fornecedorDias ?? null) !== null) { ?>
+    <form id="form-renovar-fornecedor" method="post" action="<?= e(site_url('produtos/renovarGarantiaFornecedor')) ?>" hidden>
+        <input type="hidden" name="<?= e($this->security->get_csrf_token_name()) ?>" value="<?= e($this->security->get_csrf_hash()) ?>">
+        <input type="hidden" name="idProdutos" value="<?= (int) $produto->idProdutos ?>">
+    </form>
+    <?php } ?>
 </div>

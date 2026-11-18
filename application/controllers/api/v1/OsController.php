@@ -143,6 +143,7 @@ class OsController extends REST_Controller
             'observacoes' => $this->post('observacoes', true),
             'laudoTecnico' => $this->post('laudoTecnico', true),
             'faturado' => 0,
+            'garantia_modelo' => 'por_item',
         ];
         $data = $this->os_model->dadosDaTransicaoDeEntrega($data, (object) [
             'status' => null,
@@ -471,6 +472,16 @@ class OsController extends REST_Controller
                 'status' => false,
                 'message' => 'Erro ao tentar inserir produto na OS. OS Não encontrada!',
             ], REST_Controller::HTTP_BAD_REQUEST);
+            return;
+        }
+        if (($os->garantia_modelo ?? null) === 'por_item') {
+            $this->load->model('produtos_model');
+            $snapshotGarantia = garantiaSnapshotDoCatalogo($this->produtos_model->getById((int) $this->post('idProduto', true)), 'produto', null);
+            if ($snapshotGarantia === null) {
+                $this->response(['status' => false, 'message' => 'O prazo comercial do produto não está válido. Revise o cadastro antes de adicionar.'], REST_Controller::HTTP_BAD_REQUEST);
+                return;
+            }
+            $data = array_merge($data, $snapshotGarantia);
         }
 
         if ($this->os_model->add('produtos_os', $data)) {
@@ -636,6 +647,21 @@ class OsController extends REST_Controller
             'subTotal' => $this->post('preco', true) * $this->post('quantidade', true),
             'os_id' => $id,
         ];
+
+        $os = $this->os_model->getById((int) $id);
+        if ($os === null) {
+            $this->response(['status' => false, 'message' => 'OS não encontrada.'], REST_Controller::HTTP_BAD_REQUEST);
+            return;
+        }
+        if (($os->garantia_modelo ?? null) === 'por_item') {
+            $this->load->model('servicos_model');
+            $snapshotGarantia = garantiaSnapshotDoCatalogo($this->servicos_model->getById((int) $this->post('idServico', true)), 'servico', null);
+            if ($snapshotGarantia === null) {
+                $this->response(['status' => false, 'message' => 'O prazo comercial do serviço não está válido. Revise o cadastro antes de adicionar.'], REST_Controller::HTTP_BAD_REQUEST);
+                return;
+            }
+            $data = array_merge($data, $snapshotGarantia);
+        }
 
         if ($this->os_model->add('servicos_os', $data)) {
             $lastServicoOs = $this->Api_model->lastRow('servicos_os', 'idServicos_os');

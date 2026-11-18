@@ -10,6 +10,7 @@ class Os_model extends CI_Model
     {
         parent::__construct();
         $this->load->helper('os');
+        $this->load->helper('garantia');
     }
 
     /**
@@ -212,6 +213,78 @@ class Os_model extends CI_Model
         return (int) ($row->total ?? 0);
     }
 
+    /**
+     * Listagem de OS da v5 (#2842), no padrão das listagens (#2852). Os
+     * métodos listar() e contar() usam os mesmos filtros para paginação exata.
+     */
+    public function listar(array $filtros, int $limite, int $offset, ?array $statusVisiveis = null): array
+    {
+        $totalProdutos = '(SELECT COALESCE(SUM(produtos_os.subTotal), 0) FROM produtos_os WHERE produtos_os.os_id = os.idOs)';
+        $valorServico = 'COALESCE(NULLIF(servicos_os.preco, 0), servicos.preco, 0) * COALESCE(NULLIF(servicos_os.quantidade, 0), 1)';
+        if ($this->descontoPorItemDisponivel()) {
+            $valorServico = "CASE WHEN servicos_os.desconto > 0 THEN servicos_os.subTotal ELSE {$valorServico} END";
+        }
+        $totalServicos = "(SELECT COALESCE(SUM({$valorServico}), 0) FROM servicos_os LEFT JOIN servicos ON servicos.idServicos = servicos_os.servicos_id WHERE servicos_os.os_id = os.idOs)";
+
+        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.descricaoProduto, os.status, os.faturado, os.desconto, os.valor_desconto, os.clientes_id, os.usuarios_id');
+        $this->db->select('clientes.nomeCliente, usuarios.nome AS responsavel');
+        $this->db->select($totalProdutos . ' AS totalProdutos', false);
+        $this->db->select($totalServicos . ' AS totalServicos', false);
+        $this->aplicarFiltros($filtros, $statusVisiveis);
+
+        $linhas = $this->db->order_by('os.idOs', 'desc')->limit($limite, max(0, $offset))->get()->result();
+        foreach ($linhas as $linha) {
+            $bruto = (float) $linha->totalProdutos + (float) $linha->totalServicos;
+            $linha->total = (float) $linha->valor_desconto > 0 ? (float) $linha->valor_desconto : $bruto;
+        }
+
+        return $linhas;
+    }
+
+    public function contar(array $filtros, ?array $statusVisiveis = null): int
+    {
+        $this->aplicarFiltros($filtros, $statusVisiveis);
+
+        return (int) $this->db->count_all_results();
+    }
+
+    private function aplicarFiltros(array $filtros, ?array $statusVisiveis): void
+    {
+        $this->db->from('os');
+        $this->db->join('clientes', 'clientes.idClientes = os.clientes_id', 'left');
+        $this->db->join('usuarios', 'usuarios.idUsuarios = os.usuarios_id', 'left');
+
+        $pesquisa = trim((string) ($filtros['pesquisa'] ?? ''));
+        if ($pesquisa !== '') {
+            $this->db->group_start()
+                ->like('clientes.nomeCliente', $pesquisa)
+                ->or_like('clientes.documento', $pesquisa)
+                ->or_like('os.descricaoProduto', $pesquisa);
+            if (ctype_digit($pesquisa)) {
+                $this->db->or_where('os.idOs', (int) $pesquisa);
+            }
+            $this->db->group_end();
+        }
+
+        if (($filtros['status'] ?? '') !== '') {
+            $grupo = painelGrupoStatus($filtros['status']);
+            if ($grupo !== null) {
+                $this->db->where_in('os.status', $grupo);
+            } else {
+                $this->db->where('os.status', $filtros['status']);
+            }
+        } elseif ($pesquisa === '' && $statusVisiveis !== null) {
+            $this->db->where_in('os.status', $statusVisiveis);
+        }
+
+        if (($filtros['de'] ?? '') !== '') {
+            $this->db->where('os.dataInicial >=', $filtros['de']);
+        }
+        if (($filtros['ate'] ?? '') !== '') {
+            $this->db->where('os.dataFinal <=', $filtros['ate']);
+        }
+    }
+
     public function getById($id)
     {
         $this->db->select('os.*, clientes.*, clientes.celular as celular_cliente, clientes.telefone as telefone_cliente, clientes.contato as contato_cliente, garantias.refGarantia, garantias.textoGarantia, usuarios.telefone as telefone_usuario, usuarios.email as email_usuario, usuarios.nome');
@@ -385,7 +458,7 @@ class Os_model extends CI_Model
             return [];
         }
 
-        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.dataEntrega, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, clientes.nomeCliente as cliente, equipamentos.idEquipamentos, equipamentos.equipamento as tipo, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie');
+        $this->db->select('os.idOs, os.dataInicial, os.dataFinal, os.dataEntrega, os.status, os.garantia, os.descricaoProduto, os.defeito, os.laudoTecnico, os.observacoes, clientes.nomeCliente as cliente, equipamentos.idEquipamentos, equipamentos.equipamento as tipo, marcas.marca as marca, equipamentos.modelo, equipamentos.num_serie, os.garantia_modelo');
         $this->db->from('equipamentos');
         $this->db->join('equipamentos_os', 'equipamentos_os.equipamentos_id = equipamentos.idEquipamentos');
         $this->db->join('os', 'os.idOs = equipamentos_os.os_id');
@@ -416,13 +489,81 @@ class Os_model extends CI_Model
             }
         }
 
-        return $rows;
+        return garantiaEnriquecerHistoricoSerial($rows, $this);
     }
 
     public function calcularCriticaGarantiaSerial($row)
     {
         if (! $row) {
             return null;
+        }
+
+        if (isset($row->garantia_modelo) && (string) $row->garantia_modelo === 'por_item') {
+            $itens = isset($row->itensGarantia) && is_array($row->itensGarantia) ? $row->itensGarantia : [];
+            $resumo = $row->garantiaResumo ?? null;
+            $baseOsId = (int) ($row->idOs ?? 0);
+            $temVigente = is_array($resumo) ? ! empty($resumo['tem_vigente']) : false;
+            $temVencido = is_array($resumo) ? ! empty($resumo['tem_vencido']) : false;
+
+            if ($temVigente) {
+                $tiposVigentes = [];
+                foreach ($itens as $item) {
+                    $situacao = (string) ($item['situacao'] ?? '');
+                    if ($situacao === 'vigente' || $situacao === 'vence_hoje') {
+                        $tiposVigentes[] = (string) ($item['tipo'] ?? '');
+                    }
+                }
+                $tiposUnicos = array_values(array_unique($tiposVigentes));
+                $titulo = count($tiposUnicos) === 1
+                    ? ($tiposUnicos[0] === 'Serviço' ? 'Serviço com prazo vigente' : 'Produto com prazo vigente')
+                    : 'Há itens com prazos vigentes';
+                return [
+                    'baseOsId' => $baseOsId,
+                    'status' => 'em_garantia',
+                    'titulo' => $titulo,
+                    'contador' => 'Há itens com prazos vigentes',
+                    'dias_restantes' => 0,
+                    'dias_vencidos' => 0,
+                    'data_base' => $row->dataEntrega ?? ($row->data_final_garantia ?? ''),
+                    'data_base_formatada' => $row->data_entrega_br ?? '',
+                    'garantia_dias' => null,
+                    'data_final_garantia' => (string) ($row->vencimentoGarantiaGeral ?? ''),
+                    'data_final_garantia_formatada' => $row->dataEntrega ? date('d/m/Y', strtotime((string) $row->vencimentoGarantiaGeral ?? 'now')) : '',
+                    'texto' => 'Pelo menos um item desta OS ainda está dentro do prazo de garantia registrado. O defeito atual nem sempre está coberto; confirme manualmente.',
+                ];
+            }
+
+            if ($temVencido) {
+                return [
+                    'baseOsId' => $baseOsId,
+                    'status' => 'vencida',
+                    'titulo' => 'Todos os prazos comerciais vencidos',
+                    'contador' => 'Todos os prazos comerciais vencidos',
+                    'dias_restantes' => 0,
+                    'dias_vencidos' => 0,
+                    'data_base' => $row->dataEntrega ?? '',
+                    'data_base_formatada' => '',
+                    'garantia_dias' => null,
+                    'data_final_garantia' => (string) ($row->vencimentoGarantiaGeral ?? ''),
+                    'data_final_garantia_formatada' => $row->vencimentoGarantiaGeral ? date('d/m/Y', strtotime((string) $row->vencimentoGarantiaGeral)) : '',
+                    'texto' => 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.',
+                ];
+            }
+
+            return [
+                'baseOsId' => $baseOsId,
+                'status' => 'sem_garantia_registrada',
+                'titulo' => 'Zero registrado',
+                'contador' => 'Prazo zero registrado',
+                'dias_restantes' => 0,
+                'dias_vencidos' => 0,
+                'data_base' => $row->dataEntrega ?? '',
+                'data_base_formatada' => '',
+                'garantia_dias' => 0,
+                'data_final_garantia' => '',
+                'data_final_garantia_formatada' => '',
+                'texto' => 'Nenhum item da OS está com garantia vigente ou vencida no momento.',
+            ];
         }
 
         $baseOsId = (int) ($row->idOs ?? 0);
@@ -1003,6 +1144,54 @@ class Os_model extends CI_Model
         return ! $fechada || (($this->data['configuration']['control_editos'] ?? '0') === '1');
     }
 
+    /** Atualiza somente o snapshot de garantia de um vínculo da OS, com lock. */
+    public function atualizarGarantiaDoItem(string $tipo, int $idOs, int $idItem, int $dias): array
+    {
+        if (! in_array($tipo, ['produto', 'servico'], true) || $idOs <= 0 || $idItem <= 0 || ! garantiaDiasValido($dias)) {
+            return ['ok' => false, 'status' => 422, 'message' => 'Prazo comercial ou item inválido.'];
+        }
+        if (! $this->db->trans_begin()) {
+            return ['ok' => false, 'status' => 500, 'message' => 'Não foi possível iniciar a alteração da garantia.'];
+        }
+
+        $os = $this->db->query(
+            'SELECT idOs, status, faturado, garantia_modelo FROM os WHERE idOs = ? FOR UPDATE',
+            [$idOs]
+        )->row();
+        if (! $os) {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 404, 'message' => 'OS não encontrada.'];
+        }
+        if (($os->garantia_modelo ?? null) !== 'por_item' || ! $this->osEditavelNaTransacao($os) || (string) $os->status === 'Cancelado') {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 409, 'message' => 'Esta garantia não pode mais ser alterada nesta OS.'];
+        }
+
+        $tabela = $tipo === 'produto' ? 'produtos_os' : 'servicos_os';
+        $chave = $tipo === 'produto' ? 'idProdutos_os' : 'idServicos_os';
+        $item = $this->db->query(
+            "SELECT {$chave} FROM {$tabela} WHERE {$chave} = ? AND os_id = ? FOR UPDATE",
+            [$idItem, $idOs]
+        )->row();
+        if (! $item) {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 404, 'message' => 'Item não encontrado nesta OS.'];
+        }
+
+        $atualizado = $this->db->where($chave, $idItem)->where('os_id', $idOs)->update($tabela, [
+            'garantia_dias_snapshot' => $dias,
+        ]);
+        if ($atualizado === false || $this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            return ['ok' => false, 'status' => 500, 'message' => 'Não foi possível salvar a garantia do item.'];
+        }
+        if (! $this->db->trans_commit()) {
+            return ['ok' => false, 'status' => 500, 'message' => 'Não foi possível confirmar a garantia do item.'];
+        }
+
+        return ['ok' => true, 'status' => 200, 'message' => 'Garantia do item atualizada.'];
+    }
+
     /**
      * Adiciona produto e debita estoque na mesma transação.
      * A OS e o produto são bloqueados antes de validar/gravar para impedir
@@ -1024,7 +1213,7 @@ class Os_model extends CI_Model
         }
 
         $os = $this->db->query(
-            'SELECT idOs, status, faturado FROM os WHERE idOs = ? FOR UPDATE',
+            'SELECT idOs, status, faturado, garantia_modelo FROM os WHERE idOs = ? FOR UPDATE',
             [$idOs]
         )->row();
         if (! $os) {
@@ -1038,12 +1227,21 @@ class Os_model extends CI_Model
         }
 
         $produto = $this->db->query(
-            'SELECT idProdutos, precoCompra, estoque FROM produtos WHERE idProdutos = ? FOR UPDATE',
+            'SELECT idProdutos, precoCompra, estoque, garantia_dias, garantia_dias_custom, supplier_warranty_days, supplier_warranty_start_date, supplier_warranty_pass_through FROM produtos WHERE idProdutos = ? FOR UPDATE',
             [$idProduto]
         )->row();
         if (! $produto) {
             $this->db->trans_rollback();
             return ['ok' => false, 'status' => 422, 'message' => 'Produto não encontrado.'];
+        }
+        if (($os->garantia_modelo ?? null) === 'por_item') {
+            // A configuração é lida pelo helper (memoizada); o model não a possui.
+            $snapshotGarantia = garantiaSnapshotDoCatalogo($produto, 'produto', null);
+            if ($snapshotGarantia === null) {
+                $this->db->trans_rollback();
+                return ['ok' => false, 'status' => 409, 'message' => 'O prazo comercial do produto não está válido. Revise o cadastro antes de adicionar.'];
+            }
+            $data = array_merge($data, $snapshotGarantia);
         }
 
         [$descontoCalculado, $errosDesconto] = osDescontoDoItem(
@@ -1128,7 +1326,7 @@ class Os_model extends CI_Model
         }
 
         $os = $this->db->query(
-            'SELECT idOs, status, faturado FROM os WHERE idOs = ? FOR UPDATE',
+            'SELECT idOs, status, faturado, garantia_modelo FROM os WHERE idOs = ? FOR UPDATE',
             [$idOs]
         )->row();
         if (! $os) {
@@ -1141,12 +1339,20 @@ class Os_model extends CI_Model
         }
 
         $servico = $this->db->query(
-            'SELECT idServicos FROM servicos WHERE idServicos = ? FOR UPDATE',
+            'SELECT idServicos, garantia_dias, garantia_dias_custom FROM servicos WHERE idServicos = ? FOR UPDATE',
             [$idServico]
         )->row();
         if (! $servico) {
             $this->db->trans_rollback();
             return ['ok' => false, 'status' => 422, 'message' => 'Serviço não encontrado.'];
+        }
+        if (($os->garantia_modelo ?? null) === 'por_item') {
+            $snapshotGarantia = garantiaSnapshotDoCatalogo($servico, 'servico', null);
+            if ($snapshotGarantia === null) {
+                $this->db->trans_rollback();
+                return ['ok' => false, 'status' => 409, 'message' => 'O prazo comercial do serviço não está válido. Revise o cadastro antes de adicionar.'];
+            }
+            $data = array_merge($data, $snapshotGarantia);
         }
 
         [$descontoCalculado, $errosDesconto] = osDescontoDoItem(
@@ -1741,5 +1947,81 @@ class Os_model extends CI_Model
         $liquido = $valorDesconto !== null && $valorDesconto > 0 ? $valorDesconto : $valor - $desconto;
 
         return (float) round($liquido, 2);
+    }
+
+    /** Itens (produtos e serviços) da OS com o snapshot de garantia de cada um. */
+    public function getItensGarantiaDaOs(int $idOs): array
+    {
+        $itens = [];
+
+        $produtos = $this->db
+            ->select('produtos_os.idProdutos_os AS idItem, produtos.descricao AS nome, produtos_os.garantia_dias_snapshot', false)
+            ->from('produtos_os')
+            ->join('produtos', 'produtos.idProdutos = produtos_os.produtos_id')
+            ->where('produtos_os.os_id', $idOs)
+            ->get()
+            ->result();
+        foreach ($produtos as $produto) {
+            $produto->tipo = 'produto';
+            $itens[] = $produto;
+        }
+
+        $servicos = $this->db
+            ->select('servicos_os.idServicos_os AS idItem, servicos.nome AS nome, servicos_os.servico AS nomeOs, servicos_os.garantia_dias_snapshot', false)
+            ->from('servicos_os')
+            ->join('servicos', 'servicos.idServicos = servicos_os.servicos_id', 'left')
+            ->where('servicos_os.os_id', $idOs)
+            ->get()
+            ->result();
+        foreach ($servicos as $servico) {
+            if (trim((string) ($servico->nome ?? '')) === '') {
+                $servico->nome = trim((string) ($servico->nomeOs ?? ''));
+            }
+            $servico->tipo = 'servico';
+            $itens[] = $servico;
+        }
+
+        return $itens;
+    }
+
+    /**
+     * Carrega os snapshots de garantia (produto e serviço) de várias OSs em
+     * duas consultas agregadas. Retorna lista com osId, tipo, nome e snapshot.
+     */
+    public function getItensGarantiaDasOs(array $osIds): array
+    {
+        $itens = [];
+        if ($osIds === []) {
+            return $itens;
+        }
+
+        $produtos = $this->db
+            ->select('produtos_os.os_id AS osId, produtos_os.idProdutos_os AS idItem, produtos.descricao AS nome, produtos_os.garantia_dias_snapshot', false)
+            ->from('produtos_os')
+            ->join('produtos', 'produtos.idProdutos = produtos_os.produtos_id')
+            ->where_in('produtos_os.os_id', $osIds)
+            ->get()
+            ->result();
+        foreach ($produtos as $produto) {
+            $produto->tipo = 'produto';
+            $itens[] = $produto;
+        }
+
+        $servicos = $this->db
+            ->select('servicos_os.os_id AS osId, servicos_os.idServicos_os AS idItem, servicos.nome AS nome, servicos_os.servico AS nomeOs, servicos_os.garantia_dias_snapshot', false)
+            ->from('servicos_os')
+            ->join('servicos', 'servicos.idServicos = servicos_os.servicos_id', 'left')
+            ->where_in('servicos_os.os_id', $osIds)
+            ->get()
+            ->result();
+        foreach ($servicos as $servico) {
+            if (trim((string) ($servico->nome ?? '')) === '') {
+                $servico->nome = trim((string) ($servico->nomeOs ?? ''));
+            }
+            $servico->tipo = 'servico';
+            $itens[] = $servico;
+        }
+
+        return $itens;
     }
 }
