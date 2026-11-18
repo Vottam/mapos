@@ -43,22 +43,22 @@ $logoImpressao = is_string($logoConfiguradoLocal)
                         Você precisa configurar os dados do emitente. >>> <a href="<?=base_url()?>index.php/mapos/emitente">Configurar</a>
                     </div>
                 <?php else : ?>
-                    <div class="imgLogo align-middle" style="display:table-cell;width:25%;padding-right:3mm;vertical-align:middle;">
-                        <?php if ($logoImpressao !== '') : ?><img src="<?= html_escape($logoImpressao) ?>" alt="Logotipo MasterTrend" class="img-fluid" style="width:48mm;max-height:30mm;height:auto;"><?php endif; ?>
+                    <div class="imgLogo align-middle" style="display:table-cell;width:22%;padding-right:2mm;vertical-align:middle;">
+                        <?php if ($logoImpressao !== '') : ?><img src="<?= html_escape($logoImpressao) ?>" alt="Logotipo MasterTrend" class="img-fluid" style="width:44mm;max-height:28mm;height:auto;"><?php endif; ?>
                     </div>
-                    <div class="emitente" style="display:table-cell;width:45%;padding:0 3mm;vertical-align:middle;font-size:8pt;line-height:1.25;">
-                        <span style="font-size: 16px;"><b><?= $emitente->nome ?></b></span></br>
+                    <div class="emitente" style="display:table-cell;width:44%;padding:0 2mm;vertical-align:middle;font-size:8pt;line-height:1.2;">
+                        <span style="font-size: 15px;"><b><?= $emitente->nome ?></b></span><br>
                         <?php if ($emitente->cnpj != "00.000.000/0000-00") : ?>
-                            <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span></br>
+                            <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span><br>
                         <?php endif; ?>
                         <span class="align-middle">
                             <?= $emitente->rua.', '.$emitente->numero.', '.$emitente->bairro ?><br>
                             <?= $emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep ?>
                         </span>
                     </div>
-                    <div class="contatoEmitente" style="display:table-cell;width:30%;padding:0;vertical-align:middle;text-align:right;font-size:8pt;line-height:1.25;">
-                        <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span></br>
-                        <span style="font-weight: bold;"><?= $emitente->email ?></span></br>
+                    <div class="contatoEmitente" style="display:table-cell;width:34%;padding:0;vertical-align:middle;text-align:right;font-size:8pt;line-height:1.2;">
+                        <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span><br>
+                        <span style="font-weight: bold;"><?= $emitente->email ?></span><br>
                         <span style="word-break: break-word;">Responsável: <b><?= $result->nome ?></b></span>
                     </div>
                 <?php endif; ?>
@@ -105,15 +105,16 @@ $logoImpressao = is_string($logoConfiguradoLocal)
 
                 <div class="subtitle" style="width:100%;margin:1mm 0 0;padding:0.8mm 1.5mm;border:0;border-left:2px solid #f97316;background-color:#f1f5f9;color:#334155;font-family:DejaVuSans,sans-serif;font-size:8pt;line-height:1.2;font-weight:bold;text-align:left;">DADOS DO CLIENTE</div>
                 <div class="dados dados-cliente" style="display:table;width:100%;table-layout:fixed;margin:0;padding:1mm 1.5mm;border:1px solid #e2e8f0;font-weight:normal;line-height:1.25;page-break-inside:avoid;">
-                    <div style="display:table-cell;width:55%;padding-right:2mm;vertical-align:top;text-align:left;">
+                    <div style="display:table-cell;width:52%;padding-right:2mm;vertical-align:top;text-align:left;">
                         <span><b><?= $result->nomeCliente ?></b></span><br />
                         <span>CPF/CNPJ: <?= $result->documento ?></span><br />
-                        <span><?= $result->contato_cliente.' '.$result->telefone ?><?= $result->telefone && $result->celular ? ' / '.$result->celular : $result->celular ?></span><br />
+                        <span>Tel: <?= $result->contato_cliente ? $result->contato_cliente.' / ' : '' ?><?= $result->telefone ?><?= $result->celular ? ' / '.$result->celular : '' ?></span><br />
                         <span><?= $result->email ?></span><br />
                     </div>
-                    <div style="display:table-cell;width:45%;padding-left:2mm;vertical-align:top;text-align:right;">
-                        <span><b>Endereço:</b> <?= $result->rua.', '.$result->numero.', '.$result->bairro ?></span><br />
-                        <span><?= $result->complemento.' - '.$result->cidade.' - '.$result->estado ?></span><br />
+                    <div style="display:table-cell;width:48%;padding-left:2mm;vertical-align:top;text-align:left;">
+                        <span><b><?= $result->rua.', '.$result->numero ?></b></span><br />
+                        <span><?= $result->bairro ?></span><br />
+                        <span><?= $result->cidade.' / '.$result->estado ?><?= $result->complemento ? ' — '.$result->complemento : '' ?></span><br />
                         <span>CEP: <?= $result->cep ?></span><br />
                     </div>
                 </div>
@@ -311,22 +312,22 @@ $logoImpressao = is_string($logoConfiguradoLocal)
                             Você precisa configurar os dados do emitente. >>> <a href="<?=base_url()?>index.php/mapos/emitente">Configurar</a>
                         </div>
                     <?php else : ?>
-                        <div class="imgLogo align-middle" style="display:table-cell;width:25%;padding-right:3mm;vertical-align:middle;">
-                            <?php if ($logoImpressao !== '') : ?><img src="<?= html_escape($logoImpressao) ?>" alt="Logotipo MasterTrend" class="img-fluid" style="width:48mm;max-height:30mm;height:auto;"><?php endif; ?>
+                        <div class="imgLogo align-middle" style="display:table-cell;width:22%;padding-right:2mm;vertical-align:middle;">
+                            <?php if ($logoImpressao !== '') : ?><img src="<?= html_escape($logoImpressao) ?>" alt="Logotipo MasterTrend" class="img-fluid" style="width:44mm;max-height:28mm;height:auto;"><?php endif; ?>
                         </div>
-                        <div class="emitente" style="display:table-cell;width:45%;padding:0 3mm;vertical-align:middle;font-size:8pt;line-height:1.25;">
-                            <span style="font-size: 16px;"><b><?= $emitente->nome ?></b></span></br>
+                        <div class="emitente" style="display:table-cell;width:44%;padding:0 2mm;vertical-align:middle;font-size:8pt;line-height:1.2;">
+                            <span style="font-size: 15px;"><b><?= $emitente->nome ?></b></span><br>
                             <?php if ($emitente->cnpj != "00.000.000/0000-00") : ?>
-                                <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span></br>
+                                <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span><br>
                             <?php endif; ?>
                             <span class="align-middle">
                                 <?= $emitente->rua.', '.$emitente->numero.', '.$emitente->bairro ?><br>
                                 <?= $emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep ?>
                             </span>
                         </div>
-                        <div class="contatoEmitente" style="display:table-cell;width:30%;padding:0;vertical-align:middle;text-align:right;font-size:8pt;line-height:1.25;">
-                            <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span></br>
-                            <span style="font-weight: bold;"><?= $emitente->email ?></span></br>
+                        <div class="contatoEmitente" style="display:table-cell;width:34%;padding:0;vertical-align:middle;text-align:right;font-size:8pt;line-height:1.2;">
+                            <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span><br>
+                            <span style="font-weight: bold;"><?= $emitente->email ?></span><br>
                             <span style="word-break: break-word;">Responsável: <b><?= $result->nome ?></b></span>
                         </div>
                     <?php endif; ?>
@@ -376,15 +377,16 @@ $totalProdutos = 0; ?>
 
                     <div class="subtitle" style="width:100%;margin:1mm 0 0;padding:0.8mm 1.5mm;border:0;border-left:2px solid #f97316;background-color:#f1f5f9;color:#334155;font-family:DejaVuSans,sans-serif;font-size:8pt;line-height:1.2;font-weight:bold;text-align:left;">DADOS DO CLIENTE</div>
                     <div class="dados dados-cliente" style="display:table;width:100%;table-layout:fixed;margin:0;padding:1mm 1.5mm;border:1px solid #e2e8f0;font-weight:normal;line-height:1.25;page-break-inside:avoid;">
-                        <div style="display:table-cell;width:55%;padding-right:2mm;vertical-align:top;text-align:left;">
+                        <div style="display:table-cell;width:52%;padding-right:2mm;vertical-align:top;text-align:left;">
                             <span><b><?= $result->nomeCliente ?></b></span><br />
                             <span>CPF/CNPJ: <?= $result->documento ?></span><br />
-                            <span><?= $result->contato_cliente.' '.$result->telefone ?><?= $result->telefone && $result->celular ? ' / '.$result->celular : $result->celular ?></span><br />
+                            <span>Tel: <?= $result->contato_cliente ? $result->contato_cliente.' / ' : '' ?><?= $result->telefone ?><?= $result->celular ? ' / '.$result->celular : '' ?></span><br />
                             <span><?= $result->email ?></span><br />
                         </div>
-                        <div style="display:table-cell;width:45%;padding-left:2mm;vertical-align:top;text-align:right;">
-                            <span><b>Endereço:</b> <?= $result->rua.', '.$result->numero.', '.$result->bairro ?></span><br />
-                            <span><?= $result->complemento.' - '.$result->cidade.' - '.$result->estado ?></span><br />
+                        <div style="display:table-cell;width:48%;padding-left:2mm;vertical-align:top;text-align:left;">
+                            <span><b><?= $result->rua.', '.$result->numero ?></b></span><br />
+                            <span><?= $result->bairro ?></span><br />
+                            <span><?= $result->cidade.' / '.$result->estado ?><?= $result->complemento ? ' — '.$result->complemento : '' ?></span><br />
                             <span>CEP: <?= $result->cep ?></span><br />
                         </div>
                     </div>
@@ -571,22 +573,22 @@ $totalProdutos = 0; ?>
                             Você precisa configurar os dados do emitente. >>> <a href="<?= base_url() ?>index.php/mapos/emitente">Configurar</a>
                         </div>
                     <?php else : ?>
-                        <div class="imgLogo align-middle" style="display:table-cell;width:25%;padding-right:3mm;vertical-align:middle;">
-                            <?php if ($logoImpressao !== '') : ?><img src="<?= html_escape($logoImpressao) ?>" alt="Logotipo MasterTrend" class="img-fluid" style="width:48mm;max-height:30mm;height:auto;"><?php endif; ?>
+                        <div class="imgLogo align-middle" style="display:table-cell;width:22%;padding-right:2mm;vertical-align:middle;">
+                            <?php if ($logoImpressao !== '') : ?><img src="<?= html_escape($logoImpressao) ?>" alt="Logotipo MasterTrend" class="img-fluid" style="width:44mm;max-height:28mm;height:auto;"><?php endif; ?>
                         </div>
-                        <div style="display:table-cell;width:45%;padding:0 3mm;vertical-align:middle;font-size:8pt;line-height:1.25;">
-                            <span style="font-size: 16px;"><b><?= $emitente->nome ?></b></span></br>
+                        <div style="display:table-cell;width:44%;padding:0 2mm;vertical-align:middle;font-size:8pt;line-height:1.2;">
+                            <span style="font-size: 15px;"><b><?= $emitente->nome ?></b></span><br>
                             <?php if ($emitente->cnpj != "00.000.000/0000-00") : ?>
-                                <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span></br>
+                                <span class="align-middle">CNPJ: <?= $emitente->cnpj ?></span><br>
                             <?php endif; ?>
                             <span class="align-middle">
                                 <?= $emitente->rua.', '.$emitente->numero.', '.$emitente->bairro ?><br>
                                 <?= $emitente->cidade.' - '.$emitente->uf.' - '.$emitente->cep ?>
                             </span>
                         </div>
-                        <div style="display:table-cell;width:30%;padding:0;vertical-align:middle;text-align:right;font-size:8pt;line-height:1.25;">
-                            <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span></br>
-                            <span style="font-weight: bold;"><?= $emitente->email ?></span></br>
+                        <div style="display:table-cell;width:34%;padding:0;vertical-align:middle;text-align:right;font-size:8pt;line-height:1.2;">
+                            <span style="font-weight: bold;">Tel: <?= $emitente->telefone ?></span><br>
+                            <span style="font-weight: bold;"><?= $emitente->email ?></span><br>
                             <span style="word-break: break-word;">Responsável: <b><?= $result->nome ?></b></span>
                         </div>
                     <?php endif; ?>
