@@ -336,9 +336,6 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                 </tbody>
                             </table>
                         <?php } ?>
-                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?>
-                            <p><?php echo htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8'); ?></p>
-                        <?php } ?>
                         <table class="table table-bordered table-condensed">
                             <?php if ($totalProdutos != 0 || $totalServico != 0) {
                                 if ($result->valor_desconto != 0) {

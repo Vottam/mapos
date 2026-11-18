@@ -313,7 +313,7 @@ if (! function_exists('layoutAssetVersion')) {
      */
     function layoutAssetVersion(): string
     {
-        return 'mapos-531-item-warranty-return-20261117-r2';
+        return 'mapos-531-os-smart-save-pdf-layout-20261117-r2';
     }
 }
 

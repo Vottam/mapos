@@ -562,7 +562,7 @@ class Os_model extends CI_Model
                 'garantia_dias' => 0,
                 'data_final_garantia' => '',
                 'data_final_garantia_formatada' => '',
-                'texto' => 'Os prazos comerciais não foram definidos para os itens desta OS; os direitos legais permanecem aplicáveis.',
+                'texto' => 'Nenhum item da OS está com garantia vigente ou vencida no momento.',
             ];
         }
 

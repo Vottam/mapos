@@ -125,16 +125,22 @@ if (! function_exists('garantiaEditorItem')) {
                 . '</form>');
         }
 
-        $classe = 'grid min-w-44 gap-1';
+        $tipoHtml = htmlspecialchars($contexto, ENT_QUOTES, 'UTF-8');
+        $chaveHtml = htmlspecialchars($contexto . ':' . $idItem, ENT_QUOTES, 'UTF-8');
+        $nomeItem = (string) (garantiaValorDoItem($item, 'descricao') ?? garantiaValorDoItem($item, 'nome') ?? ('Item #' . $idItem));
+        $nomeItemHtml = htmlspecialchars($nomeItem, ENT_QUOTES, 'UTF-8');
 
-        return new HtmlSeguro('<form method="post" action="' . $rotaHtml . '" class="' . $classe . '" data-os-acao="' . ($contexto === 'servico' ? 'servico' : 'produto') . '">'
+        return new HtmlSeguro('<form method="post" action="' . $rotaHtml . '" class="grid min-w-44 gap-1" data-os-garantia-item="1" data-os-garantia-id="' . $chaveHtml . '" data-garantia-tipo="' . $tipoHtml . '" data-garantia-nome="' . $nomeItemHtml . '">'
             . $csrfHidden
-            . '<input type="hidden" name="' . $campoOperacao . '" value="' . $idOperacaoHtml . '">'
-            . '<input type="hidden" name="idItem" value="' . $idItemHtml . '">' . $tipoHidden
-            . '<label class="sr-only" for="' . $campoDias . '">Prazo comercial informado, em dias</label>'
-            . '<input id="' . $campoDias . '" name="dias" type="number" min="0" step="1" inputmode="numeric" value="' . $diasHtml . '" class="form-input" required>'
-            . '<button type="submit" class="text-caption text-primary underline">Salvar prazo</button>'
-            . '<small class="text-caption text-muted">Prazo comercial; os direitos legais permanecem aplicáveis.</small>'
+            . '<input type="hidden" name="idOs" value="' . $idOperacaoHtml . '">'
+            . '<input type="hidden" name="idItem" value="' . $idItemHtml . '">'
+            . '<input type="hidden" name="tipo" value="' . $tipoHtml . '">'
+            . '<label class="sr-only" for="' . $campoDias . '">Prazo de garantia de ' . $nomeItemHtml . ', em dias</label>'
+            . '<div class="flex items-center gap-1">'
+            . '<input id="' . $campoDias . '" name="dias" type="number" min="0" step="1" inputmode="numeric" value="' . $diasHtml . '" class="form-input" data-garantia-dias required>'
+            . '<span class="text-caption text-muted">dias</span>'
+            . '</div>'
+            . '<small class="text-caption text-muted" data-garantia-item-status role="status" aria-live="polite">Salvo</small>'
             . '<small class="text-caption text-warning" data-garantia-zero-aviso' . ($dias === 0 ? '' : ' hidden') . ' aria-live="polite">' . htmlspecialchars(garantiaAvisoZero(), ENT_QUOTES, 'UTF-8') . '</small>'
             . '</form>');
     }
@@ -153,17 +159,10 @@ if (! function_exists('garantiaHtmlItemImpressao')) {
     }
 }
 
-if (! function_exists('garantiaAvisoLegal')) {
-    function garantiaAvisoLegal(): string
-    {
-        return 'Prazo comercial por item. Os direitos previstos na legislação de defesa do consumidor permanecem aplicáveis; prazos legais são independentes deste registro e não são somados automaticamente.';
-    }
-}
-
 if (! function_exists('garantiaAvisoZero')) {
     function garantiaAvisoZero(): string
     {
-        return 'Prazo comercial informado: 0 dias. Os direitos previstos na legislação de defesa do consumidor permanecem aplicáveis.';
+        return 'Prazo informado: 0 dias.';
     }
 }
 

@@ -175,8 +175,6 @@ $urlPath = static fn (string $url): string => (string) (parse_url($url, PHP_URL_
                         'help' => 'Campo legado da venda histórica. Prazos por item não são representados por este valor.',
                         'attrs' => ['min' => 0, 'step' => 1, 'inputmode' => 'numeric'],
                     ]) ?>
-                <?php } else { ?>
-                    <p class="sm:col-span-2 text-caption text-muted">A garantia comercial é registrada individualmente em cada item. Os direitos legais permanecem aplicáveis e não são somados automaticamente.</p>
                 <?php } ?>
             </div>
         </section>

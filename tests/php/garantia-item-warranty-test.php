@@ -18,7 +18,7 @@ $casos = [
     ['Snapshot do catálogo com prazo personalizado preservado', garantiaSnapshotDoCatalogo((object) ['garantia_dias' => 365]) === ['garantia_dias_snapshot' => 365], true],
     ['Snapshot do catálogo rejeita prazo inválido', garantiaSnapshotDoCatalogo((object) ['garantia_dias' => -1]) === null, true],
     ['Rótulo de item não usa data presumida', garantiaRotuloItem((object) ['garantia_dias_snapshot' => 365]) === '365 dias', true],
-    ['Aviso zero preserva os direitos legais', strpos(garantiaAvisoZero(), 'permanecem aplicáveis') !== false, true],
+    ['Prazo zero tem rótulo objetivo', garantiaAvisoZero() === 'Prazo informado: 0 dias.', true],
 ];
 
 $falhas = 0;

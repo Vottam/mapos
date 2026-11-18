@@ -6,7 +6,15 @@
 define('BASEPATH', __DIR__ . '/../../');
 require_once BASEPATH . 'application/helpers/garantia_helper.php';
 
-$db = new mysqli(getenv('DB_HOST') ?: '192.168.96.2', getenv('DB_USER') ?: 'mapos_staging', getenv('DB_PASS') ?: 'staging_mapos_2026', getenv('DB_NAME') ?: 'mapos_clone_531');
+$dbHost = getenv('DB_HOST');
+$dbUser = getenv('DB_USER');
+$dbPass = getenv('DB_PASS');
+$dbName = getenv('DB_NAME');
+if ($dbHost === false || $dbUser === false || $dbPass === false || $dbName === false) {
+    fwrite(STDERR, 'DB_HOST, DB_USER, DB_PASS e DB_NAME devem vir de uma fonte protegida.' . PHP_EOL);
+    exit(2);
+}
+$db = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
 if ($db->connect_errno) { fwrite(STDERR, 'CONNECT_FAIL ' . $db->connect_error . PHP_EOL); exit(2); }
 $db->set_charset('utf8mb4');
 $PASS = 0; $FAIL = 0; $falhas = [];
@@ -60,8 +68,8 @@ chk('snapshot 365 = 365', garantiaSnapshotDoCatalogo((object) ['garantia_dias' =
 chk('snapshot invalido null', garantiaSnapshotDoCatalogo((object) ['garantia_dias' => -1]) === null);
 chk('rotulo 365 = 365 dias', garantiaRotuloItem((object) ['garantia_dias_snapshot' => 365]) === '365 dias');
 chk('rotulo null = nao informado', garantiaRotuloItem((object) ['garantia_dias_snapshot' => null]) === 'Não informado');
-chk('aviso zero ok', strpos(garantiaAvisoZero(), 'permanecem aplic') !== false);
-chk('aviso legal ok', strpos(garantiaAvisoLegal(), 'legislação de defesa do consumidor') !== false);
+chk('aviso zero objetivo', garantiaAvisoZero() === 'Prazo informado: 0 dias.');
+chk('aviso legal removido', !function_exists('garantiaAvisoLegal'));
 
 echo "\n== CRUD REAL ==\n";
 $db->query("INSERT INTO produtos (codDeBarra, descricao, unidade, precoCompra, precoVenda, estoque, estoqueMinimo, saida, entrada, garantia_dias) VALUES ('TESTER531-001', 'Produto garantia 30', 'UN', 100, 150, 10, 0, 1, 1, 30)");

@@ -274,7 +274,7 @@ function garantiaVisual(item) {
                 caixa: 'bg-neutral-soft',
                 texto: 'text-neutral-ink',
                 titulo: 'Zero registrado',
-                detalhe: 'Os prazos comerciais não foram definidos; os direitos legais permanecem aplicáveis.',
+                detalhe: 'Todos os itens estão registrados com prazo zero.',
             };
         }
         const vigentes = itens.filter((it) => ['vigente', 'vence_hoje'].includes(String(it.situacao ?? '')));

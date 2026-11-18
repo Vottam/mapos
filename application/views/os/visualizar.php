@@ -64,7 +64,8 @@ $textos = [
 ];
 
 ?>
-<div class="flex flex-col gap-4 pt-2 pb-8" <?= js_module('os/tela') ?> data-os-aba="<?= e($aba) ?>">
+<div class="flex flex-col gap-4 pt-2 pb-8" <?= js_module('os/tela') ?> data-os-aba="<?= e($aba) ?>" data-os-garantia-root data-os-id="<?= $idOs ?>">
+    <div <?= js_module('os/garantias-pendentes') ?> hidden></div>
     <header class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-3">
@@ -74,6 +75,12 @@ $textos = [
             <p class="text-caption [overflow-wrap:anywhere] text-muted"><?= e($os->nomeCliente . ' · Técnico: ' . $os->nome) ?></p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <?php if (($os->garantia_modelo ?? null) === 'por_item' && ($pode['garantia_item'] ?? false)) { ?>
+                <div class="flex items-center gap-2">
+                    <?= component('button', ['label' => 'Salvar alterações', 'icon' => 'save', 'variant' => 'outline', 'size' => 'sm', 'attrs' => ['type' => 'button', 'data-os-garantia-save-all' => '1', 'title' => 'Salva apenas os prazos de garantia alterados nesta tela.']]) ?>
+                    <span class="text-caption text-muted" data-os-garantia-status role="status" aria-live="polite">Salvo</span>
+                </div>
+            <?php } ?>
             <?php if ($pode['faturar']) { ?>
                 <?= component('button', ['label' => 'Faturar', 'icon' => 'circle-dollar-sign', 'variant' => 'outline', 'attrs' => ['data-modal-abrir' => 'faturar-os']]) ?>
             <?php } ?>
@@ -165,7 +172,7 @@ $textos = [
                     </tbody>
                 </table>
             </div>
-            <p class="mt-2 text-caption text-muted">Prazos por item; o último vencimento comercial da OS é o maior vencimento dos itens com prazo positivo. Não somam-se automaticamente os direitos legais aos prazos comerciais registrados.</p>
+            <p class="mt-2 text-caption text-muted">Prazos por item; o vencimento geral é a maior data de vencimento entre os itens com prazo positivo.</p>
         </section>
         <?php } ?>
 

@@ -63,7 +63,6 @@ $errosDeCampo = array_diff_key($erros, ['_geral' => true]);
         <section class="grid gap-4 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 sm:p-6" aria-label="Prazo comercial informado" <?= js_module('garantia/catalogo') ?>>
             <div class="sm:col-span-2">
                 <h2 class="text-heading-sm text-text">Garantia (dias)</h2>
-                <p class="mt-1 text-caption text-muted">Prazo informado para a operação. O prazo não afasta os direitos legais do consumidor.</p>
             </div>
             <?= component('input', [
                 'name' => 'garantia_dias',

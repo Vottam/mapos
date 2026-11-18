@@ -147,9 +147,6 @@ $totalProdutos = 0;
                             </tbody>
                         </table>
                     </div>
-                    <?php if (($result->garantia_modelo ?? null) === 'por_item'): ?>
-                        <p class="small text-muted"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
-                    <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if ($totalProdutos != 0) : ?>

@@ -272,7 +272,7 @@ class Equipamentos_model extends CI_Model
                 return $this->montarCriticaPorItem($baseOsId, 'vencida', 'Todos os prazos comerciais vencidos', 'Todos os prazos comerciais vencidos', 'Verifique o histórico antes de decidir se haverá atendimento por cortesia ou cobrança normal.');
             }
 
-            return $this->montarCriticaPorItem($baseOsId, 'sem_garantia_registrada', 'Zero registrado', 'Prazo zero registrado', 'Os prazos comerciais não foram definidos para os itens desta OS; os direitos legais permanecem aplicáveis.');
+            return $this->montarCriticaPorItem($baseOsId, 'sem_garantia_registrada', 'Zero registrado', 'Prazo zero registrado', 'Nenhum item da OS está com garantia vigente ou vencida no momento.');
         }
 
         $baseOsId = (int) ($row->idOs ?? 0);

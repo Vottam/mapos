@@ -211,9 +211,6 @@ $garantiaAte = ($result->garantia_modelo ?? null) === 'por_item'
                     </div>
                 <?php endif; ?>
 
-                <?php if (($result->garantia_modelo ?? null) === 'por_item'): ?>
-                    <p class="small text-muted"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
-                <?php endif; ?>
 
                 <?php if ($totalProdutos != 0 || $totalServico != 0) : ?>
                     <div class="pagamento">

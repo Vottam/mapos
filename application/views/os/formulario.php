@@ -225,7 +225,7 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
                                 </tbody>
                             </table>
                         </div>
-                        <p class="mt-2 text-caption text-muted">Prazos por item; o último vencimento comercial da OS é o maior vencimento dos itens com prazo positivo. Não somam-se automaticamente os direitos legais aos prazos comerciais registrados.</p>
+                        <p class="mt-2 text-caption text-muted">Prazos por item; o vencimento geral é a maior data de vencimento entre os itens com prazo positivo.</p>
                     </div>
                 <?php } ?>
                 <?php if ($editando && ($os->garantia_modelo ?? null) !== 'por_item') { ?>
@@ -247,8 +247,6 @@ $statusOpcoes = array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STA
                         ])) ?>
                         <input<?= componenteAtributos($oculto('garantias_id')) ?>>
                     </div>
-                <?php } else { ?>
-                    <p class="sm:col-span-2 text-caption text-muted">A garantia comercial é registrada individualmente em cada produto ou serviço. Os direitos legais permanecem aplicáveis e não são somados automaticamente.</p>
                 <?php } ?>
                 <div class="sm:col-span-2 rounded-lg border border-border-subtle bg-surface-subtle p-3" data-garantia-retorno>
                     <label class="flex items-start gap-2 text-caption text-text">

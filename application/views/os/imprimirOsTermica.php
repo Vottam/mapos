@@ -1,5 +1,6 @@
 <?php $totalServico = 0;
-$totalProdutos = 0; ?>
+$totalProdutos = 0;
+$logoImpressao = base_url('assets/img/mastertrend-logo.png'); ?>
 <!DOCTYPE html>
 <html lang="pt-br">
 
@@ -89,7 +90,7 @@ $totalProdutos = 0; ?>
                                     <tr>
                                         <td colspan="5" class="alert">Você precisa configurar os dados do emitente. >>><a href="<?php echo base_url(); ?>index.php/mapos/emitente">Configurar</a>
                                             <<<</td> </tr> <?php } else { ?>
-                                    <td style="width: 25% ;text-align: center" ><img src="<?php echo convertUrlToUploadsPath($emitente->url_logo); ?>" style="max-height: 100px"></td>
+                                    <td style="width: 25% ;text-align: center" ><img src="<?= html_escape($logoImpressao) ?>" style="max-height: 100px"></td>
                                     <tr>
                                         <td colspan="5" style="text-align: center; font-size: 11px;" >
                                             <span style="font-size: 12px; text-transform: uppercase"><b><?php echo $emitente->nome; ?></b></br></span>
@@ -255,9 +256,6 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                             </tbody>
                         </table>
                     <?php } ?>
-                    <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
-                        <p style="font-size: 10px;"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
-                    <?php endif; ?>
                     <table class="table table-bordered table-condensed">
                         <tbody>
                             <tr>
@@ -308,7 +306,7 @@ $totalProdutos = 0; ?>
                                             <td colspan="5" class="alert">Você precisa configurar os dados do emitente. >>><a href="<?php echo base_url(); ?>index.php/mapos/emitente">Configurar</a><<<</td>
                                         </tr>
                                     <?php } else { ?>
-                                        <td style="width: 25% ;text-align: center" ><img src="<?php echo convertUrlToUploadsPath($emitente->url_logo); ?>" style="max-height: 100px"></td>
+                                        <td style="width: 25% ;text-align: center" ><img src="<?= html_escape($logoImpressao) ?>" style="max-height: 100px"></td>
                                     <tr>
                                         <td colspan="5" style="text-align: center; font-size: 11px;" >
                                             <span style="font-size: 12px; text-transform: uppercase"><b><?php echo $emitente->nome; ?></b></br></span>
@@ -488,9 +486,6 @@ if (!empty($result->cidade) || !empty($result->estado) || !empty($result->cep)) 
                                 </tbody>
                             </table>
                         <?php } ?>
-                        <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
-                            <p style="font-size: 10px;"><?= htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8') ?></p>
-                        <?php endif; ?>
                         <table class="table table-bordered table-condensed">
                             <tbody>
                                 <tr>

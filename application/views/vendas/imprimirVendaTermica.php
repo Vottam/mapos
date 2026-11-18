@@ -131,9 +131,6 @@
                                             </h4>
                                         </td>
                                     </tr>
-                                    <?php if (($result->garantia_modelo ?? null) === 'por_item') : ?>
-                                        <tr><td colspan="4"><small><?php echo htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8'); ?></small></td></tr>
-                                    <?php endif; ?>
                                 </tbody>
                                 <?php if (in_array($result->status, ['Finalizado', 'Orçamento', 'Faturado', 'Aberto', 'Em Andamento', 'Aguardando Peças']) && $qrCode): ?>
                                     <tr>

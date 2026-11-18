@@ -133,7 +133,6 @@ $caixa = 'rounded-xl border border-border bg-surface p-4 sm:p-6';
 
         <section class="<?= e($caixa) ?>" aria-labelledby="secao-garantia" <?= js_module('garantia/catalogo') ?>>
             <h2 id="secao-garantia" class="text-heading-sm text-text">Garantia (dias)</h2>
-            <p class="mt-1 text-caption text-muted">Prazo informado para a operação. O prazo não afasta os direitos legais do consumidor.</p>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
                 <?= component('input', [
                     'name' => 'garantia_dias',

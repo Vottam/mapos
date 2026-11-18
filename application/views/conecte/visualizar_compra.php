@@ -97,7 +97,7 @@
                                         </td>
 
                                         <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?>
-                                            <td colspan="2"><b>Garantia: </b>Consulte o prazo de cada produto abaixo. Os direitos legais permanecem aplicáveis.</td>
+                                            <td colspan="2"><b>Garantia: </b>Consulte o prazo de cada produto abaixo.</td>
                                         <?php } else { ?>
                                             <td>
                                                 <?php if ($result->garantia) { ?>
@@ -159,9 +159,6 @@
                             </table>
                         <?php
                         } ?>
-                        <?php if (($result->garantia_modelo ?? null) === 'por_item') { ?>
-                            <p><?php echo htmlspecialchars(garantiaAvisoLegal(), ENT_QUOTES, 'UTF-8'); ?></p>
-                        <?php } ?>
 
                         <hr />
 
