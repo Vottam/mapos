@@ -15,7 +15,7 @@ $colunas = [
 
 if (($venda->garantia_modelo ?? null) === 'por_item') {
     $colunas[] = [
-        'label' => 'Garantia por item',
+        'label' => 'Garantia',
         'render' => fn ($p) => garantiaEditorItem($p, 'venda', (int) $venda->idVendas, (int) $p->idItens, site_url('vendas/alterarGarantiaItem'), $pode['itens']),
     ];
 }
