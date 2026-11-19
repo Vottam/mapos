@@ -18,10 +18,12 @@ class Vendas_model extends CI_Model
 public function listar(array $filtros, int $limite, int $offset): array
     {
         $totalItens = '(SELECT COALESCE(SUM(itens_de_vendas.subTotal), 0) FROM itens_de_vendas WHERE itens_de_vendas.vendas_id = vendas.idVendas)';
+        $vencimentoGeral = '(SELECT MAX(DATE_ADD(vendas.dataEntrega, INTERVAL i.garantia_dias_snapshot DAY)) FROM itens_de_vendas i WHERE i.vendas_id = vendas.idVendas AND i.garantia_dias_snapshot > 0 AND vendas.dataEntrega IS NOT NULL)';
 
-        $this->db->select('vendas.idVendas, vendas.dataVenda, vendas.status, vendas.faturado, vendas.garantia, vendas.desconto, vendas.valor_desconto, vendas.clientes_id, vendas.usuarios_id');
+        $this->db->select('vendas.idVendas, vendas.dataVenda, vendas.status, vendas.faturado, vendas.garantia, vendas.desconto, vendas.valor_desconto, vendas.clientes_id, vendas.usuarios_id, vendas.statusOperacionalEntrega, vendas.dataEntrega, vendas.garantia_modelo');
         $this->db->select('clientes.nomeCliente, usuarios.nome AS vendedor');
         $this->db->select($totalItens . ' AS totalItens', false);
+        $this->db->select($vencimentoGeral . ' AS vencimento_geral', false);
 
         $this->aplicarFiltros($filtros);
 

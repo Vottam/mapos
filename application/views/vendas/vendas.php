@@ -24,10 +24,37 @@ $colunas = [
     ['key' => 'vendedor', 'label' => 'Vendedor', 'nowrap' => true, 'hide_until' => '2xl'],
     ['label' => 'Data', 'align' => 'right', 'nowrap' => true, 'hide_until' => 'lg', 'render' => fn ($v) => dataBr($v->dataVenda)],
     ['label' => 'Garantia', 'nowrap' => true, 'hide_until' => '2xl', 'render' => function ($v) {
+        if (($v->garantia_modelo ?? null) === 'por_item') {
+            // Mesmo motor da listagem de OS: vencimento geral = maior
+            // dataEntrega + garantia_dias_snapshot positivo dos itens
+            // (subquery vencimento_geral do model). Nenhuma data é inventada.
+            $pill = garantiaPillPorItem($v->dataEntrega ?? null, $v->vencimento_geral ?? null);
+            $rotulo = (string) ($pill['label'] ?? '');
+            if ($rotulo === 'Aguardando entrega' || $rotulo === '') {
+                return component('pill-status', ['label' => 'Ag. Ent.', 'variant' => 'neutral', 'dot' => false, 'attrs' => ['title' => 'Aguardando entrega']]);
+            }
+            if ($rotulo === 'Zero registrado') {
+                return component('pill-status', ['label' => 'Sem garantia', 'variant' => 'neutral', 'dot' => false, 'attrs' => ['title' => 'Sem garantia comercial positiva']]);
+            }
+            $variant = $pill['variant'] ?? 'neutral';
+            $titulo = (string) ($pill['title'] ?? ('Último vencimento comercial: ' . $rotulo));
+            if ($variant === 'danger') {
+                return component('pill-status', ['label' => 'Venceu em ' . $rotulo, 'variant' => 'danger', 'dot' => false, 'attrs' => ['title' => $titulo]]);
+            }
+            return component('pill-status', ['label' => 'Até ' . $rotulo, 'variant' => $variant, 'dot' => false, 'attrs' => ['title' => $titulo]]);
+        }
         $garantia = vendaGarantiaPill(vendaGarantiaAte($v->dataVenda, $v->garantia));
 
         return $garantia !== null ? component('pill-status', $garantia) : 'Sem garantia';
     }],
+    ['label' => 'Entrega', 'nowrap' => true, 'hide_until' => '2xl', 'render' => fn ($v) => (function ($v) {
+        $entrega = strcasecmp(trim((string) ($v->statusOperacionalEntrega ?? 'Pendente')), 'Entregue') === 0;
+        if ($entrega) {
+            $titulo = 'Entrega confirmada em ' . ($v->dataEntrega ? date('d/m/Y', strtotime((string) $v->dataEntrega)) : 'data não informada');
+            return component('pill-status', ['label' => 'Entregue', 'variant' => 'success', 'attrs' => ['title' => $titulo]]);
+        }
+        return component('pill-status', ['label' => 'Pendente', 'variant' => 'warning', 'dot' => false, 'attrs' => ['title' => 'Entrega pendente; a garantia ainda não conta.']]);
+    })($v)],
     ['label' => 'Status', 'nowrap' => true, 'render' => fn ($v) => component('pill-status', osStatusPill($v->status))],
     ['label' => 'Total', 'align' => 'right', 'nowrap' => true, 'render' => fn ($v) => dinheiro($v->total)],
     ['label' => 'Ações', 'align' => 'right', 'nowrap' => true, 'render' => function ($v) use ($pode, $controle_edicao) {
@@ -92,7 +119,7 @@ $resumo = ($total === 1 ? '1 venda' : number_format($total, 0, ',', '.') . ' ven
             'name' => 'status',
             'label' => 'Status',
             'placeholder' => 'Todos',
-            'options' => array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STATUS_VARIANTES)),
+            'options' => ['abertas' => 'Em aberto (todas)'] + array_combine(array_keys(OS_STATUS_VARIANTES), array_keys(OS_STATUS_VARIANTES)),
             'selected' => $filtros['status'] ?? null,
         ]) ?>
         <?= component('input', [
